@@ -232,6 +232,11 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
     snprintf(displayBuffer, sizeof(displayBuffer), "%.1fkbps", status.modeminfo.bitrate);
     display->drawString(128 + x,  34 + y, displayBuffer);
   }
+  if (status.vbat != 0.0)
+  {
+      display->setTextAlignment(TEXT_ALIGN_LEFT);
+      display->drawString(x, 45 + y, "Bat: " + String(status.vbat) + "V");
+  }
 }
 
 void drawFrame4(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
