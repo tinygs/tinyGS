@@ -236,6 +236,8 @@ private:
   };
 
   ConfigManager();
+  void handleRadioBegin();
+  void handleGetAllPackets();
   void handleRoot();
   void handleDashboard();
   void handleRefreshConsole();

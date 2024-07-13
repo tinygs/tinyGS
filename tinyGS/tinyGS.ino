@@ -314,9 +314,10 @@ void handleSerial()
 // function to print controls
 void printControls()
 {
-  Log::console(PSTR("------------- Controls -------------"));
+  Log::console(PSTR("----------------- Controls -----------------"));
   Log::console(PSTR("!e - erase board config and reset"));
   Log::console(PSTR("!b - reboot the board"));
   Log::console(PSTR("!p - send test packet to nearby stations (to check transmission)"));
-  Log::console(PSTR("------------------------------------"));
+  Log::console(PSTR("<message> - send packet with custom message"));
+  Log::console(PSTR("--------------------------------------------"));
 }

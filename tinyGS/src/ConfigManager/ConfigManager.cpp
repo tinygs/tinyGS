@@ -83,6 +83,8 @@ ConfigManager::ConfigManager()
  #endif
   })
 {
+  server.on("/radioBegin", [this] { handleRadioBegin(); });
+  server.on("/packets", [this] { handleGetAllPackets(); });
   server.on(ROOT_URL, [this] { handleRoot(); });
   server.on(CONFIG_URL, [this] { handleConfig(); });
   server.on(DASHBOARD_URL, [this] { handleDashboard(); });
@@ -127,6 +129,47 @@ ConfigManager::ConfigManager()
   addParameterGroup(&groupAdvanced);
 }
 
+void ConfigManager::handleRadioBegin()
+{
+  if (!Radio::getInstance().isReady())
+  {
+    server.send(200, "application/json; charset=UTF-8", "{\"message\":\"Radio is not ready to begin\"}");
+    Log::console(PSTR("Radio is not ready to begin"));
+    return;
+  }
+  if (Radio::getInstance().begin() == 0)
+  {
+    server.send(200, "application/json; charset=UTF-8", "{\"message\":\"Radio begun successfully after /radioBegin request\"}");
+    Log::console(PSTR("Radio begun successfully after /radioBegin request"));
+    return;
+  }
+  server.send(200, "application/json; charset=UTF-8", "{\"message\":\"An error occurred while trying to start the Radio\"}");
+  Log::console(PSTR("An error occurred while trying to start the Radio"));
+}
+
+void ConfigManager::handleGetAllPackets()
+{
+  String string = String(FPSTR("{\"message\":\"Packets were fetched successfully\",\"packets\":["));
+  for (size_t i = 0; i < status.allPackets.size(); i++)
+  {
+    string += "{\"time\":\"" + status.allPackets.at(i).time
+      + "\",\"encoded_message\":\"" + status.allPackets.at(i).encoded_message
+      + "\",\"decoded_message\":\"" + status.allPackets.at(i).decoded_message
+      + "\",\"rssi\":" + status.allPackets.at(i).rssi
+      + ",\"snr\":" + status.allPackets.at(i).snr
+      + ",\"frequencyerror\":" + status.allPackets.at(i).frequencyerror
+      + ",\"crc_error\":" + status.allPackets.at(i).crc_error
+      + "}";
+    if (i < status.allPackets.size() - 1)
+    {
+      string += ",";
+    }
+  }
+  string += "]}";
+  server.send(200, "application/json; charset=UTF-8", string);
+  Log::console(PSTR("Endpoint /packets was requested and handled successfully"));
+}
+
 void ConfigManager::handleRoot()
 {
   // -- Let IotWebConf2 test and handle captive portal requests.
@@ -149,7 +192,7 @@ void ConfigManager::handleRoot()
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
 
-  server.sendHeader("Content-Length", String(s.length()));
+  // server.sendHeader("Content-Length", String(s.length()));
   server.send(200, "text/html; charset=UTF-8", s);
 }
 
@@ -256,7 +299,7 @@ void ConfigManager::handleDashboard()
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
 
-  server.sendHeader("Content-Length", String(s.length()));
+  // server.sendHeader("Content-Length", String(s.length()));
   server.send(200, "text/html; charset=UTF-8", s);
 }
 
@@ -304,7 +347,15 @@ void ConfigManager::handleRefreshConsole()
     }
     else
     {
-      Log::console(PSTR("%s"), F("Command still not supported in web serial console!"));
+      // Log::console(PSTR("%s"), F("Command still not supported in web serial console!"));
+      if (Radio::getInstance().sendTx((uint8_t *) svalue.c_str(), strlen(svalue.c_str())) == 0)
+      {
+        Log::console(PSTR("%s"), F("Message was sent successfully"));
+      }
+      else
+      {
+        Log::console(PSTR("%s"), F("An error occurred while sending the message!"));
+      }
     }
   }
 
@@ -443,7 +494,7 @@ void ConfigManager::handleRestart()
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
 
-  server.sendHeader("Content-Length", String(s.length()));
+  // server.sendHeader("Content-Length", String(s.length()));
   server.send(200, "text/html; charset=UTF-8", s);
   delay(100);
   ESP.restart();

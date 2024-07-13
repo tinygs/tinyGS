@@ -24,11 +24,15 @@
 #ifndef Status_h
 #define Status_h
 
+#include <vector>
+
 struct PacketInfo {
   String time = "Waiting";
+  String encoded_message = "";
+  String decoded_message = "";
   float rssi = 0;
   float snr = 0;
-  float frequencyerror = 0;    // Hz 
+  float frequencyerror = 0; // Hz
   bool crc_error = false;
 };
 
@@ -73,6 +77,7 @@ struct Status {
   bool radio_ready = false;
   int16_t radio_error = 0;
   PacketInfo lastPacketInfo;
+  std::vector<PacketInfo> allPackets;
   ModemInfo modeminfo;
   float satPos[2] = {0, 0};
   uint8_t remoteTextFrameLength[4] = {0, 0, 0, 0};

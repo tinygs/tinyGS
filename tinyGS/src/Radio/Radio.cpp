@@ -38,6 +38,23 @@ bool noisyInterrupt = false;
 
 bool allow_decode=true;
 
+std::string hexToASCII(std::string hex)
+{
+  std::string ascii = "";
+  for (size_t i = 0; i < hex.length(); i += 2)
+  {
+    // extract two characters from hex string
+    std::string part = hex.substr(i, 2);
+
+    // change it into base 16 and typecast as the character
+    char ch = (char) strtol(part.c_str(), nullptr, 16);
+
+    // add this char to final ASCII string
+    ascii += ch;
+  }
+  return ascii;
+}
+
 Radio::Radio()
 #if CONFIG_IDF_TARGET_ESP32S3
   : spi(HSPI)
@@ -272,12 +289,12 @@ uint8_t Radio::listen()
   {
     // store time of the last packet received:
     timeinfo = localtime(&currenttime);
-    String thisTime = "";
-    if (timeinfo->tm_hour < 10)
-    {
-      thisTime = thisTime + " ";
-    } // add leading space if required
-    thisTime = String(timeinfo->tm_hour) + ":";
+    String thisTime = String(timeinfo->tm_mday) + "/" + String(timeinfo->tm_mon + 1) + "/" + String(timeinfo->tm_year + 1900) + " ";
+    // if (timeinfo->tm_hour < 10)
+    // {
+    //   thisTime = thisTime + " ";
+    // } // add leading space if required
+    thisTime = thisTime + String(timeinfo->tm_hour) + ":";
     if (timeinfo->tm_min < 10)
     {
       thisTime = thisTime + "0";
@@ -297,30 +314,40 @@ uint8_t Radio::listen()
   status.lastPacketInfo.frequencyerror = newPacketInfo.frequencyerror;
 
   // print RSSI (Received Signal Strength Indicator)
-  Log::console(PSTR("[%s] RSSI:\t\t%f dBm\n[%s] SNR:\t\t%f dB\n[%s] Frequency error:\t%f Hz"),
-   moduleNameString, status.lastPacketInfo.rssi, 
-   moduleNameString, status.lastPacketInfo.snr, 
-   moduleNameString, status.lastPacketInfo.frequencyerror);
+  Log::console(PSTR("[%s] RSSI:\t\t%f dBm\n\t [%s] SNR:\t\t%f dB\n\t [%s] Frequency error:\t%f Hz"),
+    moduleNameString, status.lastPacketInfo.rssi, 
+    moduleNameString, status.lastPacketInfo.snr, 
+    moduleNameString, status.lastPacketInfo.frequencyerror
+  );
 
   if (state == RADIOLIB_ERR_NONE && respLen > 0)
   {
     // read optional data
-    Log::console(PSTR("Packet (%u bytes):"), respLen);
+    // Log::console(PSTR("Packet (%u bytes):"), respLen);
+
     uint16_t buffSize = respLen * 2 + 1;
-    if (buffSize > 255)
-      buffSize = 255;
+    // if (buffSize > 255)
+    //   buffSize = 255;
+
     char *byteStr = new char[buffSize];
     for (int i = 0; i < respLen; i++)
     {
       sprintf(byteStr + i * 2 % (buffSize - 1), "%02x", respFrame[i]);
-      if (i * 2 % buffSize == buffSize - 3 || i == respLen - 1)
-        Log::console(PSTR("%s"), byteStr); // print before the buffer is going to loop back
+      // if (i * 2 % buffSize == buffSize - 3 || i == respLen - 1) {
+      //   Log::console(PSTR("\tEncoded: %s"), byteStr); // print before the buffer is going to loop back
+      // }
     }
+
+    status.lastPacketInfo.encoded_message = byteStr;
+    status.lastPacketInfo.decoded_message = hexToASCII(std::string(byteStr)).c_str();
+
+    // Log::console(PSTR("\tDecoded: %s"), hexToASCII(std::string(byteStr)).c_str());
+    Log::console(PSTR("Packet (%u bytes):\n\t - Encoded: %s\n\t - Decoded: %s"), respLen, byteStr, status.lastPacketInfo.decoded_message.c_str());
     delete[] byteStr;
 
-       if (allow_decode){
+    if (allow_decode) {
       String modo=status.modeminfo.modem_mode;
-      if (modo=="FSK"){
+      if (modo=="FSK") {
         int bytes_sincro=0;
           for (int i=0;i<sizeof(status.modeminfo.fsw);i++){
             if (status.modeminfo.fsw[i]!=0){bytes_sincro++;}
@@ -408,6 +435,8 @@ uint8_t Radio::listen()
   delete[] respFrame;
 
   noisyInterrupt = false;
+
+  status.allPackets.push_back(status.lastPacketInfo);
 
   // put module back to listen mode
   startRx();
