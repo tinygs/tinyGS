@@ -208,6 +208,48 @@ public:
     IotWebConf2::saveConfig();
     currentBoardDirty = true;
   };
+  ////////////////////////////////////////
+
+  bool getAllowFreqComp() {
+     return (strcmp(allowFreqComp, CB_SELECTED_STR)==0); 
+  }
+
+  float get_temp_1(){
+    float temp=-90.0;
+    if (temp_1[0]!='\0'){
+      std::string ts(temp_1);
+      temp=std::stof(ts);
+    }
+    return temp;
+  }
+
+  float get_temp_2(){
+    float temp=-90.0;
+    if (temp_2[0]!='\0'){
+      std::string ts(temp_2);
+      temp=std::stof(ts);
+    }
+    return temp;
+  }
+
+  float get_freq_dev_1(){
+    float freq=-20000.0;
+    if (freq_dev_1[0]!='\0'){
+      std::string freqstr(freq_dev_1);
+      freq=std::stof(freqstr);
+    }
+    return freq;
+  }
+
+  float get_freq_dev_2(){
+    float freq=-20000.0;
+    if (freq_dev_2[0]!='\0'){
+      std::string freqstr(freq_dev_2);
+      freq=std::stof(freqstr);
+    }
+    return freq;
+  }
+  ////////////////////////////////////////
 
 private:
   class GSConfigHtmlFormatProvider : public iotwebconf2::HtmlFormatProvider
@@ -284,6 +326,12 @@ private:
   char boardTemplate[TEMPLATE_LEN] = "";
   char modemStartup[MODEM_LEN] = "";
   char advancedConfig[ADVANCED_LEN] = "";
+  //Temperature Curve Definition Parameters
+  char allowFreqComp[CHECKBOX_LENGTH] = "";
+  char temp_1[TEMPLATE_LEN] = "";
+  char freq_dev_1[TEMPLATE_LEN] = "";
+  char temp_2[TEMPLATE_LEN] = "";
+  char freq_dev_2[TEMPLATE_LEN] = "";
 
   iotwebconf2::NumberParameter latitudeParam = iotwebconf2::NumberParameter("Latitude (3 decimals, will be public)", "lat", latitude, COORDINATE_LENGTH, NULL, "0.000", "required min='-180' max='180' step='0.001'");
   iotwebconf2::NumberParameter longitudeParam = iotwebconf2::NumberParameter("Longitude (3 decimals, will be public)", "lng", longitude, COORDINATE_LENGTH, NULL, "-0.000", "required min='-180' max='180' step='0.001'");
@@ -308,6 +356,13 @@ private:
   iotwebconf2::TextParameter boardTemplateParam = iotwebconf2::TextParameter("Board Template (requires manual restart)", "board_template", boardTemplate, TEMPLATE_LEN, NULL, NULL, "type=\"text\" maxlength=255");
   iotwebconf2::TextParameter modemParam = iotwebconf2::TextParameter("Modem startup", "modem_startup", modemStartup, MODEM_LEN, "", "", "type=\"text\" maxlength=255");
   iotwebconf2::TextParameter advancedConfigParam = iotwebconf2::TextParameter("Advanced parameters", "advanced_config", advancedConfig, ADVANCED_LEN, NULL, NULL, "type=\"text\" maxlength=255");
+
+  iotwebconf2::ParameterGroup temperatureCurve = iotwebconf2::ParameterGroup("Temperature Curve", "Temperature Curve (Allows to compensate frequency drift due to setup temperature)");
+  iotwebconf2::CheckboxParameter allowFreqComparam = iotwebconf2::CheckboxParameter("Allow Frequency Compensation based on chip temperature", "allowFreqComp", allowFreqComp, CHECKBOX_LENGTH, true);
+  iotwebconf2::NumberParameter temperature1param = iotwebconf2::NumberParameter("Temperature #1", "temp_1", temp_1, NUMBER_LEN, "50.0", "min='-180' max='180' step='0.1'");
+  iotwebconf2::NumberParameter frequencyDev1param = iotwebconf2::NumberParameter("Frequency Error #1", "freq_dev_1", freq_dev_1, NUMBER_LEN, "0.000", "min='-10000' max='10000' step='1'");
+  iotwebconf2::NumberParameter temperature2param = iotwebconf2::NumberParameter("Temperature #2", "temp_2", temp_2, NUMBER_LEN, "50.0", "min='-180' max='180' step='0.1'");
+  iotwebconf2::NumberParameter frequencyDev2param = iotwebconf2::NumberParameter("Frequency Error #2", "freq_dev_2", freq_dev_2, NUMBER_LEN, "0.000", "min='-10000' max='10000' step='1'");
 };
 
 #endif
