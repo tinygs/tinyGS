@@ -482,7 +482,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
     strcpy(m.satellite, doc["sat"].as<char *>());
     m.NORAD = doc["NORAD"];
 
-  
+
     if (m.modem_mode == "LoRa")
     {
       m.frequency = doc["freq"];
@@ -525,6 +525,51 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
       m.crc_finalxor= doc["cF"];
       m.crc_refIn= doc["cRI"];
       m.crc_refOut= doc["cRO"];
+      /*
+      RADIO_SX1278 = 1,
+      RADIO_SX1276 = 2,
+      RADIO_SX1268 = 5,
+      RADIO_SX1262 = 6,
+      RADIO_SX1280 = 8
+      */
+      Log::console(PSTR("Board: %i Required Bandwidth (BW): %f"),board.L_radio,m.bw);
+      switch (board.L_radio)
+      {
+      case RADIO_SX1278:{
+        /* code */
+        // Receiver bandwidth in kHz (FSK/OOK) Allowed values are:
+        // 2.6, 3.1, 3.9, 5.2, 6.3, 7.8, 10.4, 12.5, 15.6, 20.8, 25, 31.3, 41.7, 50, 62.5, 83.3, 100, 125, 166.7, 200, 250 kHz
+        float abw[21]={2.6, 3.1, 3.9, 5.2, 6.3, 7.8, 10.4, 12.5, 15.6, 20.8, 25, 31.3, 41.7, 50, 62.5, 83.3, 100, 125, 166.7, 200, 250};
+        float arxBw = m.bw;
+        int i=0;
+        while (m.bw>abw[i] && i<21){i++;}
+        if (i<21){arxBw=abw[i];}else{arxBw=abw[i-1];}
+        if (arxBw!=m.bw){
+          Log::console(PSTR("The initial BW of %.2f has been matched to board BW of %.2f"),m.bw,arxBw);
+          m.bw=arxBw;
+        }
+      }
+      break;
+        
+      case RADIO_SX1268:{
+        /* code */
+        // Receiver bandwidth in kHz (FSK/OOK) Allowed values are:
+        // 4.8, 5.8, 7.3, 9.7, 11.7, 14.6, 19.5, 23.4, 29.3, 39.0, 46.9, 58.6, 78.2, 93.8, 117.3, 156.2, 187.2, 234.3, 312.0, 373.6, 467.0
+        float abw[21]={4.8, 5.8, 7.3, 9.7, 11.7, 14.6, 19.5, 23.4, 29.3, 39.0, 46.9, 58.6, 78.2, 93.8, 117.3, 156.2, 187.2, 234.3, 312.0, 373.6, 467.0};
+        float arxBw = m.bw; 
+        int i=0;
+        while (m.bw>abw[i] && i<21){i++;}
+        if (i<21){arxBw=abw[i];}else{arxBw=abw[i-1];}
+        if (arxBw!=m.bw){
+          Log::console(PSTR("The initial BW of %.2f has been matched to board BW of %.2f"),m.bw,arxBw);
+          m.bw=arxBw;
+        }
+      }
+      break;
+
+      default:
+        break;
+      }
     }
 
     // packets Filter

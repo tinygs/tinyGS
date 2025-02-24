@@ -153,7 +153,7 @@ int16_t Radio::begin()
   radioHal->setDio0Action(setFlag);
   // start listening for LoRa packets
   //Log::console(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
-  Log::console(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,m.frequency);
+  Log::console(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,m.frequency+m.freqOffset);
   CHECK_ERROR(radioHal->startReceive());
   status.modeminfo.currentRssi = radioHal->getRSSI(false,true);
 
@@ -360,9 +360,11 @@ uint8_t Radio::listen()
         respFrame=ax25bin;
         respLen=sizeAx25bin;
       }
-            
       if (frame_error==0 && status.modeminfo.crc_by_sw){
         size_t newsize=respLen-status.modeminfo.crc_nbytes;
+        //////////////////////////////////////////////////////////////////////////////
+        // https://github.com/jgromes/RadioLib/blob/master/src/protocols/AX25/AX25.cpp
+        //////////////////////////////////////////////////////////////////////////////
         RadioLibCRCInstance.size = status.modeminfo.crc_nbytes*8;
         RadioLibCRCInstance.poly = status.modeminfo.crc_poly;
         RadioLibCRCInstance.init = status.modeminfo.crc_init;
@@ -370,6 +372,7 @@ uint8_t Radio::listen()
         RadioLibCRCInstance.refIn = status.modeminfo.crc_refIn;
         RadioLibCRCInstance.refOut = status.modeminfo.crc_refOut;
         uint16_t fcs=RadioLibCRCInstance.checksum(respFrame,newsize);
+        //////////////////////////////////////////////////////////////////////////////
         //If the input is reflected (refIn=true) for the CRC calculation, the CRC value
         //is computed from last two bytes of respFrame reflecting in first place the bytes. 
         //If the input is not reflected (refIn=false) then the CRC calculation is computed

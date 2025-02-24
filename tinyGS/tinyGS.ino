@@ -96,6 +96,23 @@ Radio& radio = Radio::getInstance();
 
 const char* ntpServer = "time.cloudflare.com";
 
+//////////////////////////////////////////////
+//Measure of Chip Temperature and Compensation
+//////////////////////////////////////////////
+bool allow_logging_verbose_freq_comp=false;
+bool allow_logging_freq_comp=true;
+unsigned long now=0;
+unsigned long last_measu_temp=0;
+unsigned long last_log_temp=0;
+unsigned long last_write_temp=0;
+float tempe_measurement=0.0;
+float last_tempe_measurement=0.0;
+float temperatura=-90.0;
+float freq_off=0.0;
+float t1,t2,f1,f2;
+float frequency_deviation_limit=10000;//In absolute value
+//////////////////////////////////////////////
+
 // Global status
 Status status;
 
@@ -214,6 +231,73 @@ void loop() {
   mqtt.loop();
   OTA::loop();
   if (configManager.getOledBright() != 0) displayUpdate();
+
+  if (configManager.getAllowFreqComp()){ 
+    //////////////////////////////////////////////
+    //Measure of Chip Temperature and Compensation
+    //////////////////////////////////////////////
+    now = millis();
+    if ((now - last_measu_temp > 60000) || last_measu_temp==0)
+    {
+      last_measu_temp = now;
+      tempe_measurement=temperatureRead();
+      //22/09/2022
+      //For some reason, the value 53.33 is a recurrent value provided
+      //by the board which seems to do not correspond to a real measurement.
+      //For this reason, when this value is provided that value
+      //it is not considered for frequency correction.
+      if (abs(tempe_measurement-53.333)>0.001){
+        temperatura=tempe_measurement;
+      }else{
+        //Log::console(PSTR("Temperature %2.2f ºC not considered"),tempe_measurement);
+        last_measu_temp=now-30000;//Acelerate the measure to do it in 30"
+      }
+      if ((now-last_write_temp>60000)
+        && temperatura!=-90.0 
+        && last_tempe_measurement!=temperatura){
+
+        //This determine the offset of the station
+        t1=configManager.get_temp_1(); f1=configManager.get_freq_dev_1();
+        t2=configManager.get_temp_2(); f2=configManager.get_freq_dev_2();
+        //Log::console(PSTR("Temp 1: %.2f Freq 1: %.2f Temp 2: %.2f Freq 1: %.2f Temperature: %.2f"),t1,f1,t2,f2,temperatura);
+        if (t1!=-90.0 && t2!=-90.0 && f1!=-20000.0 && f2!=-20000.0){
+            freq_off=f1+(((f2-f1)/(t2-t1))*(temperatura-t1));
+            //The negative value (-freq_off) compensates the deviation calculated in the line above
+            if (abs(freq_off)<frequency_deviation_limit) {
+              status.modeminfo.freqOffset=-freq_off/1000000.0;
+            }else{
+              status.modeminfo.freqOffset=0.0;
+              Log::console(PSTR("Frequency Deviation calculation exceed %5.1f Hz. Frequency Deviation set to 0 Hz."),frequency_deviation_limit);
+            }
+            last_tempe_measurement=temperatura;
+            //For the new frequency offset is taken, the current satellite config needs to be commanded.
+            radio.begin();
+            //Log::console (PSTR("Chip Ta: %2.2f ºC -> Set Rx Freq to: %.6f Hz")
+            if (allow_logging_verbose_freq_comp 
+            || (allow_logging_freq_comp && (now-last_log_temp)>60000)
+            || last_log_temp==0  ) {last_log_temp=now;
+                Log::console (PSTR("Chip Ta: %2.2f ºC -> FreqOffset: %.6f MHz")
+                              ,temperatura
+                              // ,status.modeminfo.frequency
+                              // ,-freq_off
+                              ,status.modeminfo.freqOffset);
+            }
+
+            last_write_temp=now;
+            temperatura=-90.0;
+        }else{
+          Log::console(PSTR("Check Curve Temperature parameters. Frequency Correction not performed."));
+        }
+      }
+    }
+  }else{
+    if (status.modeminfo.freqOffset!=0.0){
+      status.modeminfo.freqOffset=0.0;
+      last_measu_temp==0;
+      radio.begin();
+    }
+  }
+  /////////////////////////////////////////////////
 }
 
 void setupNTP()
