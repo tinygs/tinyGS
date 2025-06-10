@@ -51,8 +51,9 @@ ConfigManager::ConfigManager()
     : IotWebConf2(thingName, &dnsServer, &server, initialApPassword, configVersion), server(80), gsConfigHtmlFormatProvider(*this), boards({
   //OLED_add, OLED_SDA,  OLED_SCL, OLED_RST, PROG_BUTTON, BOARD_LED,      L_SX127X?,   L_NSS, L_DI00, L_DI01, L_BUSSY, L_RST,  L_MISO, L_MOSI, L_SCK, L_TCXO_V, RX_EN, TX_EN,   BOARD
 #if CONFIG_IDF_TARGET_ESP32S3
-  {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
-  {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
+  {      0x00,       11,        16,   UNUSED,         0,        46,      RADIO_SX1262,    9, UNUSED,     45,      13,   17,      38,     41,    40,     1.6f,   UNUSED, UNUSED, "433MHz LilyGo T-Deck Plus SX1262"},  // T-Deck Plus S3
+  {      0x3c,       17,        18,       21,         0,        35,      RADIO_SX1262,    8, UNUSED,     14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
+  {      0x3c,       17,        18,   UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
 #elif CONFIG_IDF_TARGET_ESP32C3
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1262,    8,   UNUSED,    3,      4,     5,       6,      7,    10,     1.6f,    UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262" },  // SX1262  @gargomoma
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1278,    8,     4,   UNUSED,  UNUSED,   5,       6,      7,    10,     0.0f,    UNUSED, UNUSED, "Custom ESP32-C3 433MHz SX1278"     },  // SX1278 @gargomoma
@@ -571,7 +572,8 @@ void ConfigManager::boardDetection()
   // https://github.com/mpmarks/tinyGS-newboards/commit/e520086f1b43c7cea4cb85d996f0fc379f2d2786
 
 #if CONFIG_IDF_TARGET_ESP32S3
-// nothing yet
+  itoa(0, board, 10);  // Set to T_DECK_PLUS_ESP32S3 = 0 as default
+  return;
 #elif CONFIG_IDF_TARGET_ESP32C3
 // nothing yet
 #else
