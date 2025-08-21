@@ -20,6 +20,7 @@
 
 #include "Power.h"
 #include "../Logger/Logger.h"
+#include <XPowersLib.h>
 
 
 byte AXPchip = 0;
