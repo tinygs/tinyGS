@@ -20,8 +20,10 @@
 
 #include "Power.h"
 #include "../Logger/Logger.h"
-#include <XPowersLib.h>
 
+#define XPOWERS_CHIP_AXP202
+
+#include <XPowersLib.h>
 
 byte AXPchip = 0;
 byte pmustat1;
@@ -66,19 +68,33 @@ void Power::I2Cread(uint8_t Address, uint8_t Register, uint8_t Nbytes, uint8_t* 
 
 
 void Power::checkAXP() 
-{ 
-   board_t board;
+{
+    bool  pmu_flag = 0;
+    XPowersPMU PMU;
+    uint8_t i2c_sda = -1;
+    uint8_t i2c_scl = -1;
+    // uint8_t pmu_irq_pin = -1;
+    
+    board_t board;
    if (!ConfigManager::getInstance().getBoardConfig(board))
     return;
-  Log::console(PSTR("AXPxxx chip?"));   
-  byte regV = 0;
-  Wire.begin(board.OLED__SDA, board.OLED__SCL);                     // I2C_SDA, I2C_SCL on all new boards
-  byte ChipID = I2CreadByte(0x34, 0x03);                            // read byte from xxx_IC_TYPE register
+   Log::console (PSTR ("AXPxxx chip?"));
+   i2c_sda = board.OLED__SDA;
+   i2c_scl = board.OLED__SCL;
+ //   byte regV = 0;
+//   Wire.begin(board.OLED__SDA, board.OLED__SCL);                     // I2C_SDA, I2C_SCL on all new boards
+//   byte ChipID = I2CreadByte(0x34, 0x03);                            // read byte from xxx_IC_TYPE register
   // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-  if (ChipID == XPOWERS_AXP192_CHIP_ID) { // 0x03
+   if (PMU.getChipID() == XPOWERS_AXP192) {
     AXPchip = 1;
-    Log::console(PSTR("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
-    I2CwriteByte(0x34, 0x28, 0xFF);       // Set LDO2 (LoRa) & LDO3 (GPS) to 3.3V , (1.8-3.3V, 100mV/step)
+    Log::console (PSTR ("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
+    bool result = PMU.begin (Wire, AXP192_SLAVE_ADDRESS, i2c_sda, i2c_scl);
+    if (result == false) {
+        Log::console (PSTR ("power is not online..."));
+        return;
+    }
+    //I2CwriteByte (0x34, 0x28, 0xFF);       // Set LDO2 (LoRa) & LDO3 (GPS) to 3.3V , (1.8-3.3V, 100mV/step)
+    PMU.setLDO2Voltage(3300);
     regV = I2CreadByte(0x34, 0x12);       // Power Output Control
     regV = regV | 0x0C;                   // set bit 2 (LDO2) and bit 3 (LDO3)
     I2CwriteByte(0x34, 0x12, regV);       // and power channels now enabled
