@@ -77,6 +77,7 @@ void Power::checkAXP () {
     Log::console (PSTR ("AXPxxx chip?"));
     i2c_sda = board.OLED__SDA;
     i2c_scl = board.OLED__SCL;
+    Log::console (PSTR ("I2C on SDA: %d, SCL: %d"), i2c_sda, i2c_scl);
     Wire.begin (i2c_sda, i2c_scl);
 
     if (!PMU) {
@@ -185,8 +186,8 @@ void Power::checkAXP () {
 
         // ESP32 VDD 3300mV
         //  ! No need to set, automatically open , Don't close it
-        //  PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
-        //  PMU->setProtectedChannel(XPOWERS_DCDC1);
+        PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
+        PMU->setProtectedChannel(XPOWERS_DCDC1);
 
         // LoRa VDD 3300mV
         PMU->setPowerChannelVoltage (XPOWERS_ALDO2, 3300);
