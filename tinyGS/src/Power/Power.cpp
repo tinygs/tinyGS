@@ -91,7 +91,7 @@ void Power::checkAXP () {
         } else {
             Log::console ("AXP2101 PMU init succeeded");
             chipID = PMU->getChipID ();
-            Log::console (PSTR ("AXP chip ID: %d"), chipID);
+            Log::console (PSTR ("AXP chip ID: %02X"), chipID);
             if (chipID == XPOWERS_AXP2101_CHIP_ID) {
                 Log::console ("AXP2101 chip id detected");
             } else {
@@ -113,6 +113,8 @@ void Power::checkAXP () {
             PMU->disablePowerOutput (XPOWERS_BLDO2);
             PMU->disablePowerOutput (XPOWERS_DLDO1);
             PMU->disablePowerOutput (XPOWERS_DLDO2);
+
+            vTaskDelay(200 / portTICK_PERIOD_MS);
 
             // GNSS RTC PowerVDD 3300mV
             result = PMU->setPowerChannelVoltage (XPOWERS_VBACKUP, 3000);
@@ -159,8 +161,9 @@ void Power::checkAXP () {
 
             uint16_t battV = PMU->getBattVoltage ();
             uint16_t sysV = PMU->getSystemVoltage ();
+            uint16_t vbusV = PMU->getVbusVoltage ();
 
-            Log::console (PSTR ("PMU battV,sysV : %d, %d"), battV, sysV);
+            Log::console (PSTR ("PMU battV,sysV,vbusV : %d, %d, %d"), battV, sysV, vbusV);
 
             uint64_t irqstatus = PMU->getIrqStatus ();
 
