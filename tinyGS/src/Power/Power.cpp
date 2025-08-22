@@ -112,7 +112,17 @@ void Power::checkAXP () {
         return;
     }
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-    if (PMU && PMU->getChipID () == XPOWERS_AXP192) {
+
+    uint8_t chipID = -1;
+
+    if (PMU) {
+        chipID = PMU->getChipID ();
+        Log::console (PSTR ("AXP chip ID: %d"), chipID);
+    } else {
+        Log::console (PSTR ("PMU is null"));
+    }
+
+    if (PMU && chipID == XPOWERS_AXP192) {
         AXPchip = 1;
         Log::console (PSTR ("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
 
@@ -163,7 +173,7 @@ void Power::checkAXP () {
         irqstat2 = (irqstatus >> 16) & 0xFF;
 
         Log::console (PSTR ("IRQ status 1,2,3    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
-    } else if (PMU && PMU->getChipID () == XPOWERS_AXP2101) {
+    } else if (PMU && chipID == XPOWERS_AXP2101) {
 
         AXPchip = 2;
         Log::console (PSTR ("AXP2101 found"));  // T-Beam V1.2 with AXP2101 power controller
