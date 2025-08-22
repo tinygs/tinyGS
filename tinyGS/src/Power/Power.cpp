@@ -92,6 +92,11 @@ void Power::checkAXP () {
             Log::console ("AXP2101 PMU init succeeded");
             chipID = PMU->getChipID ();
             Log::console (PSTR ("AXP chip ID: %d"), chipID);
+            if (chipID == XPOWERS_AXP2101_CHIP_ID) {
+                Log::console ("AXP2101 chip id detected");
+            } else {
+                Log::console ("ERROR -> AXP2101: Wrong chip id!!!");
+            }
             AXPchip = 2;
             Log::console (PSTR ("AXP2101 found"));  // T-Beam V1.2 with AXP2101 power controller
 
@@ -127,6 +132,7 @@ void Power::checkAXP () {
             Log::console (PSTR ("Set DCDC3 3.3V : %s"), result ? "OK" : "Failed");
             result = PMU->enablePowerOutput (XPOWERS_DCDC3);
             Log::console (PSTR ("Enable DCDC3 : %s"), result ? "OK" : "Failed");
+            PMU->setProtectedChannel (XPOWERS_DCDC3);
 
             // LoRa VDD 3300mV
             result = PMU->setPowerChannelVoltage (XPOWERS_ALDO2, 3300);
