@@ -80,6 +80,8 @@ void Power::checkAXP () {
     Log::console (PSTR ("I2C on SDA: %d, SCL: %d"), i2c_sda, i2c_scl);
     Wire.begin (i2c_sda, i2c_scl);
 
+    uint8_t chipID = -1;
+
     if (!PMU) {
         PMU = new XPowersAXP2101 (Wire);
         if (!PMU->init ()) {
@@ -88,6 +90,78 @@ void Power::checkAXP () {
             PMU = NULL;
         } else {
             Log::console ("AXP2101 PMU init succeeded");
+            chipID = PMU->getChipID ();
+            Log::console (PSTR ("AXP chip ID: %d"), chipID);
+            AXPchip = 2;
+            Log::console (PSTR ("AXP2101 found"));  // T-Beam V1.2 with AXP2101 power controller
+
+            bool result;
+
+            // Unuse power channel
+            PMU->disablePowerOutput (XPOWERS_DCDC2);
+            PMU->disablePowerOutput (XPOWERS_DCDC3);
+            PMU->disablePowerOutput (XPOWERS_DCDC4);
+            PMU->disablePowerOutput (XPOWERS_DCDC5);
+            PMU->disablePowerOutput (XPOWERS_ALDO1);
+            PMU->disablePowerOutput (XPOWERS_ALDO4);
+            PMU->disablePowerOutput (XPOWERS_BLDO1);
+            PMU->disablePowerOutput (XPOWERS_BLDO2);
+            PMU->disablePowerOutput (XPOWERS_DLDO1);
+            PMU->disablePowerOutput (XPOWERS_DLDO2);
+
+            // GNSS RTC PowerVDD 3300mV
+            result = PMU->setPowerChannelVoltage (XPOWERS_VBACKUP, 3000);
+            Log::console (PSTR ("Set VBACKUP 3.0V : %s"), result ? "OK" : "Failed");
+            result = PMU->enablePowerOutput (XPOWERS_VBACKUP);
+            Log::console (PSTR ("Enable VBACKUP : %s"), result ? "OK" : "Failed");
+
+            // ESP32 VDD 3300mV
+            //  ! No need to set, automatically open , Don't close it
+            //PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
+            //PMU->setProtectedChannel(XPOWERS_DCDC1);
+            uint16_t dcdc1_voltage = PMU->getPowerChannelVoltage (XPOWERS_DCDC1);
+            Log::console (PSTR ("DCDC1 voltage : %d mV"), dcdc1_voltage);
+
+            // Enable LCD voltage
+            result = PMU->setPowerChannelVoltage (XPOWERS_DCDC3, 3300);
+            Log::console (PSTR ("Set DCDC3 3.3V : %s"), result ? "OK" : "Failed");
+            result = PMU->enablePowerOutput (XPOWERS_DCDC3);
+            Log::console (PSTR ("Enable DCDC3 : %s"), result ? "OK" : "Failed");
+
+            // LoRa VDD 3300mV
+            result = PMU->setPowerChannelVoltage (XPOWERS_ALDO2, 3300);
+            Log::console (PSTR ("Set ALDO2 3.3V : %s"), result ? "OK" : "Failed");
+            result = PMU->enablePowerOutput (XPOWERS_ALDO2);
+            Log::console (PSTR ("Enable ALDO2 : %s"), result ? "OK" : "Failed");
+
+            // GNSS VDD 3300mV but disable it
+            result = PMU->setPowerChannelVoltage (XPOWERS_ALDO3, 3300);
+            Log::console (PSTR ("Set ALDO3 3.3V : %s"), result ? "OK" : "Failed");
+            result = PMU->disablePowerOutput (XPOWERS_ALDO3);
+            Log::console (PSTR ("Disable ALDO3 : %s"), result ? "OK" : "Failed");
+            // Set constant current charging current
+            result = PMU->setChargerConstantCurr (XPOWERS_AXP192_CHG_CUR_450MA);
+            Log::console (PSTR ("Set charger current 450mA : %s"), result ? "OK" : "Failed");
+
+            // Set up the charging voltage
+            result = PMU->setChargeTargetVoltage (XPOWERS_AXP192_CHG_VOL_4V2);
+            Log::console (PSTR ("Set charging voltage 4.2V : %s"), result ? "OK" : "Failed");
+            PMU->setChargingLedMode (XPOWERS_CHG_LED_BLINK_1HZ);
+
+            result = PMU->setSysPowerDownVoltage (3200);
+            Log::console (PSTR ("Set system power down voltage 3.2V : %s"), result ? "OK" : "Failed");
+
+            uint16_t battV = PMU->getBattVoltage ();
+            uint16_t sysV = PMU->getSystemVoltage ();
+
+            Log::console (PSTR ("PMU battV,sysV : %d, %d"), battV, sysV);
+
+            uint64_t irqstatus = PMU->getIrqStatus ();
+
+            irqstat0 = irqstatus & 0xFF;
+            irqstat1 = (irqstatus >> 8) & 0xFF;
+            irqstat2 = (irqstatus >> 16) & 0xFF;
+            Log::console (PSTR ("IRQ status 0,1,2    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
         }
     }
 
@@ -99,6 +173,60 @@ void Power::checkAXP () {
             PMU = NULL;
         } else {
             Log::console ("AXP192 PMU init succeeded");
+            chipID = PMU->getChipID ();
+            Log::console (PSTR ("AXP chip ID: %d"), chipID);
+
+            AXPchip = 1;
+            Log::console (PSTR ("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
+
+            // lora radio power channel
+            PMU->setPowerChannelVoltage (XPOWERS_LDO2, 3300);
+            PMU->enablePowerOutput (XPOWERS_LDO2);
+
+            // oled module power channel,
+               // disable it will cause abnormal communication between boot and AXP power supply,
+               // do not turn it off
+            PMU->setPowerChannelVoltage (XPOWERS_DCDC1, 3300);
+            // enable oled power
+            PMU->enablePowerOutput (XPOWERS_DCDC1);
+
+            // gnss module power channel -  turned off
+            PMU->setPowerChannelVoltage (XPOWERS_LDO3, 3300);
+            PMU->disablePowerOutput (XPOWERS_LDO3);
+
+            // protected oled power source
+            PMU->setProtectedChannel (XPOWERS_DCDC1);
+            // protected esp32 power source
+            PMU->setProtectedChannel (XPOWERS_DCDC3);
+
+            // disable not use channel
+            PMU->disablePowerOutput (XPOWERS_DCDC2);
+
+            // disable all axp chip interrupt
+            PMU->disableIRQ (XPOWERS_AXP192_ALL_IRQ);
+
+            // Set constant current charging current
+            PMU->setChargerConstantCurr (XPOWERS_AXP192_CHG_CUR_450MA);
+
+            // Set up the charging voltage
+            PMU->setChargeTargetVoltage (XPOWERS_AXP192_CHG_VOL_4V2);
+            PMU->setSysPowerDownVoltage (3200);
+
+            uint16_t battV = PMU->getBattVoltage ();
+            uint16_t sysV = PMU->getSystemVoltage ();
+
+            Log::console (PSTR ("PMU battV,sysV : %02X,%02X"), battV, sysV);
+
+            //Log::console (PSTR ("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
+
+            uint64_t irqstatus = PMU->getIrqStatus ();
+
+            irqstat0 = irqstatus & 0xFF;
+            irqstat1 = (irqstatus >> 8) & 0xFF;
+            irqstat2 = (irqstatus >> 16) & 0xFF;
+
+            Log::console (PSTR ("IRQ status 1,2,3    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
+
         }
     }
 
@@ -113,125 +241,116 @@ void Power::checkAXP () {
     }
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    uint8_t chipID = -1;
+    // if (PMU && chipID == XPOWERS_AXP192) {
+        // AXPchip = 1;
+        // Log::console (PSTR ("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
 
-    if (PMU) {
-        chipID = PMU->getChipID ();
-        Log::console (PSTR ("AXP chip ID: %d"), chipID);
-    } else {
-        Log::console (PSTR ("PMU is null"));
-    }
+        // // lora radio power channel
+        // PMU->setPowerChannelVoltage (XPOWERS_LDO2, 3300);
+        // PMU->enablePowerOutput (XPOWERS_LDO2);
 
-    if (PMU && chipID == XPOWERS_AXP192) {
-        AXPchip = 1;
-        Log::console (PSTR ("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
+        // // oled module power channel,
+        //    // disable it will cause abnormal communication between boot and AXP power supply,
+        //    // do not turn it off
+        // PMU->setPowerChannelVoltage (XPOWERS_DCDC1, 3300);
+        // // enable oled power
+        // PMU->enablePowerOutput (XPOWERS_DCDC1);
 
-        // lora radio power channel
-        PMU->setPowerChannelVoltage (XPOWERS_LDO2, 3300);
-        PMU->enablePowerOutput (XPOWERS_LDO2);
+        // // gnss module power channel -  turned off
+        // PMU->setPowerChannelVoltage (XPOWERS_LDO3, 3300);
+        // PMU->disablePowerOutput (XPOWERS_LDO3);
 
-        // oled module power channel,
-           // disable it will cause abnormal communication between boot and AXP power supply,
-           // do not turn it off
-        PMU->setPowerChannelVoltage (XPOWERS_DCDC1, 3300);
-        // enable oled power
-        PMU->enablePowerOutput (XPOWERS_DCDC1);
+        // // protected oled power source
+        // PMU->setProtectedChannel (XPOWERS_DCDC1);
+        // // protected esp32 power source
+        // PMU->setProtectedChannel (XPOWERS_DCDC3);
 
-        // gnss module power channel -  turned off
-        PMU->setPowerChannelVoltage (XPOWERS_LDO3, 3300);
-        PMU->disablePowerOutput (XPOWERS_LDO3);
+        // // disable not use channel
+        // PMU->disablePowerOutput (XPOWERS_DCDC2);
 
-        // protected oled power source
-        PMU->setProtectedChannel (XPOWERS_DCDC1);
-        // protected esp32 power source
-        PMU->setProtectedChannel (XPOWERS_DCDC3);
+        // // disable all axp chip interrupt
+        // PMU->disableIRQ (XPOWERS_AXP192_ALL_IRQ);
 
-        // disable not use channel
-        PMU->disablePowerOutput (XPOWERS_DCDC2);
+        // // Set constant current charging current
+        // PMU->setChargerConstantCurr (XPOWERS_AXP192_CHG_CUR_450MA);
 
-        // disable all axp chip interrupt
-        PMU->disableIRQ (XPOWERS_AXP192_ALL_IRQ);
+        // // Set up the charging voltage
+        // PMU->setChargeTargetVoltage (XPOWERS_AXP192_CHG_VOL_4V2);
+        // PMU->setSysPowerDownVoltage (3200);
 
-        // Set constant current charging current
-        PMU->setChargerConstantCurr (XPOWERS_AXP192_CHG_CUR_450MA);
+        // uint16_t battV = PMU->getBattVoltage ();
+        // uint16_t sysV = PMU->getSystemVoltage ();
 
-        // Set up the charging voltage
-        PMU->setChargeTargetVoltage (XPOWERS_AXP192_CHG_VOL_4V2);
-        PMU->setSysPowerDownVoltage (3200);
+        // Log::console (PSTR ("PMU battV,sysV : %02X,%02X"), battV, sysV);
 
-        uint16_t battV = PMU->getBattVoltage ();
-        uint16_t sysV = PMU->getSystemVoltage ();
+        // //Log::console (PSTR ("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
 
-        Log::console (PSTR ("PMU battV,sysV : %02X,%02X"), battV, sysV);
+        // uint64_t irqstatus = PMU->getIrqStatus ();
 
-        //Log::console (PSTR ("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
+        // irqstat0 = irqstatus & 0xFF;
+        // irqstat1 = (irqstatus >> 8) & 0xFF;
+        // irqstat2 = (irqstatus >> 16) & 0xFF;
 
-        uint64_t irqstatus = PMU->getIrqStatus ();
+        // Log::console (PSTR ("IRQ status 1,2,3    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
+    // } else if (PMU && chipID == XPOWERS_AXP2101) {
 
-        irqstat0 = irqstatus & 0xFF;
-        irqstat1 = (irqstatus >> 8) & 0xFF;
-        irqstat2 = (irqstatus >> 16) & 0xFF;
+        // AXPchip = 2;
+        // Log::console (PSTR ("AXP2101 found"));  // T-Beam V1.2 with AXP2101 power controller
 
-        Log::console (PSTR ("IRQ status 1,2,3    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
-    } else if (PMU && chipID == XPOWERS_AXP2101) {
+        // // Unuse power channel
+        // PMU->disablePowerOutput (XPOWERS_DCDC2);
+        // PMU->disablePowerOutput (XPOWERS_DCDC3);
+        // PMU->disablePowerOutput (XPOWERS_DCDC4);
+        // PMU->disablePowerOutput (XPOWERS_DCDC5);
+        // PMU->disablePowerOutput (XPOWERS_ALDO1);
+        // PMU->disablePowerOutput (XPOWERS_ALDO4);
+        // PMU->disablePowerOutput (XPOWERS_BLDO1);
+        // PMU->disablePowerOutput (XPOWERS_BLDO2);
+        // PMU->disablePowerOutput (XPOWERS_DLDO1);
+        // PMU->disablePowerOutput (XPOWERS_DLDO2);
 
-        AXPchip = 2;
-        Log::console (PSTR ("AXP2101 found"));  // T-Beam V1.2 with AXP2101 power controller
+        // // GNSS RTC PowerVDD 3300mV
+        // PMU->setPowerChannelVoltage (XPOWERS_VBACKUP, 3000);
+        // PMU->enablePowerOutput (XPOWERS_VBACKUP);
 
-        // Unuse power channel
-        PMU->disablePowerOutput (XPOWERS_DCDC2);
-        PMU->disablePowerOutput (XPOWERS_DCDC3);
-        PMU->disablePowerOutput (XPOWERS_DCDC4);
-        PMU->disablePowerOutput (XPOWERS_DCDC5);
-        PMU->disablePowerOutput (XPOWERS_ALDO1);
-        PMU->disablePowerOutput (XPOWERS_ALDO4);
-        PMU->disablePowerOutput (XPOWERS_BLDO1);
-        PMU->disablePowerOutput (XPOWERS_BLDO2);
-        PMU->disablePowerOutput (XPOWERS_DLDO1);
-        PMU->disablePowerOutput (XPOWERS_DLDO2);
+        // // ESP32 VDD 3300mV
+        // //  ! No need to set, automatically open , Don't close it
+        // //PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
+        // //PMU->setProtectedChannel(XPOWERS_DCDC1);
+        // uint16_t dcdc1_voltage = PMU->getPowerChannelVoltage (XPOWERS_DCDC1);
+        // Log::console (PSTR ("DCDC1 voltage : %d mV"), dcdc1_voltage);
 
-        // GNSS RTC PowerVDD 3300mV
-        PMU->setPowerChannelVoltage (XPOWERS_VBACKUP, 3000);
-        PMU->enablePowerOutput (XPOWERS_VBACKUP);
+        // // Enable LCD voltage
+        // PMU->setPowerChannelVoltage (XPOWERS_DCDC3, 3300);
+        // PMU->enablePowerOutput (XPOWERS_DCDC3);
 
-        // ESP32 VDD 3300mV
-        //  ! No need to set, automatically open , Don't close it
-        //PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
-        //PMU->setProtectedChannel(XPOWERS_DCDC1);
-        uint16_t dcdc1_voltage = PMU->getPowerChannelVoltage (XPOWERS_DCDC1);
-        Log::console (PSTR ("DCDC1 voltage : %d mV"), dcdc1_voltage);
+        // // LoRa VDD 3300mV
+        // PMU->setPowerChannelVoltage (XPOWERS_ALDO2, 3300);
+        // PMU->enablePowerOutput (XPOWERS_ALDO2);
 
-        // Enable LCD voltage
-        PMU->setPowerChannelVoltage (XPOWERS_DCDC3, 3300);
-        PMU->enablePowerOutput (XPOWERS_DCDC3);
+        // // GNSS VDD 3300mV but disable it
+        // PMU->setPowerChannelVoltage (XPOWERS_ALDO3, 3300);
+        // PMU->disablePowerOutput (XPOWERS_ALDO3);
+        // // Set constant current charging current
+        // PMU->setChargerConstantCurr (XPOWERS_AXP192_CHG_CUR_450MA);
 
-        // LoRa VDD 3300mV
-        PMU->setPowerChannelVoltage (XPOWERS_ALDO2, 3300);
-        PMU->enablePowerOutput (XPOWERS_ALDO2);
+        // // Set up the charging voltage
+        // PMU->setChargeTargetVoltage (XPOWERS_AXP192_CHG_VOL_4V2);
+        // PMU->setChargingLedMode (XPOWERS_CHG_LED_BLINK_1HZ);
 
-        // GNSS VDD 3300mV but disable it
-        PMU->setPowerChannelVoltage (XPOWERS_ALDO3, 3300);
-        PMU->disablePowerOutput (XPOWERS_ALDO3);
-        // Set constant current charging current
-        PMU->setChargerConstantCurr (XPOWERS_AXP192_CHG_CUR_450MA);
+        // PMU->setSysPowerDownVoltage (3200);
 
-        // Set up the charging voltage
-        PMU->setChargeTargetVoltage (XPOWERS_AXP192_CHG_VOL_4V2);
-        PMU->setChargingLedMode (XPOWERS_CHG_LED_BLINK_1HZ);
+        // uint16_t battV = PMU->getBattVoltage ();
+        // uint16_t sysV = PMU->getSystemVoltage ();
 
-        PMU->setSysPowerDownVoltage (3200);
+        // Log::console (PSTR ("PMU battV,sysV : %02X,%02X"), battV, sysV);
 
-        uint16_t battV = PMU->getBattVoltage ();
-        uint16_t sysV = PMU->getSystemVoltage ();
+        // uint64_t irqstatus = PMU->getIrqStatus ();
 
-        Log::console (PSTR ("PMU battV,sysV : %02X,%02X"), battV, sysV);
-
-        uint64_t irqstatus = PMU->getIrqStatus ();
-
-        irqstat0 = irqstatus & 0xFF;
-        irqstat1 = (irqstatus >> 8) & 0xFF;
-        irqstat2 = (irqstatus >> 16) & 0xFF;
-        Log::console (PSTR ("IRQ status 0,1,2    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
+        // irqstat0 = irqstatus & 0xFF;
+        // irqstat1 = (irqstatus >> 8) & 0xFF;
+        // irqstat2 = (irqstatus >> 16) & 0xFF;
+        // Log::console (PSTR ("IRQ status 0,1,2    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
 
         // I2CwriteByte (0x34, 0x93, 0x1C);       // set ALDO2 voltage to 3.3V ( LoRa VCC )
         // I2CwriteByte (0x34, 0x94, 0x1C);       // set ALDO3 voltage to 3.3V ( GPS VDD )
@@ -259,7 +378,7 @@ void Power::checkAXP () {
         // Log::console (PSTR ("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
         // Log::console (PSTR ("PWRON,PWROFF status : %02X,%02X"), pwronsta, pwrofsta);
         // Log::console (PSTR ("IRQ status 0,1,2    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
-    }
+    // }
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
     //Wire.end ();
 }
