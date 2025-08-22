@@ -186,8 +186,14 @@ void Power::checkAXP () {
 
         // ESP32 VDD 3300mV
         //  ! No need to set, automatically open , Don't close it
-        PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
-        PMU->setProtectedChannel(XPOWERS_DCDC1);
+        //PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
+        //PMU->setProtectedChannel(XPOWERS_DCDC1);
+        uint16_t dcdc1_voltage = PMU->getPowerChannelVoltage (XPOWERS_DCDC1);
+        Log::console (PSTR ("DCDC1 voltage : %d mV"), dcdc1_voltage);
+
+        // Enable LCD voltage
+        PMU->setPowerChannelVoltage (XPOWERS_DCDC3, 3300);
+        PMU->enablePowerOutput (XPOWERS_DCDC3);
 
         // LoRa VDD 3300mV
         PMU->setPowerChannelVoltage (XPOWERS_ALDO2, 3300);
