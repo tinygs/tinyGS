@@ -160,32 +160,32 @@ float RadioHal<SX1276>::getFrequencyError(bool autoCorrect)
 }
 
 template<>
-void RadioHal<SX1268>::setDio0Action(void (*func)(void))
+void RadioHal<SX1268>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }
 
 template<>
-void RadioHal<SX1262>::setDio0Action(void (*func)(void))
+void RadioHal<SX1262>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }
 
 template<>
-void RadioHal<SX1278>::setDio0Action(void (*func)(void))
+void RadioHal<SX1278>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 
 }
 
 template<>
-void RadioHal<SX1276>::setDio0Action(void (*func)(void))
+void RadioHal<SX1276>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }
 
 template<>
-void RadioHal<SX1280>::setDio0Action(void (*func)(void))
+void RadioHal<SX1280>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }

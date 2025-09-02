@@ -148,7 +148,7 @@ int16_t Radio::begin()
   // set the function that will be called
   // when new packet is received
   // attach the ISR to radio interrupt
-  radioHal->setDio0Action(setFlag);
+  radioHal->setPacketReceivedAction(setFlag);
   // start listening for LoRa packets
   //Log::console(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
   Log::console(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
@@ -366,7 +366,7 @@ int16_t Radio::sendTx(uint8_t *data, size_t length)
   int16_t state = 0;
 
   state = radioHal->transmit(data, length);
-  radioHal->setDio0Action(setFlag); // TODO: Check, is this needed?? include it inside startRX ??
+  radioHal->setPacketReceivedAction(setFlag); // TODO: Check, is this needed?? include it inside startRX ??
   startRx();
 
   return state;
