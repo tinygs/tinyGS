@@ -309,6 +309,7 @@ private:
   void parseAdvancedConf();
   void parseModemStartup();
   bool parseBoardTemplate(board_t &);
+  String boardTemplateToJSON(board_t &board);
 
   std::function<boolean(iotwebconf2::WebRequestWrapper *)> formValidatorStd;
   DNSServer dnsServer;

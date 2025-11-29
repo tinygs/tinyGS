@@ -23,6 +23,7 @@
 #include "../Radio/Radio.h"
 #include "../Display/graphics.h"
 #include "../Mqtt/MQTT_credentials.h"
+#include "../Power/Battery.h"
 #include "ArduinoJson.h"
 #if ARDUINOJSON_USE_LONG_LONG == 0 && !PLATFORMIO
 #error "Using Arduino IDE is not recommended, please follow this guide https://github.com/G4lile0/tinyGS/wiki/Arduino-IDE or edit /ArduinoJson/src/ArduinoJson/Configuration.hpp and amend to #define ARDUINOJSON_USE_LONG_LONG 1 around line 68"
@@ -53,17 +54,17 @@ ConfigManager::ConfigManager()
   //OLED_add, OLED_SDA,  OLED_SCL, OLED_RST, PROG_BUTTON, BOARD_LED,      L_SX127X?,   L_NSS, L_DI00, L_DI01, L_BUSSY, L_RST,  L_MISO, L_MOSI, L_SCK, L_TCXO_V, RX_EN, TX_EN,     ADC_CTL, BAT_AIN, VBAT_SCALE,   BOARD
 #if CONFIG_IDF_TARGET_ESP32S3
   {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED,     37,        1, 0.00405f, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
-  {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,    "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
-  {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,    "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
-  {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, UNUSED,   UNUSED, UNUSED,    "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
+  {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
+  {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
+  {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, UNUSED,   UNUSED, UNUSED,   "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
 #elif CONFIG_IDF_TARGET_ESP32C3
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1262,    8,   UNUSED,    3,      4,     5,       6,      7,    10,     1.6f,    UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,  "433MHz HELTEC LORA32 HT-CT62 SX1262" },  // SX1262  @gargomoma
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1278,    8,     4,   UNUSED,  UNUSED,   5,       6,      7,    10,     0.0f,    UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,  "Custom ESP32-C3 433MHz SX1278"     },  // SX1278 @gargomoma
 #else
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,       36, UNUSED,   "433MHz HELTEC WiFi LoRA 32 V1" },      // SX1278 @4m1g0
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,       36, UNUSED,   "863-928MHz HELTEC WiFi LoRA 32 V1" },  // SX1276
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,       36, UNUSED,   "433MHz HELTEC WiFi LoRA 32 V2" },      // SX1278 @4m1g0
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,       36, UNUSED,   "863-928MHz HELTEC WiFi LoRA 32 V2" },  // SX1276
+  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "433MHz HELTEC WiFi LoRA 32 V1" },      // SX1278 @4m1g0
+  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "863-928MHz HELTEC WiFi LoRA 32 V1" },  // SX1276
+  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED,     21,       37, 0.00283f, "433MHz HELTEC WiFi LoRA 32 V2" },      // SX1278 @4m1g0
+  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED,     21,       37, 0.00283f, "863-928MHz HELTEC WiFi LoRA 32 V2" },  // SX1276
   {      0x3c,        4,        15,       16,           0,         2,      RADIO_SX1278,    18,     26,   UNUSED, UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "433Mhz  TTGO LoRa 32 v1"        },     // SX1278 @g4lile0
   {      0x3c,        4,        15,       16,           0,         2,      RADIO_SX1276,    18,     26,   UNUSED, UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "868-915MHz TTGO LoRa 32 v1"        },  // SX1276
   {      0x3c,       21,        22,     UNUSED,         0,        22,      RADIO_SX1278,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "433MHz TTGO LoRA 32 v2"        },      // SX1278  @TCRobotics
@@ -261,7 +262,12 @@ void ConfigManager::handleDashboard()
   s += "<tr><td>WiFi RSSI </td><td>" + String(WiFi.isConnected() ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
   s += "<tr><td>Radio </td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
   s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>";
-  s += "<tr><td>Battery </td><td>" + String(status.vbat) + "V</td></tr>";
+  if (status.vbat > 0) {
+    s += "<tr><td>Battery </td><td>" + String(status.vbat) + "V " + String(getBatteryPercentage()) + "&percnt;</td></tr>";
+  } else {
+    // Empty if battery monitoring not enabled
+    s += "<tr><td></td><td></td></tr>";
+  }
   s += F("</table></div>");
 
 
@@ -508,7 +514,12 @@ void ConfigManager::handleRefreshWorldmap()
   if (status.radio_ready)
     radio.currentRssi ();
   data_string += String(status.modeminfo.currentRssi) + ",";
-  data_string += String(status.vbat) + ",";
+  if (status.vbat > 0) {
+    data_string += String(status.vbat) + "V " + String(getBatteryPercentage()) + "&percnt;,";
+  } else {
+    //  if battery monitoring not enabled
+    data_string += ",";
+  }
 
  
    // sat_info
@@ -754,8 +765,8 @@ void ConfigManager::printConfig()
   Log::debug(PSTR("tz: %s\nOLED Bright: %u\nTX %s"), getTZ(),  getOledBright(), getAllowTx() ? "Enable" : "Disable");
   if (getBoardTemplate()[0] != '\0') 
     Log::debug(PSTR("board_template: %s"),getBoardTemplate());
-  else 
-    Log::debug(PSTR("board: %u --> %s\n:"),getBoard(), boards[getBoard()].BOARD.c_str());
+  else
+    Log::debug(PSTR("board_template: %s"), boardTemplateToJSON(boards[getBoard()]).c_str() );
 }
 
 // void ConfigManager::setMqttServer(const char *server)
@@ -1037,4 +1048,37 @@ bool ConfigManager::parseBoardTemplate(board_t &board)
     board.VBAT_SCALE = UNUSED;
 
   return true;
+}
+
+String ConfigManager::boardTemplateToJSON(board_t &board)
+{
+  size_t size = JSON_OBJECT_SIZE(22) + 256;
+  DynamicJsonDocument doc(size);
+  String output;
+
+  doc["aADDR"] = board.OLED__address;
+  doc["oSDA"] = board.OLED__SDA;
+  doc["oSCL"] = board.OLED__SCL;
+  doc["oRST"] = board.OLED__RST;
+  doc["pBut"] = board.PROG__BUTTON;
+  doc["led"] = board.BOARD_LED;
+  doc["radio"] = board.L_radio;
+  doc["lNSS"] = board.L_NSS;
+  doc["lDIO0"] = board.L_DI00;
+  doc["lDIO1"] = board.L_DI01;
+  doc["lBUSSY"] = board.L_BUSSY;
+  doc["lRST"] = board.L_RST;
+  doc["lMISO"] = board.L_MISO;
+  doc["lMOSI"] = board.L_MOSI;
+  doc["lSCK"] = board.L_SCK;
+  doc["lTCXOV"] = board.L_TCXO_V;
+  doc["RXEN"] = board.RX_EN;
+  doc["TXEN"] = board.TX_EN;
+  doc["ADC_CTL"] = board.ADC_CTL;
+  doc["VBAT"] = board.VBAT_AIN;
+  doc["VBAT_SCALE"] = board.VBAT_SCALE;
+  doc["name"] = board.BOARD;
+
+  serializeJson(doc, output);
+  return output;
 }

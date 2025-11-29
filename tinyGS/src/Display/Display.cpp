@@ -22,6 +22,7 @@
 #include "../ConfigManager/ConfigManager.h"
 #include "../Mqtt/MQTT_credentials.h"
 #include "../Logger/Logger.h"
+#include "../Power/Battery.h"
 
 SSD1306* display;
 OLEDDisplayUi* ui = NULL;
@@ -235,7 +236,7 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   if (status.vbat != 0.0)
   {
       display->setTextAlignment(TEXT_ALIGN_LEFT);
-      display->drawString(x, 45 + y, "Bat: " + String(status.vbat) + "V");
+      display->drawString(x, 45 + y, "Bat: " + String(status.vbat) + "V  " + (getBatteryPercentage()) + "%");
   }
 }
 
