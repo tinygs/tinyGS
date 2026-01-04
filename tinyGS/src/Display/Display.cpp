@@ -236,7 +236,11 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   if (status.vbat != 0.0)
   {
       display->setTextAlignment(TEXT_ALIGN_LEFT);
-      display->drawString(x, 45 + y, "Bat: " + String(status.vbat) + "V  " + (getBatteryPercentage()) + "%");
+      if(getBatteryPercentage() > 100.0f) {
+        display->drawString(x, 45 + y, "Pow: USB " + String(status.vbat) + "V");
+      } else {
+        display->drawString(x, 45 + y, "Pow: Bat " + String(getBatteryPercentage(), 0) + "% " + String(status.vbat) + "V");
+      }
   }
 }
 

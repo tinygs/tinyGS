@@ -53,7 +53,7 @@ ConfigManager::ConfigManager()
     : IotWebConf2(thingName, &dnsServer, &server, initialApPassword, configVersion), server(80), gsConfigHtmlFormatProvider(*this), boards{
   //OLED_add, OLED_SDA,  OLED_SCL, OLED_RST, PROG_BUTTON, BOARD_LED,      L_SX127X?,   L_NSS, L_DI00, L_DI01, L_BUSSY, L_RST,  L_MISO, L_MOSI, L_SCK, L_TCXO_V, RX_EN, TX_EN,     ADC_CTL, BAT_AIN, VBAT_SCALE,   BOARD
 #if CONFIG_IDF_TARGET_ESP32S3
-  {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED,     37,        1, 0.00405f, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
+  {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED,     37,        1, 5.1205f, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
   {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
   {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, UNUSED,   UNUSED, UNUSED,   "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
   {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, UNUSED,   UNUSED, UNUSED,   "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
@@ -263,7 +263,11 @@ void ConfigManager::handleDashboard()
   s += "<tr><td>Radio </td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
   s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>";
   if (status.vbat > 0) {
-    s += "<tr><td>Battery </td><td>" + String(status.vbat) + "V " + String(getBatteryPercentage()) + "&percnt;</td></tr>";
+    if(getBatteryPercentage() > 100.0f) { // Charging
+      s += "<tr><td>Power </td><td>USB " + String(status.vbat) + "V</span></td></tr>";
+    } else {
+      s += "<tr><td>Power </td><td>Bat " + String(getBatteryPercentage(), 0) + "&percnt;" + String(status.vbat) + "V</span></td></tr>";
+    }
   } else {
     // Empty if battery monitoring not enabled
     s += "<tr><td></td><td></td></tr>";
@@ -515,7 +519,11 @@ void ConfigManager::handleRefreshWorldmap()
     radio.currentRssi ();
   data_string += String(status.modeminfo.currentRssi) + ",";
   if (status.vbat > 0) {
-    data_string += String(status.vbat) + "V " + String(getBatteryPercentage()) + "&percnt;,";
+    if(getBatteryPercentage() > 100.0f) { // Charging
+      data_string += "USB " + String(status.vbat) + "V,";
+    } else {
+      data_string += "Bat " + String(getBatteryPercentage(), 0) + "&percnt; " + String(status.vbat) + "V,";
+    }
   } else {
     //  if battery monitoring not enabled
     data_string += ",";
