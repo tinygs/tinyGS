@@ -33,7 +33,9 @@ public:
   static char getLogIdx();
   static void setLogLevel(LoggingLevels level);
   static void log_packet(uint8_t *packet, size_t size);
-
+  static void log_packet_hex(uint8_t *packet, size_t size);
+  static void log_packet_ax25(uint8_t *packet, size_t size);
+  
 private:
   static void AddLog(LoggingLevels logLevel, const char* logData);
   static size_t strchrspn(const char *str1, int character);
