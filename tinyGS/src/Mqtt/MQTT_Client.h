@@ -21,7 +21,6 @@
 #define MQTT_CLIENT_H
 
 #define SECURE_MQTT // Comment this line if you are not using MQTT over SSL
-#define LOG_TAG "MQTT"
 
 #include "../ConfigManager/ConfigManager.h"
 #include "../Status.h"
@@ -48,11 +47,12 @@ public:
   void begin();
   void loop();
   void sendWelcome();
-  void sendRx(String packet, bool noisy);
+  void sendRx(String packet, bool noisy, String raw_packet);
   void manageMQTTData(char *topic, uint8_t *payload, unsigned int length);
-  void sendStatus();
-  void sendAdvParameters();
-  void scheduleRestart() { scheduledRestart = true; };
+  void sendStatus ();
+  void sendAdvParameters ();
+  void sendWeblogin ();
+  void scheduleRestart () { scheduledRestart = true; };
 
 protected:
 #ifdef SECURE_MQTT
@@ -63,7 +63,8 @@ protected:
   void reconnect();
 
 private:
-  MQTT_Client();
+  const char* LOG_TAG = "MQTT";
+  MQTT_Client ();
   String buildTopic(const char * baseTopic, const char * cmnd);
   void subscribeToAll();
   void manageSatPosOled(char* payload, size_t payload_len);
@@ -107,23 +108,10 @@ private:
   const char* commandSatPos PROGMEM= "sat_pos_oled";
   const char* commandReset PROGMEM= "reset";
   const char* commandFreq PROGMEM= "freq";
-  const char* commandBw PROGMEM= "bw";
-  const char* commandSf PROGMEM= "sf";
-  const char* commandCr PROGMEM= "cr";
-  const char* commandCrc PROGMEM= "crc";
-  const char* commandLsw PROGMEM= "lsw";
-  const char* commandFldro PROGMEM= "fldro";
-  const char* commandAldro PROGMEM= "aldro";
-  const char* commandPl PROGMEM= "pl";
-  const char* commandBegine PROGMEM= "begine";
+   const char* commandBegine PROGMEM= "begine";
   const char* commandBeginp PROGMEM= "beginp";
   const char* commandBeginLora PROGMEM= "begin_lora";
   const char* commandBeginFSK PROGMEM= "begin_fsk";
-  const char* commandBr PROGMEM= "br";
-  const char* commandFd PROGMEM= "Fd";
-  const char* commandFbw PROGMEM= "fbw";
-  const char* commandFsw PROGMEM= "fsw";
-  const char* commandFook PROGMEM= "fok";
   const char* commandFrame PROGMEM= "frame";
   const char* commandSat PROGMEM= "sat";
   const char* commandStatus PROGMEM= "status";
@@ -134,13 +122,11 @@ private:
   const char* commandGoToSiesta PROGMEM= "siesta";
   const char* commandSetFreqOffset PROGMEM= "foff";
   const char* commandSetAdvParameters PROGMEM= "set_adv_prm";
-  const char* commandGetAdvParameters PROGMEM= "get_adv_prm";
+  const char* commandGetAdvParameters PROGMEM = "get_adv_prm";
+  const char* commandWeblogin PROGMEM = "weblogin";
   const char* commandSetPosParameters PROGMEM= "set_pos_prm"; 
   const char* commandSetName PROGMEM= "set_name"; 
-    // GOD MODE  With great power comes great responsibility!
-  const char* commandSPIsetRegValue PROGMEM= "SPIsetRegValue";
-  const char* commandSPIwriteRegister PROGMEM= "SPIwriteRegister";
-  const char* commandSPIreadRegister PROGMEM= "SPIreadRegister";
+
 };
 
 #endif

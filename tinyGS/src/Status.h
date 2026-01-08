@@ -28,8 +28,10 @@ struct PacketInfo {
   String time = "Waiting";
   float rssi = 0;
   float snr = 0;
-  float frequencyerror = 0;    // Hz 
-  bool crc_error = false;
+  float frequencyerror = 0;       // Hz 
+  bool  crc_error = false;
+  float freqDoppler = 0;          // Hz
+
 };
 
 struct ModemInfo {
@@ -54,9 +56,10 @@ struct ModemInfo {
   uint8_t   fsw[8]    = {0,0,0,0,0,0,0,0};
   uint8_t   swSize    = 0;
   uint8_t   filter[8] = {0,0,0,0,0,0,0,0};
-  uint8_t   len       = 64;     // FSK expected lenght in packet mode
-  uint8_t   enc       = 0;      // FSK  transmission encoding. (0 -> NRZ(sx127x, sx126x)(defaul).  1 -> MANCHESTER(sx127x), WHITENING(sx126x).  2 -> WHITENING(sx127x, sx126x). 10 -> NRZ(sx127x), WHITENING(sx126x).
-  float currentRssi = 0;
+  uint8_t   len       = 0;     // FSK expected lenght in packet mode  // LoRa =0  or not defined -> Explicit header, >0 -> Implicit header and pckt lenght
+  uint8_t   enc       = 0;     // FSK  transmission encoding. (0 -> NRZ(sx127x, sx126x)(defaul).  1 -> MANCHESTER(sx127x), WHITENING(sx126x).  2 -> WHITENING(sx127x, sx126x). 10 -> NRZ(sx127x), WHITENING(sx126x).
+  float currentRssi   = 0;
+  bool      iIQ       = false;         // Whether to invert I and Q channels
   ///////////////////////////////////////////////////////
   uint16_t  whitening_seed  = 0x01E1; //Whitening Seed
   uint8_t   framing   = 0; //0 -> No framing - 1 -> AX.25
@@ -85,20 +88,21 @@ struct Tle {
   double       dSatAZ   = 0;           // Satellite azimuth
   double       dSatEL   = 0;           // Satellite elevation
   double       tgsALT   = 500;         // station altitude 
-  uint16_t     refresh  = 6000;        // TLE refresh calculation timing in ms      
-  uint16_t     freqTol  = 500;         // Frequency doppler tolerance to update modem 
+  uint16_t     refresh  = 4000;        // TLE refresh calculation timing in ms      
+  uint16_t     freqTol  = 1200;         // Frequency doppler tolerance to update modem 
   
  };
 
  
 struct Status {
-  const uint32_t version = 2504211; // version: year month day release
+  const uint32_t version = 2510281;  // version: year month day release
   const char* git_version = GIT_VERSION;
   bool mqtt_connected = false;
   bool radio_ready = false;
   int16_t radio_error = 0;
   PacketInfo lastPacketInfo;
   ModemInfo modeminfo;
+  ModemInfo modeminfolastpckt;
   float satPos[2] = {0, 0};
   uint8_t remoteTextFrameLength[4] = {0, 0, 0, 0};
   TextFrame remoteTextFrame[4][15];

@@ -426,7 +426,9 @@ public:
   /**
    * Return the current state, that will be a value from the IOTWEBCONF_STATE_* constants.
    */
-  byte getState() { return this->_state; };
+  byte getState () { return this->_state; };
+
+  void changeState (byte newState);
 
   /**
    * This method can be used to set the AP timeout directly without modifying the apTimeoutParameter.
@@ -627,7 +629,7 @@ private:
 
   bool validateForm(WebRequestWrapper* webRequestWrapper);
 
-  void changeState(byte newState);
+//   void changeState(byte newState);
   void stateChanged(byte oldState, byte newState);
   bool mustUseDefaultPassword()
   {

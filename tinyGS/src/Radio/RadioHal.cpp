@@ -160,64 +160,64 @@ float RadioHal<SX1276>::getFrequencyError(bool autoCorrect)
 }
 
 template<>
-void RadioHal<SX1268>::setDio0Action(void (*func)(void))
+void RadioHal<SX1268>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }
 
 template<>
-void RadioHal<SX1262>::setDio0Action(void (*func)(void))
+void RadioHal<SX1262>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }
 
 template<>
-void RadioHal<SX1278>::setDio0Action(void (*func)(void))
+void RadioHal<SX1278>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 
 }
 
 template<>
-void RadioHal<SX1276>::setDio0Action(void (*func)(void))
+void RadioHal<SX1276>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }
 
 template<>
-void RadioHal<SX1280>::setDio0Action(void (*func)(void))
+void RadioHal<SX1280>::setPacketReceivedAction(void (*func)(void))
 {
     radio->setPacketReceivedAction(func);
 }
 
 template<>
-int16_t RadioHal<SX1278>::startReceive(uint8_t len, uint8_t mode)
+int16_t RadioHal<SX1278>::startReceive()
 {
-    return radio->startReceive(len, mode);
+    return radio->startReceive();
 }
 
 template<>
-int16_t RadioHal<SX1276>::startReceive(uint8_t len, uint8_t mode)
+int16_t RadioHal<SX1276>::startReceive()
 {
-    return radio->startReceive(len, mode);
+    return radio->startReceive();
 }
 
 template<>
-int16_t RadioHal<SX1268>::startReceive(uint8_t len, uint8_t mode)
+int16_t RadioHal<SX1268>::startReceive()
 {
-    return radio->startReceive(len);
+    return radio->startReceive();
 }
 
 template<>
-int16_t RadioHal<SX1262>::startReceive(uint8_t len, uint8_t mode)
+int16_t RadioHal<SX1262>::startReceive()
 {
-    return radio->startReceive(len);
+    return radio->startReceive();
 }
 
 template<>
-int16_t RadioHal<SX1280>::startReceive(uint8_t len, uint8_t mode)
+int16_t RadioHal<SX1280>::startReceive()
 {
-    return radio->startReceive(len);
+    return radio->startReceive();
 }
 
 template<>
@@ -415,4 +415,95 @@ template<>
 int16_t RadioHal<SX1280>::setWhitening(bool enabled, uint16_t initial)
 {
     return 0;
+}
+
+
+template<>
+int16_t RadioHal<SX1278>::invertIQ(bool enable)
+{
+    return radio->invertIQ(enable);
+}
+
+template<>
+int16_t RadioHal<SX1276>::invertIQ(bool enable)
+{
+    return radio->invertIQ(enable);
+}
+
+template<>
+int16_t RadioHal<SX1268>::invertIQ(bool enable)
+{
+    return radio->invertIQ(enable);
+}
+
+template<>
+int16_t RadioHal<SX1262>::invertIQ(bool enable)
+{
+    return radio->invertIQ(enable);
+}
+
+template<>
+int16_t RadioHal<SX1280>::invertIQ(bool enable)
+{
+    return radio->invertIQ(enable);
+}
+
+template<>
+int16_t RadioHal<SX1278>::explicitHeader()
+{
+    return radio->explicitHeader();
+}
+
+template<>
+int16_t RadioHal<SX1276>::explicitHeader()
+{
+    return radio->explicitHeader();
+}
+
+template<>
+int16_t RadioHal<SX1268>::explicitHeader()
+{
+    return radio->explicitHeader();
+}
+
+template<>
+int16_t RadioHal<SX1262>::explicitHeader()
+{
+    return radio->explicitHeader();
+}
+
+template<>
+int16_t RadioHal<SX1280>::explicitHeader()
+{
+    return radio->explicitHeader();
+}
+
+template<>
+int16_t RadioHal<SX1278>::implicitHeader(size_t len)
+{
+    return radio->implicitHeader(len);
+}
+
+template<>
+int16_t RadioHal<SX1276>::implicitHeader(size_t len)
+{
+    return radio->implicitHeader(len);
+}
+
+template<>
+int16_t RadioHal<SX1268>::implicitHeader(size_t len)
+{
+    return radio->implicitHeader(len);
+}
+
+template<>
+int16_t RadioHal<SX1262>::implicitHeader(size_t len)
+{
+    return radio->implicitHeader(len);
+}
+
+template<>
+int16_t RadioHal<SX1280>::implicitHeader(size_t len)
+{
+    return radio->implicitHeader(len);
 }

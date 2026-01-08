@@ -31,5 +31,6 @@ static int remove_bit_stuffing (uint8_t *entrada, size_t sizeEntrada, uint8_t *s
 static void invierte_bits_de_un_byte(uint8_t br, uint8_t *bs);
 static void invierte_bytes_de_un_array(uint8_t *entrada, size_t sizeEntrada, uint8_t *salida, size_t *sizeSalida);
 static int nrz2ax25(uint8_t *entrada, size_t sizeEntrada,  uint8_t *ax25bin, size_t *sizeAx25bin);
+static int pn9(uint8_t *entrada, size_t sizeEntrada, uint8_t *salida);
 };
 #endif

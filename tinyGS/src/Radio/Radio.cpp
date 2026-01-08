@@ -118,8 +118,14 @@ int16_t Radio::begin()
         radioHal->autoLDRO();
       else
         radioHal->forceLDRO(m.fldro);
-
       radioHal->setCRC(m.crc);
+      radioHal->invertIQ(m.iIQ);
+
+      if (m.len==0) {
+       CHECK_ERROR(radioHal->explicitHeader());}
+      else  {
+       CHECK_ERROR(radioHal->implicitHeader(m.len));}
+      
     } 
     else 
     {
@@ -148,7 +154,7 @@ int16_t Radio::begin()
   // set the function that will be called
   // when new packet is received
   // attach the ISR to radio interrupt
-  radioHal->setDio0Action(setFlag);
+  radioHal->setPacketReceivedAction(setFlag);
   // start listening for LoRa packets
   //Log::console(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
   Log::console(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
@@ -189,7 +195,7 @@ if (status.modeminfo.tle[0] != 0)
   double       dfreqTX  = status.modeminfo.frequency;     // Nominal uplink frequency
   
   struct tm *timeinfo;
-  time_t currenttime = time(NULL) +(status.tle.refresh/2000);       // calculate the TLE for now + the half of the refresh time.
+  time_t currenttime = time(NULL);  // oe6isp  time(NULL) +(status.tle.refresh/2000);       // calculate the TLE for now + the half of the refresh time.
   timeinfo = gmtime(&currenttime);
 
 
@@ -273,10 +279,14 @@ if (status.modeminfo.tle[0] != 0)
   //Serial.printf("\r\nSun -> Lat: %.4f Lon: %.4f (MAP %dx%d: x = %d,y = %d) Az: %.2f El: %.2f\r\n\r\n", dSunLAT, dSunLON, MAP_MAXX, MAP_MAXY, ixSUN, iySUN, dSunAZ, dSunEL);
 
   Log::debug(PSTR("Doppler -> New: %.2f Hz Old: %.2f Hz  Dif: %.2f Hz"),  status.tle.new_freqDoppler, status.tle.freqDoppler, abs( status.tle.new_freqDoppler- status.tle.freqDoppler) );
-  if (abs( status.tle.new_freqDoppler- status.tle.freqDoppler) >  status.tle.freqTol) {
-     status.tle.freqDoppler = status.tle.new_freqDoppler;
-     setFrequency();}
-  
+  if(status.tle.dSatEL > 0) // oe6isp
+  {
+	if (abs( status.tle.new_freqDoppler- status.tle.freqDoppler) >  status.tle.freqTol) {
+    //  status.tle.freqDoppler = status.tle.new_freqDoppler;
+      status.tle.freqDoppler = status.tle.new_freqDoppler - status.tle.freqTol; // OE6ISP 
+     setFrequency();
+	 }
+  }
 } else {
 
   status.tle.freqDoppler = 0;
@@ -317,6 +327,10 @@ void Radio::startRx()
   enableInterrupt();
   }
 
+  void Radio::clearPacketReceivedAction()
+  {
+    radioHal->clearPacketReceivedAction();
+  }
 
  void Radio::currentRssi()
 {
@@ -362,7 +376,7 @@ int16_t Radio::sendTx(uint8_t *data, size_t length)
   int16_t state = 0;
 
   state = radioHal->transmit(data, length);
-  radioHal->setDio0Action(setFlag); // TODO: Check, is this needed?? include it inside startRX ??
+  radioHal->setPacketReceivedAction(setFlag); // TODO: Check, is this needed?? include it inside startRX ??
   startRx();
 
   return state;
@@ -392,7 +406,7 @@ uint8_t Radio::listen()
   received = false;
 
   size_t respLen = 0;
-  uint8_t *respFrame = 0;
+  size_t respLenRaw = 0;
   int16_t state = 0;
 
   PacketInfo newPacketInfo;
@@ -402,13 +416,17 @@ uint8_t Radio::listen()
   // workaround for radiolib FSX fixed packet definition returning always a size of 255bytes
   if (respLen == 255) respLen = status.modeminfo.len;
 
-  respFrame = new uint8_t[respLen];
-  state = radioHal->readData(respFrame, respLen);
-  newPacketInfo.rssi = radioHal->getRSSI();
-  newPacketInfo.snr = radioHal->getSNR();
-  newPacketInfo.frequencyerror = radioHal->getFrequencyError();
+ uint8_t* respFrame = new uint8_t[respLen];
+ uint8_t* respFrame_raw = new uint8_t[respLen];
+ respLenRaw =  respLen;
 
-
+ state = radioHal->readData(respFrame, respLen);
+ memcpy(respFrame_raw, respFrame, respLen);
+ 
+ newPacketInfo.rssi = radioHal->getRSSI();
+ newPacketInfo.snr = radioHal->getSNR();
+ newPacketInfo.frequencyerror = radioHal->getFrequencyError();
+ 
   // check if the packet info is exactly the same as the last one
   if (newPacketInfo.rssi == status.lastPacketInfo.rssi &&
       newPacketInfo.snr == status.lastPacketInfo.snr &&
@@ -416,9 +434,13 @@ uint8_t Radio::listen()
   {
     Log::console(PSTR("Interrupt triggered but no new data available. Check wiring and electrical interferences."));
     delete[] respFrame;
+    delete[] respFrame_raw;
     startRx();
     return 4;
   }
+
+  status.modeminfolastpckt = status.modeminfo;
+  if (status.tle.freqDoppler!=0)  status.lastPacketInfo.freqDoppler = status.tle.freqDoppler; else status.lastPacketInfo.freqDoppler =0;
 
   struct tm *timeinfo;
   time_t currenttime = time(NULL);
@@ -477,6 +499,7 @@ uint8_t Radio::listen()
     }
     delete[] byteStr;
 
+
     bool packet_logged=false;
     if (allow_decode){
       String modo=status.modeminfo.modem_mode;
@@ -502,15 +525,28 @@ uint8_t Radio::listen()
         size_t sizeAx25bin=0;
         ax25bin=new uint8_t[buffSize_pck];
         frame_error=BitCode::nrz2ax25(respFrame_fsk,buffSize_pck,ax25bin,&sizeAx25bin);
+        delete[] respFrame_fsk; // Clean up respFrame_fsk
         if (frame_error!=0){
           Log::console(PSTR("Frame error!"));
+          status.lastPacketInfo.crc_error = true;
         }
         //RAW packet is replaced by the processed packet.
+        delete[] respFrame; // Clean up original respFrame before reassignment
         respFrame=ax25bin;
         respLen=sizeAx25bin;
       }
-            
-      if (frame_error==0 && status.modeminfo.crc_by_sw){
+
+      if (status.modeminfo.framing==2){ //framing=2 -> PN9(Fixed 8 bits shift) de-scrambler
+        uint8_t *salida;
+        size_t sizeSalida=0;              
+        salida=new uint8_t[respLen];
+        BitCode::pn9(respFrame,respLen,salida);
+        respFrame=salida;
+      }
+      board_t board;
+      ConfigManager::getInstance().getBoardConfig(board);
+      // check CRC by software if pckt is <65 bytes, of if it's bigger only for modules SX126x 
+      if (frame_error==0 && status.modeminfo.crc_by_sw && ( board.L_radio==RADIO_SX1268 || board.L_radio==RADIO_SX1262 || respLen < 65 )){
         size_t newsize=respLen-status.modeminfo.crc_nbytes;
         RadioLibCRCInstance.size = status.modeminfo.crc_nbytes*8;
         RadioLibCRCInstance.poly = status.modeminfo.crc_poly;
@@ -538,13 +574,15 @@ uint8_t Radio::listen()
         Log::log_packet(respFrame,respLen);
         packet_logged=true;
         if (fcs!=crcfield){
+            status.lastPacketInfo.crc_error = true;
             Log::console(PSTR("Error_CRC"));
             char *cad=new char[10];
-            respLen=10;
+            respLen=9;
             sprintf(cad,"Error_CRC");
-            for (int i=0;i<10;i++){
+            for (int i=0;i<9;i++){
               respFrame[i]=(char)cad[i];
             }
+            delete[] cad; // Clean up cad
           }          
         }
       }
@@ -573,16 +611,18 @@ uint8_t Radio::listen()
       {
         Log::console(PSTR("Filter enabled, doesn't looks like the expected satellite packet"));
         delete[] respFrame;
+        delete[] respFrame_raw;
         startRx();
         return 5;
       }
     }
 
-    status.lastPacketInfo.crc_error = false;
+//    status.lastPacketInfo.crc_error = false;
     String encoded = base64::encode(respFrame, respLen);
-    MQTT_Client::getInstance().sendRx(encoded, noisyInterrupt);
+    String encoded_raw = base64::encode(respFrame_raw, respLenRaw);
+    MQTT_Client::getInstance().sendRx(encoded, noisyInterrupt,encoded_raw);
   }
-  else if (state == RADIOLIB_ERR_CRC_MISMATCH)
+  else if (state == RADIOLIB_ERR_CRC_MISMATCH || status.lastPacketInfo.crc_error )
   {
     // packet was received, but is malformed
     status.lastPacketInfo.crc_error = true;
@@ -591,20 +631,27 @@ uint8_t Radio::listen()
     if (status.modeminfo.filter[0] == 0)
     {
       String error_encoded = base64::encode("Error_CRC");
-      MQTT_Client::getInstance().sendRx(error_encoded, noisyInterrupt);
+      String encoded_raw = base64::encode(respFrame_raw, respLenRaw);
+      MQTT_Client::getInstance().sendRx(error_encoded, noisyInterrupt,encoded_raw);
     }
     else
     {
       Log::console(PSTR("Filter enabled, Error CRC filtered"));
       delete[] respFrame;
+      delete[] respFrame_raw;
       startRx();
       return 5;
     }
   }
 
   delete[] respFrame;
+  delete[] respFrame_raw;
 
   noisyInterrupt = false;
+  
+  // force doppler-recalc
+  status.tle.freqDoppler = 99999; // oe6isp
+  tle(); // oe6isp
 
   // put module back to listen mode
   startRx();
@@ -727,226 +774,13 @@ int16_t Radio::remoteSetFreqOffset(char *payload, size_t payload_len)
   return RADIOLIB_ERR_NONE;
 }
 
-int16_t Radio::remote_bw(char *payload, size_t payload_len)
-{
-  float bw = _atof(payload, payload_len);
-  Log::console(PSTR("Set bandwidth: %.3f MHz"), bw);
 
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->setBandwidth(bw);
-    ((SX1278 *)lora)->startReceive();
-    ((SX1278 *)lora)->setPacketReceivedAction(setFlag);
-  }
-  else
-  {
-    state = ((SX1268 *)lora)->setBandwidth(bw);
-    ((SX1268 *)lora)->startReceive();
-    ((SX1268 *)lora)->setPacketReceivedAction(setFlag);
-  }
 
-  readState(state);
-  if (state == RADIOLIB_ERR_NONE)
-    status.modeminfo.bw = bw;
 
-  return state;
-}
 
-int16_t Radio::remote_sf(char *payload, size_t payload_len)
-{
-  uint8_t sf = _atof(payload, payload_len);
-  Log::console(PSTR("Set spreading factor: %u"), sf);
 
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->setSpreadingFactor(sf);
-    ((SX1278 *)lora)->startReceive();
-    ((SX1278 *)lora)->setPacketReceivedAction(setFlag);
-  }
-  else
-  {
-    state = ((SX1268 *)lora)->setSpreadingFactor(sf);
-    ((SX1268 *)lora)->startReceive();
-    ((SX1268 *)lora)->setPacketReceivedAction(setFlag);
-  }
 
-  readState(state);
 
-  if (state == RADIOLIB_ERR_NONE)
-    status.modeminfo.sf = sf;
-
-  return state;
-}
-
-int16_t Radio::remote_cr(char *payload, size_t payload_len)
-{
-  uint8_t cr = _atoi(payload, payload_len);
-  Log::console(PSTR("Set coding rate: %u"), cr);
-
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->setCodingRate(cr);
-    ((SX1278 *)lora)->startReceive();
-    ((SX1278 *)lora)->setPacketReceivedAction(setFlag);
-  }
-  else
-  {
-    state = ((SX1268 *)lora)->setCodingRate(cr);
-    ((SX1268 *)lora)->startReceive();
-    ((SX1268 *)lora)->setPacketReceivedAction(setFlag);
-  }
-
-  readState(state);
-
-  if (state == RADIOLIB_ERR_NONE)
-    status.modeminfo.cr = cr;
-
-  return state;
-}
-
-int16_t Radio::remote_crc(char *payload, size_t payload_len)
-{
-  bool crc = _atoi(payload, payload_len);
-  Log::console(PSTR("Set CRC: %s"), crc ? F("ON") : F("OFF"));
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->setCRC(crc);
-    ((SX1278 *)lora)->startReceive();
-    ((SX1278 *)lora)->setPacketReceivedAction(setFlag);
-  }
-  else
-  {
-    state = ((SX1268 *)lora)->setCRC(crc);
-    ((SX1268 *)lora)->startReceive();
-    ((SX1268 *)lora)->setPacketReceivedAction(setFlag);
-  }
-
-  readState(state);
-  return state;
-}
-
-int16_t Radio::remote_lsw(char *payload, size_t payload_len)
-{
-  uint8_t sw = _atoi(payload, payload_len);
-  char strHex[2];
-  sprintf(strHex, "%1x", sw);
-  Log::console(PSTR("Set lsw: %s"), strHex);
-
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-    state = ((SX1278 *)lora)->setSyncWord(sw);
-  else
-    state = ((SX1268 *)lora)->setSyncWord(sw, 0x44);
-
-  readState(state);
-  return state;
-}
-
-int16_t Radio::remote_fldro(char *payload, size_t payload_len)
-{
-  bool ldro = _atoi(payload, payload_len);
-  Log::console(PSTR("Set ForceLDRO: %s"), ldro ? F("ON") : F("OFF"));
-
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->forceLDRO(ldro);
-    ((SX1278 *)lora)->startReceive();
-    ((SX1278 *)lora)->setPacketReceivedAction(setFlag);
-  }
-  else
-  {
-    state = ((SX1268 *)lora)->forceLDRO(ldro);
-    ((SX1268 *)lora)->startReceive();
-    ((SX1268 *)lora)->setPacketReceivedAction(setFlag);
-  }
-
-  readState(state);
-
-  if (state == RADIOLIB_ERR_NONE)
-  {
-    if (ldro)
-      status.modeminfo.fldro = true;
-    else
-      status.modeminfo.fldro = false;
-  }
-
-  return state;
-}
-
-int16_t Radio::remote_aldro(char *payload, size_t payload_len)
-{
-  Log::console(PSTR("Set AutoLDRO "));
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->autoLDRO();
-    ((SX1278 *)lora)->startReceive();
-    ((SX1278 *)lora)->setPacketReceivedAction(setFlag);
-  }
-  else
-  {
-    state = ((SX1268 *)lora)->autoLDRO();
-    ((SX1268 *)lora)->startReceive();
-    ((SX1268 *)lora)->setPacketReceivedAction(setFlag);
-  }
-
-  readState(state);
-  return state;
-}
-
-int16_t Radio::remote_pl(char *payload, size_t payload_len)
-{
-  uint16_t pl = _atoi(payload, payload_len);
-  Log::console(PSTR("Set Preamble %u"), pl);
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->setPreambleLength(pl);
-    ((SX1278 *)lora)->startReceive();
-    ((SX1278 *)lora)->setPacketReceivedAction(setFlag);
-  }
-  else
-  {
-    state = ((SX1268 *)lora)->setPreambleLength(pl);
-    ((SX1268 *)lora)->startReceive();
-    ((SX1268 *)lora)->setPacketReceivedAction(setFlag);
-  }
-
-  readState(state);
-  if (state == RADIOLIB_ERR_NONE)
-    status.modeminfo.preambleLength = pl;
-
-  return state;
-}
 
 int16_t Radio::remote_begin_lora(char *payload, size_t payload_len)
 {
@@ -1070,211 +904,16 @@ int16_t Radio::remote_begin_fsk(char *payload, size_t payload_len)
   return state;
 }
 
-int16_t Radio::remote_br(char *payload, size_t payload_len)
-{
-  uint8_t br = _atoi(payload, payload_len);
-  Log::console(PSTR("Set FSK Bit rate: %u"), br);
 
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-    state = ((SX1278 *)lora)->setBitRate(br);
-  else
-    state = ((SX1268 *)lora)->setBitRate(br);
 
-  readState(state);
-  if (state == RADIOLIB_ERR_NONE)
-    status.modeminfo.bitrate = br;
 
-  return state;
-}
 
-int16_t Radio::remote_fd(char *payload, size_t payload_len)
-{
-  uint8_t fd = _atoi(payload, payload_len);
-  Log::console(PSTR("Set FSK Frequency Dev.: %u"), fd);
 
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-    state = ((SX1278 *)lora)->setFrequencyDeviation(fd);
-  else
-    state = ((SX1268 *)lora)->setFrequencyDeviation(fd);
 
-  readState(state);
-  if (state == RADIOLIB_ERR_NONE)
-    status.modeminfo.freqDev = fd;
 
-  return state;
-}
 
-int16_t Radio::remote_fbw(char *payload, size_t payload_len)
-{
-  float frequency = _atof(payload, payload_len);
-  Log::console(PSTR("Set FSK bandwidth: %.3f kHz"), frequency);
 
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-    state = ((SX1278 *)lora)->setRxBandwidth(frequency);
-  else
-    state = ((SX1268 *)lora)->setRxBandwidth(frequency);
 
-  readState(state);
-  if (state == RADIOLIB_ERR_NONE)
-    status.modeminfo.bw = frequency;
-
-  return state;
-}
-
-int16_t Radio::remote_fsw(char *payload, size_t payload_len)
-{
-  DynamicJsonDocument doc(256);
-  deserializeJson(doc, payload, payload_len);
-  uint8_t synnwordsize = doc.size();
-  uint8_t syncWord[synnwordsize];
-
-  Serial.println("");
-  Serial.print(F("Set SyncWord Size "));
-  Serial.print(synnwordsize);
-  Serial.print(F("-> "));
-
-  for (uint8_t words = 0; words < synnwordsize; words++)
-  {
-    syncWord[words] = doc[words];
-    status.modeminfo.fsw[words] = syncWord[words];
-    Serial.print(F(" 0x"));
-    Serial.print(syncWord[words], HEX);
-    Serial.print(F(", "));
-  }
-
-   status.modeminfo.swSize = synnwordsize;
-
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-    state = ((SX1278 *)lora)->setSyncWord(syncWord, synnwordsize);
-  else
-    state = ((SX1268 *)lora)->setSyncWord(syncWord, synnwordsize);
-
-  readState(state);
-  return state;
-}
-
-int16_t Radio::remote_fook(char *payload, size_t payload_len)
-{
-  DynamicJsonDocument doc(60);
-  deserializeJson(doc, payload, payload_len);
-  bool enableOOK = doc[0];
-  uint8_t ook_shape = doc[1];
-
-  Log::console(PSTR("OOK Modulation: %s"), enableOOK ? F("ON") : F("OFF"));
-  Log::console(PSTR("Set OOK datashaping: %u"), ook_shape);
-
-  int state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-  {
-    state = ((SX1278 *)lora)->setOOK(enableOOK);
-  }
-  else
-  {
-    Log::error(PSTR("OOK not supported by the selected lora module!"));
-    return -1;
-  }
-
-  readState(state);
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  if (board.L_radio)
-    state = ((SX1278 *)lora)->setDataShapingOOK(ook_shape);
-
-  readState(state);
-  return state;
-}
-
-void Radio::remote_SPIwriteRegister(char *payload, size_t payload_len)
-{
-  DynamicJsonDocument doc(60);
-  deserializeJson(doc, payload, payload_len);
-  uint8_t reg = doc[0];
-  uint8_t data = doc[1];
-  Log::console(PSTR("REG ID: 0x%x to 0x%x"), reg, data);
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return;
-  //if (board.L_radio)
-  //  ((SX1278 *)lora)->_mod->SPIwriteRegister(reg, data);
-  //  else
-  //   ((SX1268*)lora)->_mod->SPIwriteRegister(reg,data);
-}
-
-int16_t Radio::remote_SPIreadRegister(char *payload, size_t payload_len)
-{
-  uint8_t reg = _atoi(payload, payload_len);
-  uint8_t data = 0;
-
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  //if (board.L_radio)
-   // data = ((SX1278 *)lora)->_mod->SPIreadRegister(reg);
-  // else
-  //   data = ((SX1268*)lora)->_mod->SPIreadRegister(reg);
-
-  Log::console(PSTR("REG ID: 0x%x HEX : 0x%x BIN : %b"), reg, data, data);
-
-  readState(state);
-  return data;
-}
-
-int16_t Radio::remote_SPIsetRegValue(char *payload, size_t payload_len)
-{
-  DynamicJsonDocument doc(120);
-  deserializeJson(doc, payload, payload_len);
-  uint8_t reg = doc[0];
-  uint8_t value = doc[1];
-  uint8_t msb = doc[2];
-  uint8_t lsb = doc[3];
-  uint8_t checkinterval = doc[4];
-
-  Serial.println("");
-  Serial.print(F("REG ID: 0x"));
-  Serial.println(reg, HEX);
-  Serial.print(F("to HEX: 0x"));
-  Serial.print(value, HEX);
-  Serial.print(F("bin : 0x "));
-  Serial.println(value, BIN);
-  Serial.print(F("msb : "));
-  Serial.println(msb);
-  Serial.print(F("lsb : "));
-  Serial.println(lsb);
-  Serial.print(F("check_interval : "));
-  Serial.println(checkinterval);
-
-  int16_t state = 0;
-  board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
-    return -1;
-  //if (board.L_radio)
-  //  state = ((SX1278 *)lora)->_mod->SPIsetRegValue(reg, value, msb, lsb, checkinterval);
-  //else
-    //   state = ((SX1268*)lora)->_mod->SPIsetRegValue(reg, value, msb, lsb, checkinterval);
-
-    readState(state);
-  return state;
-}
 
 double Radio::_atof(const char *buff, size_t length)
 {

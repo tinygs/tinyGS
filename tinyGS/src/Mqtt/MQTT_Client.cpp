@@ -213,6 +213,9 @@ void MQTT_Client::sendWelcome()
   doc["slot"] = esp_ota_get_running_partition ()->label;
   doc["pSize"] = esp_ota_get_running_partition ()->size;
   doc["idfv"] = esp_get_idf_version();
+  board_t board;
+  if (configManager.getBoardConfig(board))
+    doc["radioChip"] = board.L_radio;
 
   Log::debug(PSTR("Running on %s"),  esp_ota_get_running_partition ()->label);
   Log::debug(PSTR("Partition size: %d bytes"),esp_ota_get_running_partition ()->size);
@@ -224,7 +227,7 @@ void MQTT_Client::sendWelcome()
   publish(buildTopic(teleTopic, topicWelcome).c_str(), buffer, false);
 }
 
-void MQTT_Client::sendRx(String packet, bool noisy)
+void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
 {
   ConfigManager &configManager = ConfigManager::getInstance();
   time_t now;
@@ -232,28 +235,31 @@ void MQTT_Client::sendRx(String packet, bool noisy)
   struct timeval tv;
   gettimeofday(&tv, NULL);
 
-  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(23) + 50;
+  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(23) + 50 + 128;
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
   station_location.add(configManager.getLatitude());
   station_location.add(configManager.getLongitude());
-  doc["mode"] = status.modeminfo.modem_mode;
-  doc["frequency"] = status.modeminfo.frequency;
-  doc["frequency_offset"] = status.modeminfo.freqOffset;
-  if (status.tle.freqDoppler!=0)  doc["f_doppler"]= status.tle.freqDoppler;
-  doc["satellite"] = status.modeminfo.satellite;
+  doc["mode"] = status.modeminfolastpckt.modem_mode;
+  doc["frequency"] = status.modeminfolastpckt.frequency;
+  doc["frequency_offset"] = status.modeminfolastpckt.freqOffset;
+  if (status.lastPacketInfo.freqDoppler!=0)  doc["f_doppler"]= status.lastPacketInfo.freqDoppler;
+ 
+  doc["satellite"] = status.modeminfolastpckt.satellite;
   
-  if (String(status.modeminfo.modem_mode) == "LoRa")
+  if (String(status.modeminfolastpckt.modem_mode) == "LoRa")
   {
-    doc["sf"] = status.modeminfo.sf;
-    doc["cr"] = status.modeminfo.cr;
-    doc["bw"] = status.modeminfo.bw;
+    doc["sf"] = status.modeminfolastpckt.sf;
+    doc["cr"] = status.modeminfolastpckt.cr;
+    doc["bw"] = status.modeminfolastpckt.bw;
+    doc["iIQ"] = status.modeminfolastpckt.iIQ;
   }
   else
   {
-    doc["bitrate"] = status.modeminfo.bitrate;
-    doc["freqdev"] = status.modeminfo.freqDev;
-    doc["rxBw"] = status.modeminfo.bw;
+    doc["bitrate"] = status.modeminfolastpckt.bitrate;
+    doc["freqdev"] = status.modeminfolastpckt.freqDev;
+    doc["rxBw"] = status.modeminfolastpckt.bw;
+    doc["data_raw"] = raw_packet.c_str();
   }
 
   doc["rssi"] = status.lastPacketInfo.rssi;
@@ -264,7 +270,7 @@ void MQTT_Client::sendRx(String packet, bool noisy)
 //  doc["time_offset"] = status.time_offset;
   doc["crc_error"] = status.lastPacketInfo.crc_error;
   doc["data"] = packet.c_str();
-  doc["NORAD"] = status.modeminfo.NORAD;
+  doc["NORAD"] = status.modeminfolastpckt.NORAD;
   doc["noisy"] = noisy;
 
   char buffer[1556];
@@ -280,7 +286,7 @@ void MQTT_Client::sendStatus()
   time(&now);
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(29) + 25;
+  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(29) + 35;
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
   station_location.add(configManager.getLatitude());
@@ -338,6 +344,15 @@ void MQTT_Client::sendAdvParameters()
   publish(buildTopic(teleTopic, topicGet_adv_prm).c_str(), buffer, false);
 }
 
+void MQTT_Client::sendWeblogin () {
+    Log::debug (PSTR ("Asking for weblogin link"));
+    if (publish (buildTopic (teleTopic, "get_weblogin").c_str (), "1", false)) {
+        Log::debug (PSTR ("Weblogin link requested by mqtt"));
+    } else {
+        Log::error (PSTR ("Weblogin link request by mqtt failed"));
+    }
+}
+
 // helper funcion (this has to dissapear)
 bool isValidFrequency(uint8_t radio, float f)
 {
@@ -376,6 +391,12 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
   if (!strcmp(command, commandUpdate))
   {
     OTA::update();
+    return; // no ack
+  }
+
+  if (!strcmp(command, commandWeblogin))
+  {
+    Log::console(PSTR("Weblogin: %.*s"), length, payload);
     return; // no ack
   }
 
@@ -489,7 +510,11 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
       Log::console(PSTR("ERROR: Invalid frequency. Ignoring."));
       return;
     }
-   
+ 
+    // disable interrup to avoid allocating received packet to the wrong satellite.
+    radio.clearPacketReceivedAction();
+    radio.disableInterrupt();
+
     ModemInfo &m = status.modeminfo;
     m.modem_mode = doc["mode"].as<String>();
     strcpy(m.satellite, doc["sat"].as<char *>());
@@ -508,6 +533,8 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
       m.gain = doc["gain"];
       m.crc = doc["crc"];
       m.fldro = doc["fldro"];
+      m.iIQ = doc["iIQ"] ? doc["iIQ"].as<bool>() : false; // default to false if not set
+      m.len = doc["len"] ? doc["len"].as<int>() : 0;      // default to 0 if not set
     }
     else
     {
@@ -596,6 +623,8 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
   }
 
   radio.begin();
+  
+  radio.enableInterrupt();
 //    radio.currentRssi();
     result = 0;
   }
@@ -611,47 +640,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
   if (!strcmp(command, commandFreq))
     result = radio.remote_freq((char *)payload, length);
 
-  if (!strcmp(command, commandBw))
-    result = radio.remote_bw((char *)payload, length);
 
-  if (!strcmp(command, commandSf))
-    result = radio.remote_sf((char *)payload, length);
-
-  if (!strcmp(command, commandCr))
-    result = radio.remote_cr((char *)payload, length);
-
-  if (!strcmp(command, commandCrc))
-    result = radio.remote_crc((char *)payload, length);
-
-  // Remote_LoRa_syncword [8,1,2,3,4,5,6,7,8,9]
-  if (!strcmp(command, commandLsw))
-    result = radio.remote_lsw((char *)payload, length);
-
-  if (!strcmp(command, commandFldro))
-    result = radio.remote_fldro((char *)payload, length);
-
-  if (!strcmp(command, commandAldro))
-    result = radio.remote_aldro((char *)payload, length);
-
-  if (!strcmp(command, commandPl))
-    result = radio.remote_pl((char *)payload, length);
-
-  if (!strcmp(command, commandBr))
-    result = radio.remote_br((char *)payload, length);
-
-  if (!strcmp(command, commandFd))
-    result = radio.remote_fd((char *)payload, length);
-
-  if (!strcmp(command, commandFbw))
-    result = radio.remote_fbw((char *)payload, length);
-
-  // Remote_FSK_syncword [8,1,2,3,4,5,6,7,8,9]
-  if (!strcmp(command, commandFsw))
-    result = radio.remote_fsw((char *)payload, length);
-
-  // Remote_FSK_Set_OOK + DataShapingOOK(only sx1278) [1,2]
-  if (!strcmp(command, commandFook))
-    result = radio.remote_fook((char *)payload, length);
 
   // Remote_Satellite_Name [\"FossaSat-3\" , 46494 ]
   if (!strcmp(command, commandSat))
@@ -728,100 +717,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
     return;
   }
 
-  // GOD MODE  With great power comes great responsibility!
-  // SPIsetRegValue  (only sx1278) [1,2,3,4,5]
-  if (!strcmp(command, commandSPIsetRegValue))
-    result = radio.remote_SPIsetRegValue((char *)payload, length);
 
-  // SPIwriteRegister  (only sx1278) [1,2]
-  if (!strcmp(command, commandSPIwriteRegister))
-  {
-    radio.remote_SPIwriteRegister((char *)payload, length);
-    result = 0;
-  }
-
-  if (!strcmp(command, commandSPIreadRegister) && !global)
-    result = radio.remote_SPIreadRegister((char *)payload, length);
-
-  if (!strcmp(command, commandBatchConf))
-  {
-    Log::debug(PSTR("BatchConfig"));
-    DynamicJsonDocument doc(2048);
-    deserializeJson(doc, payload, length);
-    JsonObject root = doc.as<JsonObject>();
-    result = 0;
-
-    for (JsonPair kv : root)
-    {
-      const char *key = kv.key().c_str();
-      char *value = (char *)kv.value().as<char *>();
-      size_t len = strlen(value);
-      Log::debug(PSTR("%s %s %u"), key, value, len);
-
-      if (!strcmp(key, commandCrc))
-        result = radio.remote_crc(value, len);
-
-      else if (!strcmp(key, commandFreq))
-        result = radio.remote_freq(value, len);
-
-      else if (!strcmp(key, commandBeginLora))
-        result = radio.remote_begin_lora(value, len);
-
-      else if (!strcmp(key, commandBw))
-        result = radio.remote_bw(value, len);
-
-      else if (!strcmp(key, commandSf))
-        result = radio.remote_sf(value, len);
-
-      else if (!strcmp(key, commandLsw))
-        result = radio.remote_lsw(value, len);
-
-      else if (!strcmp(key, commandFldro))
-        result = radio.remote_fldro(value, len);
-
-      else if (!strcmp(key, commandAldro))
-        result = radio.remote_aldro(value, len);
-
-      else if (!strcmp(key, commandPl))
-        result = radio.remote_pl(value, len);
-
-      else if (!strcmp(key, commandBeginFSK))
-        result = radio.remote_begin_fsk(value, len);
-
-      else if (!strcmp(key, commandBr))
-        result = radio.remote_br(value, len);
-
-      else if (!strcmp(key, commandFd))
-        result = radio.remote_fd(value, len);
-
-      else if (!strcmp(key, commandFbw))
-        result = radio.remote_fbw(value, len);
-
-      else if (!strcmp(key, commandFsw))
-        result = radio.remote_fsw(value, len);
-
-      else if (!strcmp(key, commandFook))
-        result = radio.remote_fook(value, len);
-
-      else if (!strcmp(key, commandSat))
-        remoteSatCmnd(value, len);
-
-      else if (!strcmp(key, commandSatFilter))
-        remoteSatFilter(value, len);
-
-      else if (!strcmp(key, commandSPIsetRegValue))
-        result = radio.remote_SPIsetRegValue(value, len);
-
-      else if (!strcmp(key, commandSPIwriteRegister))
-        radio.remote_SPIwriteRegister(value, len);
-
-      if (result) // there was an error
-      {
-        Log::debug(PSTR("Error ocurred during batch config!!"));
-        break;
-      }
-    }
-  }
 
   if (!global)
     publish(buildTopic(statTopic, command).c_str(), (uint8_t *)&result, 2U, false);

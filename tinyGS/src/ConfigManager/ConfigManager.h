@@ -33,8 +33,12 @@
 #include "IotWebConf2ESP32HTTPUpdateServer.h"
 #endif
 
+static const char* MQTT_SERVER_HOST="mqtt.tinygs.com";
+static const char* MQTT_SERVER_PORT = "8883";
+
 constexpr auto STATION_NAME_LENGTH = 21;
 constexpr auto COORDINATE_LENGTH = 10;
+constexpr auto MIN_COORDINATE_LENGTH = 1;
 constexpr auto MQTT_SERVER_LENGTH = 31;
 constexpr auto MQTT_PORT_LENGTH = 6;
 constexpr auto MQTT_USER_LENGTH = 31;
@@ -73,6 +77,7 @@ enum boardNum
   HELTEC_LORA32_V3 = 0,
   ESP32S3_SX1278_LF,
   TTGO_TBEAM_SX1262,
+  LILYGO_T3S3_SX1280,
  #elif CONFIG_IDF_TARGET_ESP32C3
   HELTEC_LORA32_HTCT62 = 0,
   ESP32C3_SX1278_LF,
@@ -181,6 +186,25 @@ public:
     strcpy(advancedConfig, adv_prmStr);
     this->saveConfig();
   }
+  const char* getBoardTemplate () { return boardTemplate; }
+
+  //void setMqttServer (const char* server);
+  iotwebconf2::Parameter* getMqttServerParameter () { return &mqttServerParam; }
+  //void setMqttUser (const char* user);
+  iotwebconf2::Parameter* getMqttUserParameter () { return &mqttUserParam; }
+  //void setMqttPass (const char* pass);
+  iotwebconf2::Parameter* getMqttPassParameter () { return &mqttPassParam; }
+  //void setMqttPort (uint16_t port);
+  iotwebconf2::Parameter* getMqttPortParameter () { return &mqttPortParam; }
+  //void setThingName (const char* thingName);
+  //void setAdminPassword (const char* adminPw);
+  //void setLatitude (const char* lat);
+  //void setLongitude (const char* lng);
+  iotwebconf2::Parameter* getLongitudeParameter () { return &longitudeParam; }
+  iotwebconf2::Parameter* getLatitudeParameter () { return &latitudeParam; }
+  //void setTZ (const char* tz);
+  iotwebconf2::Parameter* getTZParameter () { return &tzParam; }
+  
   void setLat(const char *buffer)
   {
     strcpy(latitude, buffer);
@@ -196,8 +220,8 @@ public:
     strncpy(getThingNameParameter()->valueBuffer, buffer, IOTWEBCONF_WORD_LEN);
     this->saveConfig();
   }
-  const char *getBoardTemplate() { return boardTemplate; }
-  void setBoardTemplate(const char *boardTemplateStr)
+  
+  void setBoardTemplate (const char* boardTemplateStr)
   {
     strcpy(boardTemplate, boardTemplateStr);
     this->saveConfig();
@@ -225,6 +249,11 @@ public:
     remoteSave = true;
     IotWebConf2::saveConfig();
     currentBoardDirty = true;
+  };
+  bool askedWebLogin () {
+      bool asked = askForWeblogin;
+      askForWeblogin = false;
+      return asked;
   };
 
 private:
@@ -302,16 +331,17 @@ private:
   char boardTemplate[TEMPLATE_LEN] = "";
   char modemStartup[MODEM_LEN] = "";
   char advancedConfig[ADVANCED_LEN] = "";
+  bool askForWeblogin = false;
 
-  iotwebconf2::NumberParameter latitudeParam = iotwebconf2::NumberParameter("Latitude (3 decimals, will be public)", "lat", latitude, COORDINATE_LENGTH, NULL, "0.000", "required min='-180' max='180' step='0.001'");
-  iotwebconf2::NumberParameter longitudeParam = iotwebconf2::NumberParameter("Longitude (3 decimals, will be public)", "lng", longitude, COORDINATE_LENGTH, NULL, "-0.000", "required min='-180' max='180' step='0.001'");
+  //iotwebconf2::NumberParameter latitudeParam = iotwebconf2::NumberParameter("Latitude (3 decimals, will be public)", "lat", latitude, COORDINATE_LENGTH, NULL, "0.000", "required min='-180' max='180' step='0.001'");
+  iotwebconf2::NumberParameter latitudeParam = iotwebconf2::NumberParameter("Latitude (3 decimals, will be public)", "lat", latitude, COORDINATE_LENGTH, NULL, "0.000", "min='-180' max='180' step='0.001'");
+  iotwebconf2::NumberParameter longitudeParam = iotwebconf2::NumberParameter("Longitude (3 decimals, will be public)", "lng", longitude, COORDINATE_LENGTH, NULL, "-0.000", "min='-180' max='180' step='0.001'");
   iotwebconf2::SelectParameter tzParam = iotwebconf2::SelectParameter("Time Zone", "tz", tz, TZ_LENGTH, (char *)TZ_VALUES, (char *)TZ_NAMES, sizeof(TZ_VALUES) / TZ_LENGTH, TZ_NAME_LENGTH);
-
-  iotwebconf2::ParameterGroup groupMqtt = iotwebconf2::ParameterGroup("MQTT credentials", "MQTT credentials (First join the group <a href='https://t.me/joinchat/DmYSElZahiJGwHX6jCzB3Q'>here</a>)<br>Then open a private chat with <a href='https://t.me/tinygs_personal_bot'>@tinygs_personal_bot</a> and ask /mqtt");
-  iotwebconf2::TextParameter mqttServerParam = iotwebconf2::TextParameter("Server address", "mqtt_server", mqttServer, MQTT_SERVER_LENGTH, MQTT_DEFAULT_SERVER, MQTT_DEFAULT_SERVER, "required type=\"text\" maxlength=30");
-  iotwebconf2::NumberParameter mqttPortParam = iotwebconf2::NumberParameter("Server Port", "mqtt_port", mqttPort, MQTT_PORT_LENGTH, MQTT_DEFAULT_PORT, MQTT_DEFAULT_PORT, "required min=\"0\" max=\"65536\" step=\"1\"");
-  iotwebconf2::TextParameter mqttUserParam = iotwebconf2::TextParameter("MQTT Username", "mqtt_user", mqttUser, MQTT_USER_LENGTH, NULL, NULL, "required type=\"text\" maxlength=30");
-  iotwebconf2::TextParameter mqttPassParam = iotwebconf2::TextParameter("MQTT Password", "mqtt_pass", mqttPass, MQTT_PASS_LENGTH, NULL, NULL, "required type=\"text\" maxlength=30");
+  iotwebconf2::ParameterGroup groupMqtt = iotwebconf2::ParameterGroup ("MQTT credentials", "MQTT credentials (First join the group <a href='https://t.me/joinchat/DmYSElZahiJGwHX6jCzB3Q'>here</a>)<br>Then open a private chat with <a href='https://t.me/tinygs_personal_bot'>@tinygs_personal_bot</a> and ask /mqtt");
+  iotwebconf2::TextParameter mqttServerParam = iotwebconf2::TextParameter ("Server address", "mqtt_server", mqttServer, MQTT_SERVER_LENGTH, MQTT_SERVER_HOST, NULL, "type=\"text\" maxlength=30");
+  iotwebconf2::NumberParameter mqttPortParam = iotwebconf2::NumberParameter ("Server Port", "mqtt_port", mqttPort, MQTT_PORT_LENGTH, MQTT_SERVER_PORT, NULL, "min=\"0\" max=\"65536\" step=\"1\"");
+  iotwebconf2::TextParameter mqttUserParam = iotwebconf2::TextParameter ("MQTT Username", "mqtt_user", mqttUser, MQTT_USER_LENGTH, NULL, NULL, "type=\"text\" maxlength=30");
+  iotwebconf2::TextParameter mqttPassParam = iotwebconf2::PasswordParameter ("MQTT Password", "mqtt_pass", mqttPass, MQTT_PASS_LENGTH, NULL, NULL, "type=\"text\" maxlength=30");
 
   iotwebconf2::ParameterGroup groupBoardConfig = iotwebconf2::ParameterGroup("Board config", "Board config");
   iotwebconf2::SelectParameter boardParam = iotwebconf2::SelectParameter("Board type", "board", board, BOARD_LENGTH, (char *)BOARD_VALUES, (char *)BOARD_NAMES, sizeof(BOARD_VALUES) / BOARD_LENGTH, BOARD_NAME_LENGTH);

@@ -22,6 +22,7 @@
 #include "../Logger/Logger.h"
 #include "../Radio/Radio.h"
 #include "../Display/graphics.h"
+#include "../Mqtt/MQTT_credentials.h"
 #include "ArduinoJson.h"
 #if ARDUINOJSON_USE_LONG_LONG == 0 && !PLATFORMIO
 #error "Using Arduino IDE is not recommended, please follow this guide https://github.com/G4lile0/tinyGS/wiki/Arduino-IDE or edit /ArduinoJson/src/ArduinoJson/Configuration.hpp and amend to #define ARDUINOJSON_USE_LONG_LONG 1 around line 68"
@@ -54,7 +55,7 @@ ConfigManager::ConfigManager()
   {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
   {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
   {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
-
+  {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
 #elif CONFIG_IDF_TARGET_ESP32C3
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1262,    8,   UNUSED,    3,      4,     5,       6,      7,    10,     1.6f,    UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262" },  // SX1262  @gargomoma
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1278,    8,     4,   UNUSED,  UNUSED,   5,       6,      7,    10,     0.0f,    UNUSED, UNUSED, "Custom ESP32-C3 433MHz SX1278"     },  // SX1278 @gargomoma
@@ -148,10 +149,29 @@ void ConfigManager::handleRoot()
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_HTML_BODY_INNER);
   s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
+    s += F("<div>Device is not connected to tinyGS:</div>"); 
+    s += F("<table style=\"width:75%;\">");
+    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b>" + String(mqttCredentials.getOTPCode()) + "</b></td></tr>";
+    s += "</table><br />";
+}
   s += "<button onclick=\"window.location.href='" + String(DASHBOARD_URL) + "';\">Station dashboard</button><br /><br />";
   s += "<button onclick=\"window.location.href='" + String(CONFIG_URL) + "';\">Configure parameters</button><br /><br />";
   s += "<button onclick=\"window.location.href='" + String(UPDATE_URL) + "';\">Upload new version</button><br /><br />";
   s += "<button onclick=\"window.location.href='" + String(RESTART_URL) + "';\">Restart Station</button><br /><br />";
+  
+ if ((getThingName()[0] == 'M') && (getThingName()[2] == ' ')  && (getMqttPass()[0] == '\0')) {
+    s += F("<table style=\"width:75%;\">");
+    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></b></td></tr>"; 
+    s += "</table><br />";
+    s += F("<div>Default local dashboard credentials:</div>"); 
+    s += F("<table style=\"width:75%;\">");
+    s += F("<tr><td style=\"text-align:left;\">user:</td><td style=\"text-align:left;\"><b>admin</b></td></tr>");
+    s += "<tr><td style=\"text-align:left;\">password:</td><td style=\"text-align:left;\"><b>" + String(getApPasswordParameter()->valueBuffer) + "</b></td></tr>";
+    s += "</table>";
+}
+
+  
   s += FPSTR(IOTWEBCONF_HTML_END);
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
@@ -187,8 +207,7 @@ void ConfigManager::handleDashboard()
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_DASHBOARD_BODY_INNER);
   s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
-
-  // build svg of world map with animated satellite position
+    // build svg of world map with animated satellite position
   uint ix = 0;
   uint sx;
   String svg = "<div style=""margin-left:35px""><svg width""100%"" height=""auto"" viewBox=""0 0 262 134"" xmlns=""http://www.w3.org/2000/svg"">";
@@ -227,6 +246,13 @@ void ConfigManager::handleDashboard()
   svg += "</circle>";
   svg += "</svg></div>";
   s += svg;
+
+
+
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
+    s += F("Device is not connected to tinyGS.<br /> OTP code:"); 
+    s += "<div style=\"color:blue;\"><h3><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></h3></div>";
+    }
 
   s += F("</table></div><div class=\"card\"><h3>Groundstation Status</h3><table id=""gsstatus"">");
   s += "<tr><td>Name </td><td>" + String(getThingName()) + "</td></tr>";
@@ -353,9 +379,15 @@ void ConfigManager::handleRefreshConsole()
           Log::console(PSTR("Sending test packet to nearby stations!"));
         }
       }
-    }
-    else
-    {
+    } else if (strcmp (svalue.c_str (), "!w") == 0) {
+        Log::console (PSTR ("Getting weblogin"));
+        askForWeblogin = true;
+    } else if (strcmp (svalue.c_str (), "!e") == 0) {
+        resetAllConfig ();
+        ESP.restart ();
+    } else if (strcmp (svalue.c_str (), "!o") == 0) {
+        Log::console ("OTP Code: %s", mqttCredentials.getOTPCode ());
+    } else {
       Log::console(PSTR("%s"), F("Command still not supported in web serial console!"));
     }
   }
@@ -461,8 +493,9 @@ void ConfigManager::handleRefreshWorldmap()
     data_string += String("<span class='R'>NOT CONNECTED</span>") + ",";
   }
   data_string += String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + ",";
-  Radio &radio = Radio::getInstance();
-  radio.currentRssi();
+  Radio& radio = Radio::getInstance ();
+  if (status.radio_ready)
+    radio.currentRssi ();
   data_string += String(status.modeminfo.currentRssi) + ",";
 
  
@@ -603,7 +636,7 @@ void ConfigManager::resetAllConfig()
   mqttPassParam.valueBuffer[0] = '\0';
   latitude[0] = '\0';
   longitude[0] = '\0';
-  oledBright[0] = '\0';
+  //oledBright[0] = '\0'; // Disabled to avoid turining display off
   allowTx[0] = '\0';
   remoteTune[0] = '\0';
   telemetry3rd[0] = '\0';
@@ -713,6 +746,68 @@ void ConfigManager::printConfig()
   else 
     Log::debug(PSTR("board: %u --> %s\n:"),getBoard(), boards[getBoard()].BOARD.c_str());
 }
+
+// void ConfigManager::setMqttServer(const char *server)
+// {
+//   // check if server is valid
+//   if (strlen(server) < MQTT_SERVER_LENGTH)
+//   {
+//     strncpy(mqttServer, server, MQTT_SERVER_LENGTH);
+//     this->saveConfig();
+//   }
+// }
+
+// void ConfigManager::setMqttPort (uint16_t port)
+// {
+//   if (port > 0 && port < 65535)
+//   {
+//     itoa(port, mqttPort, 10);
+//     this->saveConfig();
+//   }
+// }
+
+// void ConfigManager::setMqttUser(const char *user)
+// {
+//   if (strlen(user) < MQTT_USER_LENGTH)
+//   {
+//     strncpy(mqttUser, user, MQTT_USER_LENGTH);
+//     this->saveConfig();
+//   }
+// }
+
+// void ConfigManager::setMqttPass(const char *pass)
+// {
+//   if (strlen(pass) < MQTT_PASS_LENGTH)
+//   {
+//       strncpy (mqttPass, pass, MQTT_PASS_LENGTH);
+//       this->saveConfig ();
+//   }
+// }
+
+// void ConfigManager::setLatitude (const char* lat) {
+//     if (strlen (lat) < MIN_COORDINATE_LENGTH) {
+//         if (!isnan (atof (lat))) {
+//             strncpy (latitude, lat, COORDINATE_LENGTH);
+//             this->saveConfig ();
+//         }
+//     }
+// }
+
+// void ConfigManager::setLongitude (const char* lon) {
+//     if (strlen (lon) < MIN_COORDINATE_LENGTH) {
+//         if (!isnan (atof (lon))) {
+//             strncpy (longitude, lon, COORDINATE_LENGTH);
+//             this->saveConfig ();
+//         }
+//     }
+// }
+
+// void ConfigManager::setTZ (const char* tz) {
+//     if (strlen (tz) < TZ_LENGTH) {
+//         strncpy (this->tz, tz, TZ_LENGTH);
+//         this->saveConfig ();
+//     }
+// }
 
 void ConfigManager::configSavedCallback()
 {
@@ -831,6 +926,8 @@ void ConfigManager::parseModemStartup()
     m.gain = doc["gain"];
     m.crc = doc["crc"];
     m.fldro = doc["fldro"];
+    m.iIQ = doc["iIQ"] ? doc["iIQ"].as<bool>() : false; // default to false if not set
+    m.len = doc["len"] ? doc["len"].as<int>() : 0;      // default to 0 if not set
   }
   else
   {
