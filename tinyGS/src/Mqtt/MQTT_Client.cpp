@@ -187,7 +187,7 @@ void MQTT_Client::sendWelcome()
   char clientId[13];
   sprintf(clientId, "%04X%08X", (uint16_t)(chipId >> 32), (uint32_t)chipId);
 
-  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(17) + 22 + 20 + 20 + 20 + 40+ 20+40;
+  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(17) + 22 + 20 + 20 + 20 + 40 + 20 + 40;
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
   station_location.add(configManager.getLatitude());
@@ -464,7 +464,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
     buff[length] = '\0';
     Log::debug(PSTR("%s"), buff);
 
-    size_t size = JSON_ARRAY_SIZE(10) + 10 * JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(8) + JSON_ARRAY_SIZE(8) + 64;
+    size_t size = JSON_ARRAY_SIZE(10) + 10 * JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(8) + JSON_ARRAY_SIZE(8) + 64 + 128;
     DynamicJsonDocument doc(size);
     DeserializationError error = deserializeJson(doc, payload, length);
 
@@ -484,7 +484,9 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
       Log::console(PSTR("ERROR: Invalid frequency. Ignoring."));
       return;
     }
-
+    ModemInfo &m = status.modeminfo;
+    m.tle[0]= 0;
+    status.tle.freqDoppler = 0;
     ConfigManager::getInstance().setModemStartup(buff);
   }
 
