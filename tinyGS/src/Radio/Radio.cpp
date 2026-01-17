@@ -474,17 +474,17 @@ uint8_t Radio::listen()
   {
     // read optional data - use async logging to avoid blocking
     Log::consoleAsync(PSTR("Packet (%u bytes):"), respLen);
-    uint16_t buffSize = respLen * 2 + 1;
-    if (buffSize > 255)
-      buffSize = 255;
-    char *byteStr = new char[buffSize];
-    for (int i = 0; i < respLen; i++)
-    {
-      sprintf(byteStr + i * 2 % (buffSize - 1), "%02x", respFrame[i]);
-      if (i * 2 % buffSize == buffSize - 3 || i == respLen - 1)
-        Log::consoleAsync(PSTR("%s"), byteStr); // async logging for hex dump
-    }
-    delete[] byteStr;
+    // uint16_t buffSize = respLen * 2 + 1;
+    // if (buffSize > 255)
+    //   buffSize = 255;
+    // char *byteStr = new char[buffSize];
+    // for (int i = 0; i < respLen; i++)
+    // {
+    //   sprintf(byteStr + i * 2 % (buffSize - 1), "%02x", respFrame[i]);
+    //   if (i * 2 % buffSize == buffSize - 3 || i == respLen - 1)
+    //     Log::consoleAsync(PSTR("%s"), byteStr); // async logging for hex dump
+    // }
+    // delete[] byteStr;
 
 
     bool packet_logged=false;
