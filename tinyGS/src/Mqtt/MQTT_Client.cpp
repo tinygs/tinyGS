@@ -280,7 +280,7 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
  
   doc["satellite"] = status.modeminfolastpckt.satellite;
   
-  if (String(status.modeminfolastpckt.modem_mode) == "LoRa")
+  if (strcmp(status.modeminfolastpckt.modem_mode, "LoRa") == 0)
   {
     doc["sf"] = status.modeminfolastpckt.sf;
     doc["cr"] = status.modeminfolastpckt.cr;
@@ -344,7 +344,7 @@ void MQTT_Client::sendStatus()
   doc["satellite"] = status.modeminfo.satellite;
   doc["NORAD"] = status.modeminfo.NORAD;
 
-  if (String(status.modeminfo.modem_mode) == "LoRa")
+  if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
     doc["sf"] = status.modeminfo.sf;
     doc["cr"] = status.modeminfo.cr;
@@ -445,7 +445,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
   if (!strcmp(command, commandFrame))
   {
     uint8_t frameNumber = atoi(strtok(NULL, "/"));
-    DynamicJsonDocument doc(JSON_ARRAY_SIZE(5) * 15 + JSON_ARRAY_SIZE(15));
+    StaticJsonDocument<512> doc;
     deserializeJson(doc, payload, length);
     status.remoteTextFrameLength[frameNumber] = doc.size();
     Log::debug(PSTR("Received frame: %u"), status.remoteTextFrameLength[frameNumber]);
@@ -456,15 +456,17 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
       status.remoteTextFrame[frameNumber][n].text_alignment = doc[n][1];
       status.remoteTextFrame[frameNumber][n].text_pos_x = doc[n][2];
       status.remoteTextFrame[frameNumber][n].text_pos_y = doc[n][3];
-      String text = doc[n][4];
-      status.remoteTextFrame[frameNumber][n].text = text;
+      const char* text = doc[n][4].as<const char*>();
+      strncpy(status.remoteTextFrame[frameNumber][n].text, text ? text : "", 
+              sizeof(status.remoteTextFrame[frameNumber][n].text) - 1);
+      status.remoteTextFrame[frameNumber][n].text[sizeof(status.remoteTextFrame[frameNumber][n].text) - 1] = '\0';
 
       Log::debug(PSTR("Text: %u Font: %u Alig: %u Pos x: %u Pos y: %u -> %s"), n,
                  status.remoteTextFrame[frameNumber][n].text_font,
                  status.remoteTextFrame[frameNumber][n].text_alignment,
                  status.remoteTextFrame[frameNumber][n].text_pos_x,
                  status.remoteTextFrame[frameNumber][n].text_pos_y,
-                 status.remoteTextFrame[frameNumber][n].text.c_str());
+                 status.remoteTextFrame[frameNumber][n].text);
     }
 
     result = 0;
@@ -516,8 +518,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
     buff[length] = '\0';
     Log::debug(PSTR("%s"), buff);
 
-    size_t size = JSON_ARRAY_SIZE(10) + 10 * JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(8) + JSON_ARRAY_SIZE(8) + 64 + 128;
-    DynamicJsonDocument doc(size);
+    StaticJsonDocument<768> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
 
     if (error.code() != DeserializationError::Ok || !doc.containsKey("mode"))
@@ -544,8 +545,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
 
   if (!strcmp(command, commandBegine))
   {
-    size_t size = JSON_ARRAY_SIZE(10) + 10 * JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(8) + JSON_ARRAY_SIZE(8) + 64 + 128;
-    DynamicJsonDocument doc(size);
+    StaticJsonDocument<768> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
 
     if (error.code() != DeserializationError::Ok || !doc.containsKey("mode"))
@@ -577,12 +577,14 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
     radio.disableInterrupt();
 
     ModemInfo &m = status.modeminfo;
-    m.modem_mode = doc["mode"].as<String>();
-    strcpy(m.satellite, doc["sat"].as<char *>());
+    const char* mode = doc["mode"].as<const char*>();
+    strncpy(m.modem_mode, mode ? mode : "", sizeof(m.modem_mode) - 1);
+    m.modem_mode[sizeof(m.modem_mode) - 1] = '\0';
+    strcpy(m.satellite, doc["sat"].as<const char*>());
     m.NORAD = doc["NORAD"];
 
   
-    if (m.modem_mode == "LoRa")
+    if (strcmp(mode, "LoRa") == 0)
     {
       m.frequency = doc["freq"];
       m.bw = doc["bw"];

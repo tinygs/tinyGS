@@ -25,7 +25,7 @@
 #define Status_h
 
 struct PacketInfo {
-  String time = "Waiting";
+  char time[20] = "Waiting";
   float rssi = 0;
   float snr = 0;
   float frequencyerror = 0;       // Hz 
@@ -37,7 +37,7 @@ struct PacketInfo {
 struct ModemInfo {
   char satellite[25]  = "Waiting";
   uint8_t tle[34];
-  String  modem_mode  = "LoRa" ;     // 1-LoRa  2-FSK  3-GMSK
+  char    modem_mode[8] = "LoRa";     // LoRa, FSK, GMSK
   float   frequency   = 0; // MHz  
   float   freqOffset  = 0; // Hz 
   float   bw          = 0;   // kHz dual sideban
@@ -77,7 +77,7 @@ struct TextFrame {
   uint8_t text_alignment;
   int16_t text_pos_x;
   int16_t text_pos_y; 
-  String text = "123456789012345678901234567890";
+  char text[32] = "";
 };
 
 struct Tle {   
@@ -95,7 +95,7 @@ struct Tle {
 
  
 struct Status {
-  const uint32_t version = 2601172;  // version: year month day release
+  const uint32_t version = 2601173;  // version: year month day release
   const char* git_version = GIT_VERSION;
   bool mqtt_connected = false;
   bool radio_ready = false;

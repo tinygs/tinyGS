@@ -109,7 +109,7 @@ int16_t Radio::begin()
     return -1;
   
   ModemInfo &m = status.modeminfo;
-  if (m.modem_mode == "LoRa")
+  if (strcmp(m.modem_mode, "LoRa") == 0)
   {
     if (m.frequency != 0) 
     {
@@ -447,7 +447,7 @@ uint8_t Radio::listen()
   if (currenttime < 0)
   {
     Log::error(PSTR("Failed to obtain time"));
-    status.lastPacketInfo.time = "";
+    status.lastPacketInfo.time[0] = '\0';
   }
   else
   {
@@ -456,7 +456,8 @@ uint8_t Radio::listen()
     char timeBuffer[12];
     snprintf(timeBuffer, sizeof(timeBuffer), "%2d:%02d:%02d", 
              timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-    status.lastPacketInfo.time = timeBuffer;
+    strncpy(status.lastPacketInfo.time, timeBuffer, sizeof(status.lastPacketInfo.time) - 1);
+    status.lastPacketInfo.time[sizeof(status.lastPacketInfo.time) - 1] = '\0';
   }
 
   status.lastPacketInfo.rssi = newPacketInfo.rssi;
@@ -840,7 +841,7 @@ int16_t Radio::remote_begin_lora(char *payload, size_t payload_len)
   readState(state);
   if (state == RADIOLIB_ERR_NONE)
   {
-    status.modeminfo.modem_mode = "LoRa";
+    strcpy(status.modeminfo.modem_mode, "LoRa");
     status.modeminfo.frequency = freq;
     status.modeminfo.bw = bw;
     status.modeminfo.power = power;
@@ -902,7 +903,7 @@ int16_t Radio::remote_begin_fsk(char *payload, size_t payload_len)
 
   if (state == RADIOLIB_ERR_NONE)
   {
-    status.modeminfo.modem_mode = "FSK";
+    strcpy(status.modeminfo.modem_mode, "FSK");
     status.modeminfo.frequency = freq;
     status.modeminfo.bw = rxBw;
     status.modeminfo.power = power;
