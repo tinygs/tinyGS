@@ -188,7 +188,7 @@ void MQTT_Client::sendWelcome()
   char clientId[13];
   sprintf(clientId, "%04X%08X", (uint16_t)(chipId >> 32), (uint32_t)chipId);
 
-  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(17) + 22 + 20 + 20 + 20 + 40 + 20 + 40;
+  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(18) + 22 + 20 + 20 + 20 + 40 + 20 + 40;
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
   station_location.add(configManager.getLatitude());
@@ -236,7 +236,8 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
   struct timeval tv;
   gettimeofday(&tv, NULL);
 
-  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(23) + 50 + 128;
+  // Capacidad dinámica: base + tamaño de los strings de datos
+  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(24) + 256 + packet.length() + raw_packet.length();
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
   station_location.add(configManager.getLatitude());
@@ -260,7 +261,7 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
     doc["bitrate"] = status.modeminfolastpckt.bitrate;
     doc["freqdev"] = status.modeminfolastpckt.freqDev;
     doc["rxBw"] = status.modeminfolastpckt.bw;
-    doc["data_raw"] = raw_packet.c_str();
+    doc["data_raw"] = raw_packet;
   }
 
   doc["rssi"] = status.lastPacketInfo.rssi;
@@ -270,14 +271,23 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
   doc["usec_time"] = (int64_t)tv.tv_usec + tv.tv_sec * 1000000ll;
 //  doc["time_offset"] = status.time_offset;
   doc["crc_error"] = status.lastPacketInfo.crc_error;
-  doc["data"] = packet.c_str();
+  doc["data"] = packet;
   doc["NORAD"] = status.modeminfolastpckt.NORAD;
   doc["noisy"] = noisy;
 
-  char buffer[1556];
-  serializeJson(doc, buffer);
+  // Buffer dinámico basado en tamaño real del JSON
+  size_t bufferSize = measureJson(doc) + 1;
+  char* buffer = (char*)malloc(bufferSize);
+  if (buffer == nullptr) {
+    Log::error(PSTR("sendRx: Failed to allocate buffer (%u bytes)"), bufferSize);
+    return;
+  }
+  
+  serializeJson(doc, buffer, bufferSize);
   Log::debug(PSTR("%s"), buffer);
   publish(buildTopic(teleTopic, topicRx).c_str(), buffer, false);
+  
+  free(buffer);
 }
 
 void MQTT_Client::sendStatus()
