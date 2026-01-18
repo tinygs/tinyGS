@@ -95,7 +95,7 @@ struct Tle {
 
  
 struct Status {
-  const uint32_t version = 2601173;  // version: year month day release
+  const uint32_t version = 2601181;  // version: year month day release
   const char* git_version = GIT_VERSION;
   bool mqtt_connected = false;
   bool radio_ready = false;

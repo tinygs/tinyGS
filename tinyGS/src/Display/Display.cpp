@@ -158,7 +158,9 @@ void drawFrame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   display->drawXbm(x +10, y , Logo_width, Logo_height, Logo_bits);
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString( x+70, y + 32, "Sta: " + String(configManager.getThingName()));
+  char staBuf[40];
+  snprintf(staBuf, sizeof(staBuf), "Sta: %s", configManager.getThingName());
+  display->drawString( x+70, y + 32, staBuf);
 }
 
 void drawFrame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
@@ -184,40 +186,51 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   display->setFont(ArialMT_Plain_10);
   display->drawString(x,  y,  status.modeminfo.satellite);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64+ x,  12 + y,  String(status.modeminfo.modem_mode) + " @ " + String(status.modeminfo.frequency) + "MHz");
+  
+  // Usar buffer estático para evitar fragmentación del heap
+  char displayBuffer[40];
+  snprintf(displayBuffer, sizeof(displayBuffer), "%s @ %.4fMHz", status.modeminfo.modem_mode, status.modeminfo.frequency);
+  display->drawString(64+ x,  12 + y, displayBuffer);
   //display->drawString(x,  12 + y, "F:" );
   //display->setTextAlignment(TEXT_ALIGN_RIGHT);
   
   display->setTextAlignment(TEXT_ALIGN_LEFT);
 
-  if (String(status.modeminfo.modem_mode)=="LoRa")
+  if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
-    display->drawString(x,  23 + y, "SF: " + String(status.modeminfo.sf));
+    snprintf(displayBuffer, sizeof(displayBuffer), "SF: %u", status.modeminfo.sf);
+    display->drawString(x,  23 + y, displayBuffer);
     if (ConfigManager::getInstance().getAllowTx())
     {
-      display->drawString(x,  34 + y, "Pwr:"+ String(status.modeminfo.power) + "dBm"); 
+      snprintf(displayBuffer, sizeof(displayBuffer), "Pwr:%ddBm", status.modeminfo.power);
+      display->drawString(x,  34 + y, displayBuffer); 
     }
     else
     {
       display->drawString(x,  34 + y, "TX OFF"); 
     }
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    display->drawString(128 + x,  23 + y, "BW:"+ String(status.modeminfo.bw)+ "kHz");
-    display->drawString(128 + x,  34 + y, "CR: "+ String(status.modeminfo.cr));
+    snprintf(displayBuffer, sizeof(displayBuffer), "BW:%.1fkHz", status.modeminfo.bw);
+    display->drawString(128 + x,  23 + y, displayBuffer);
+    snprintf(displayBuffer, sizeof(displayBuffer), "CR: %u", status.modeminfo.cr);
+    display->drawString(128 + x,  34 + y, displayBuffer);
   } 
   else
   {
     display->drawString(x,  23 + y, "FD/BW: " );
     if (ConfigManager::getInstance().getAllowTx()) {
-      display->drawString(x,  34 + y, "P:"+ String(status.modeminfo.power) + "dBm"); 
+      snprintf(displayBuffer, sizeof(displayBuffer), "P:%ddBm", status.modeminfo.power);
+      display->drawString(x,  34 + y, displayBuffer); 
     }
     else
     {
       display->drawString(x,  34 + y, "TX OFF"); 
     }
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    display->drawString(128 + x,  23 + y, String(status.modeminfo.freqDev)+ "/" + String(status.modeminfo.bw)+ "kHz");
-    display->drawString(128 + x,  34 + y, String(status.modeminfo.bitrate)+ "kbps");
+    snprintf(displayBuffer, sizeof(displayBuffer), "%.1f/%.1fkHz", status.modeminfo.freqDev, status.modeminfo.bw);
+    display->drawString(128 + x,  23 + y, displayBuffer);
+    snprintf(displayBuffer, sizeof(displayBuffer), "%.1fkbps", status.modeminfo.bitrate);
+    display->drawString(128 + x,  34 + y, displayBuffer);
   }
 }
 

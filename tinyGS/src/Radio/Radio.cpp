@@ -489,8 +489,7 @@ uint8_t Radio::listen()
 
     bool packet_logged=false;
     if (allow_decode){
-      String modo=status.modeminfo.modem_mode;
-      if (modo=="FSK"){
+      if (strcmp(status.modeminfo.modem_mode, "FSK") == 0){
       int bytes_sincro=0;
       int frame_error=0;
       if (status.modeminfo.framing==1  //framing=1 -> NRZS -> AX.25 Frame
@@ -525,12 +524,10 @@ uint8_t Radio::listen()
           packet_logged=true;
           Log::consoleAsync(PSTR("Frame error!"));
           sizeAx25bin=12;
-          char *texto = new char[13];
-          sprintf(texto,"Frame error!");
+          const char texto[] = "Frame error!";
           for (int i=0;i<(sizeAx25bin);i++){
-            ax25bin[i]=(char)texto[i];
+            ax25bin[i]=(uint8_t)texto[i];
 	        }
-          delete[] texto;
           
           status.lastPacketInfo.crc_error = true;
         }
@@ -590,13 +587,11 @@ uint8_t Radio::listen()
         if (fcs!=crcfield){
             status.lastPacketInfo.crc_error = true;
             Log::consoleAsync(PSTR("Error_CRC"));
-            char *cad=new char[10];
+            const char cad[] = "Error_CRC";
             respLen=9;
-            sprintf(cad,"Error_CRC");
             for (int i=0;i<9;i++){
-              respFrame[i]=(char)cad[i];
+              respFrame[i]=(uint8_t)cad[i];
             }
-            delete[] cad; // Clean up cad
           }          
         }else{Log::consoleAsync(PSTR("CRC Check not performed"));}
       }
@@ -632,9 +627,7 @@ uint8_t Radio::listen()
     }
 
 //    status.lastPacketInfo.crc_error = false;
-    String encoded = base64::encode(respFrame, respLen);
-    String encoded_raw = base64::encode(respFrame_raw, respLenRaw);
-    MQTT_Client::getInstance().sendRx(encoded, noisyInterrupt,encoded_raw);
+    MQTT_Client::getInstance().sendRx(base64::encode(respFrame, respLen), noisyInterrupt, base64::encode(respFrame_raw, respLenRaw));
   }
   else if (state == RADIOLIB_ERR_CRC_MISMATCH || status.lastPacketInfo.crc_error )
   {
@@ -644,9 +637,7 @@ uint8_t Radio::listen()
     // if filter is active, filter the CRC errors
     if (status.modeminfo.filter[0] == 0)
     {
-      String error_encoded = base64::encode("Error_CRC");
-      String encoded_raw = base64::encode(respFrame_raw, respLenRaw);
-      MQTT_Client::getInstance().sendRx(error_encoded, noisyInterrupt,encoded_raw);
+      MQTT_Client::getInstance().sendRx(base64::encode("Error_CRC"), noisyInterrupt, base64::encode(respFrame_raw, respLenRaw));
     }
     else
     {

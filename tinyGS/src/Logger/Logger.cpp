@@ -270,10 +270,10 @@ void Log::setLogLevel(LoggingLevels level)
 
 void Log::log_packet(uint8_t *packet, size_t size){
   //Print out Packet Data in Hex/ASCII form
-  int bytes_per_line=16;
-  int longLinea=bytes_per_line*3;//Add the space after each byte
-  char* cadena = new char[longLinea+1];
-  char* ascii = new char[bytes_per_line+1];
+  const int bytes_per_line=16;
+  const int longLinea=bytes_per_line*3;//Add the space after each byte
+  char cadena[longLinea+1];
+  char ascii[bytes_per_line+1];
   int j=0; int k=0;
   Log::consoleAsync(PSTR("-----------------------------------------------------------------"));
   for (int i=0;i<size;i++){
@@ -315,9 +315,9 @@ void Log::log_packet(uint8_t *packet, size_t size){
 
 void Log::log_packet_hex(uint8_t *packet, size_t size){
   //Print out Packet Data in Hex form
-  int bytes_per_line=32;
-  int longLinea=bytes_per_line*2;
-  char* cadena = new char[longLinea+1];
+  const int bytes_per_line=32;
+  const int longLinea=bytes_per_line*2;
+  char cadena[longLinea+1];
   int j=0; int k=0;
   //Log::console(PSTR("Logging packet..."));
   for (int i=0;i<size;i++){
@@ -347,14 +347,18 @@ void Log::log_packet_hex(uint8_t *packet, size_t size){
 
 void Log::log_packet_ax25(uint8_t *packet, size_t size){
   //Print out the ax25 header in first place and the payload as Hex/ASCII form
-  int bytes_per_line=16;
-  int longLinea=bytes_per_line*3;//Add the space after each byte
-  char* cadena = new char[longLinea+1];
-  char* ascii = new char[bytes_per_line+1];
+  const int bytes_per_line=16;
+  const int longLinea=bytes_per_line*3;//Add the space after each byte
+  char cadena[longLinea+1];
+  char ascii[bytes_per_line+1];
   int j=0; int k=0;
  
-  uint8_t *packet_aux;
-  packet_aux = new uint8_t[size];
+  // Usar buffer en stack con tamaño máximo razonable
+  // Si size es muy grande, limitamos para evitar stack overflow
+  const size_t max_packet_size = 512;
+  uint8_t packet_aux_buffer[max_packet_size];
+  uint8_t *packet_aux = packet_aux_buffer;
+  size_t effective_size = (size > max_packet_size) ? max_packet_size : size;
 
   if (size>=16){
   //////////////////////////////////////////////////////////////////////
@@ -412,11 +416,12 @@ void Log::log_packet_ax25(uint8_t *packet, size_t size){
   //AX.25 PAYLOAD
   ////////////////////////////////////////////////////////////////////////////////////////
   int counter=0;
-  for (int i=16;i<size;i++){
+  size_t copy_size = (size > effective_size) ? effective_size : size;
+  for (int i=16;i<copy_size;i++){
     packet_aux[counter]=packet[i];
     counter++;
     }
-  Log::log_packet(packet_aux,size-16);
+  Log::log_packet(packet_aux, (copy_size > 16) ? copy_size-16 : 0);
   
   }else{
     Log::consoleAsync(PSTR(" *** Length less than 16 bytes. Packet not printed ***"));

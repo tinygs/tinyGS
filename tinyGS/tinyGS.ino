@@ -198,7 +198,7 @@ bool mqttAutoconf () {
         }
         Log::debug ("result: %s", result.c_str ());
         delay (1000);
-        DynamicJsonDocument doc (1024);
+        StaticJsonDocument<1024> doc;
         DeserializationError error = deserializeJson (doc, result);
         if (error) {
             Log::console ("deserializeJson() failed: %s", error.c_str ());

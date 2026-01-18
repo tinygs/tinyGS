@@ -896,8 +896,7 @@ void ConfigManager::parseModemStartup()
   if (modemStartup[0] == '\0')
     return; // no modem configured yet
   
-  size_t size = JSON_ARRAY_SIZE(10) + 10 * JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(8) + JSON_ARRAY_SIZE(8) + 64;
-  DynamicJsonDocument doc(size);
+  StaticJsonDocument<768> doc;
   DeserializationError error = deserializeJson(doc, (const char *)modemStartup);
 
   if (error.code() != DeserializationError::Ok || !doc.containsKey("mode"))
