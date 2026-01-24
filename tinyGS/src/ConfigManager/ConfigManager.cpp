@@ -24,68 +24,51 @@
 #include "../Display/graphics.h"
 #include "../Mqtt/MQTT_credentials.h"
 #include "ArduinoJson.h"
+#include "../Power/Power.h"
+#include "../Status.h"
+#include "../GnssManager/GnssManager.h"
+
 #if ARDUINOJSON_USE_LONG_LONG == 0 && !PLATFORMIO
 #error "Using Arduino IDE is not recommended, please follow this guide https://github.com/G4lile0/tinyGS/wiki/Arduino-IDE or edit /ArduinoJson/src/ArduinoJson/Configuration.hpp and amend to #define ARDUINOJSON_USE_LONG_LONG 1 around line 68"
 #endif
-/*
-
-id_   Part   Freq. Range L.Bud(dB) RXCurrent(mA) FSK Max DR(kbps) LoRa DR (kbps) Max Sensitivity(dBm) TX Power(dBm)
-1    SX1278    137–525     168       11              300          0.018–40           -148              +20
-2    SX1276    137–1020    168       11              300         0.018–40            -148              +20
-
-5    SX1268    410–810     170       4.6             300         0.018–62.5          -148              +22
-6    SX1262    150–960     170       4.6             300         0.018–62.5          -148              +22
-
-8    SX1280    2.4–2.5Ghz  130       5.5            2000         0.476-202           -132              +12.5
-
-na   SX1272    862–1020    158       10              300           0.3–40            -138              +20
-na   SX1273    862–1020    150       10              300           1.7–40            -130              +20
-na   SX1277    137–1020    158       11              300           1.7–40            -138              +20
-na   SX1279    137–960     168       11              300          0.018–40           -148              +20
-na   SX1261    150–960     163       4.6             300         0.018–62.5          -148              +15
-na   SX1281    2.4–2.5Ghz  130       5.5            2000         0.476-202           -132              +12.5
-
-
-*/
 
 ConfigManager::ConfigManager()
     : IotWebConf2(thingName, &dnsServer, &server, initialApPassword, configVersion), server(80), gsConfigHtmlFormatProvider(*this), boards({
-  //OLED_add, OLED_SDA,  OLED_SCL, OLED_RST, PROG_BUTTON, BOARD_LED,      L_SX127X?,   L_NSS, L_DI00, L_DI01, L_BUSSY, L_RST,  L_MISO, L_MOSI, L_SCK, L_TCXO_V, RX_EN, TX_EN,   BOARD
+  //O_add, O_SDA, O_SCL, O_RST, BUT, LED, L_rad, L_NSS, L_D0, L_D1, L_BUS, L_RST, L_MISO, L_MOSI, L_SCK, L_TCXO, RX_EN, TX_EN, GN_RX, GN_TX, GN_WK, BOARD
 #if CONFIG_IDF_TARGET_ESP32S3
-  {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
-  {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
-  {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
-  {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
+  { 0x3c, 17, 18, 21, 0, 35, RADIO_SX1262, 8, UNUSED, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262" },
+  { 0x3c, 17, 18, UNUSED, 0, 35, RADIO_SX1278, 8, 6, 14, UNUSED, 12, 11, 10, 9, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278" },
+  { 0x3c, 17, 18, UNUSED, 0, 3, RADIO_SX1262, 10, UNUSED, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED, UNUSED, SUPREME_GNSS_RX, SUPREME_GNSS_TX, SUPREME_GNSS_WAKEUP, "433 Mhz TTGO T-Beam Sup SX1262 V1.0" },
+  { 0x3c, 17, 18, UNUSED, 0, 37, RADIO_SX1280, 7, UNUSED, 9, UNUSED, 8, 3, 6, 5, 0.0f, 21, 10, UNUSED, UNUSED, UNUSED, "2.4Ghz LILYGO SX1280" },
+  { 0x3c, 17, 18, UNUSED, 0, UNUSED, RADIO_SX1262, 10, UNUSED, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED, UNUSED, SUPREME_GNSS_RX, SUPREME_GNSS_TX, SUPREME_GNSS_WAKEUP, "433 Mhz LilyGo T-Beam Supreme" },
 #elif CONFIG_IDF_TARGET_ESP32C3
-  {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1262,    8,   UNUSED,    3,      4,     5,       6,      7,    10,     1.6f,    UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262" },  // SX1262  @gargomoma
-  {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1278,    8,     4,   UNUSED,  UNUSED,   5,       6,      7,    10,     0.0f,    UNUSED, UNUSED, "Custom ESP32-C3 433MHz SX1278"     },  // SX1278 @gargomoma
+  { 0x3c, 0, 1, UNUSED, 20, 21, RADIO_SX1262, 8, UNUSED, 3, 4, 5, 6, 7, 10, 1.6f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262" },
+  { 0x3c, 0, 1, UNUSED, 20, 21, RADIO_SX1278, 8, 4, UNUSED, UNUSED, 5, 6, 7, 10, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "Custom ESP32-C3 433MHz SX1278" },
 #else
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V1" },      // SX1278 @4m1g0
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V1" },  // SX1276
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V2" },      // SX1278 @4m1g0  
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V2" },  // SX1276
-  {      0x3c,        4,        15,       16,           0,         2,      RADIO_SX1278,    18,     26,   UNUSED, UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433Mhz  TTGO LoRa 32 v1"        },     // SX1278 @g4lile0 
-  {      0x3c,        4,        15,       16,           0,         2,      RADIO_SX1276,    18,     26,   UNUSED, UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz TTGO LoRa 32 v1"        },  // SX1276
-  {      0x3c,       21,        22,     UNUSED,         0,        22,      RADIO_SX1278,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz TTGO LoRA 32 v2"        },      // SX1278  @TCRobotics
-  {      0x3c,       21,        22,       16,           0,        22,      RADIO_SX1276,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz TTGO LoRA 32 v2"        },  // SX1276
-  {      0x3c,       21,        22,       16,          39,        22,      RADIO_SX1278,    18,     26,     33,     32,    14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz T-BEAM + OLED"        },        // SX1278
-  {      0x3c,       21,        22,       16,          39,        22,      RADIO_SX1276,    18,     26,     33,     32,    14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz T-BEAM + OLED"        },    // SX1276
-  {      0x3c,       21,        22,       16,           0,        25,      RADIO_SX1268,     5,   UNUSED,   27,     26,    14,      19,     23,    18,     0.0f,   UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x (Crystal)"  }, // SX1268 @4m1g0, @lillefyr
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1268,    18,   UNUSED,   33,     32,    14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "TTGO LoRa 32 V2 Modified with module SX126x (crystal)"  }, // SX1268 @TCRobotics
-  {      0x3c,       21,        22,       16,           0,        25,      RADIO_SX1268,     5,   UNUSED,    2,     13,    26,      19,     23,    18,     1.6f,   UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 2, 26, 13)"  }, // SX1268 @sdey76
-  {      0x3c,       21,        22,       16,           0,        25,      RADIO_SX1268,     5,   UNUSED,   26,     12,    14,      19,     23,    18,     1.6f,   UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 26, 14, 12)"  }, // SX1268 @imants
-  {      0x3c,       21,        22,     UNUSED,        38,        22,      RADIO_SX1278,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz T-BEAM V1.0 + OLED"     },       // SX1278 @fafu
-  {      0x3c,       21,        22,       16,           0,         2,      RADIO_SX1268,     5,   UNUSED,   34,     32,    14,      19,     27,    18,     1.6f,   UNUSED, UNUSED, "433MHz FOSSA 1W Ground Station"  },     // SX1268 @jgromes
-  {      0x3c,       21,        22,       16,           0,         2,      RADIO_SX1276,     5,   UNUSED,   34,     32,    14,      19,     27,    18,     1.6f,   UNUSED, UNUSED, "868-915MHz FOSSA 1W Ground Station"  }, //SX1276 @jgromes
-  {      0x3c,       21,        22,     UNUSED,         0,        22,      RADIO_SX1280,     5,     26,     34,     32,    14,      19,     27,    18,     0.0f,   UNUSED, UNUSED, "2.4GHz ESP32 + SX1280"  },              //SX1280 @g4lile0
-  {      0x3c,       21,        22,     UNUSED,        38,        22,      RADIO_SX1276,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz T-BEAM V1.0 + OLED"     },   // SX1276 @fafu
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1278,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz LILYGO T3_V1.6.1"     },         // SX1278
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1"     },     // SX1276
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,   UNUSED,   32,    23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1 TCXO"    }, // SX1276
-  {      0x3c,       21,        22,     UNUSED,        38,         4,      RADIO_SX1268,    18,     26,     33,     32,    23,      19,     27,     5,     1.6f,   UNUSED, UNUSED, "433 Mhz T-Beam SX1268 V1.0"    }, // SX1268 @ Antonio 
-  
-
- #endif
+  { 0x3c, 4, 15, 16, 0, 25, RADIO_SX1278, 18, 26, 12, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V1" },
+  { 0x3c, 4, 15, 16, 0, 25, RADIO_SX1276, 18, 26, 12, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V1" },
+  { 0x3c, 4, 15, 16, 0, 25, RADIO_SX1278, 18, 26, 35, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V2" },
+  { 0x3c, 4, 15, 16, 0, 25, RADIO_SX1276, 18, 26, 35, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V2" },
+  { 0x3c, 4, 15, 16, 0, 2, RADIO_SX1278, 18, 26, UNUSED, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433Mhz  TTGO LoRa 32 v1" },
+  { 0x3c, 4, 15, 16, 0, 2, RADIO_SX1276, 18, 26, UNUSED, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "868-915MHz TTGO LoRa 32 v1" },
+  { 0x3c, 21, 22, UNUSED, 0, 22, RADIO_SX1278, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz TTGO LoRA 32 v2" },
+  { 0x3c, 21, 22, 16, 0, 22, RADIO_SX1276, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "868-915MHz TTGO LoRA 32 v2" },
+  { 0x3c, 21, 22, 16, 39, 22, RADIO_SX1278, 18, 26, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz T-BEAM + OLED" },
+  { 0x3c, 21, 22, 16, 39, 22, RADIO_SX1276, 18, 26, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "868-915MHz T-BEAM + OLED" },
+  { 0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED, 27, 26, 14, 19, 23, 18, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x (Crystal)" },
+  { 0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1268, 18, UNUSED, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "TTGO LoRa 32 v2 Modified with module SX126x (crystal)" },
+  { 0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED, 2, 13, 26, 19, 23, 18, 1.6f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 2, 26, 13)" },
+  { 0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED, 26, 12, 14, 19, 23, 18, 1.6f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 26, 14, 12)" },
+  { 0x3c, 21, 22, UNUSED, 38, 22, RADIO_SX1278, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz T-BEAM V1.0 + OLED" },
+  { 0x3c, 21, 22, 16, 0, 2, RADIO_SX1268, 5, UNUSED, 34, 32, 14, 19, 27, 18, 1.6f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz FOSSA 1W Ground Station" },
+  { 0x3c, 21, 22, 16, 0, 2, RADIO_SX1276, 5, UNUSED, 34, 32, 14, 19, 27, 18, 1.6f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "868-915MHz FOSSA 1W Ground Station" },
+  { 0x3c, 21, 22, UNUSED, 0, 22, RADIO_SX1280, 5, 26, 34, 32, 14, 19, 27, 18, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "2.4GHz ESP32 + SX1280" },
+  { 0x3c, 21, 22, UNUSED, 38, 22, RADIO_SX1276, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "868-915MHz T-BEAM V1.0 + OLED" },
+  { 0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1278, 18, 26, 33, UNUSED, 23, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433MHz LILYGO T3_V1.6.1" },
+  { 0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1276, 18, 26, 33, UNUSED, 23, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1" },
+  { 0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1276, 18, 26, UNUSED, 32, 23, 19, 27, 5, 0.0f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1 TCXO" },
+  { 0x3c, 21, 22, UNUSED, 38, 4, RADIO_SX1268, 18, 26, 33, 32, 23, 19, 27, 5, 1.6f, UNUSED, UNUSED, UNUSED, UNUSED, UNUSED, "433 Mhz T-Beam SX1268 V1.0" },
+#endif
   })
 {
   server.on(ROOT_URL, [this] { handleRoot(); });
@@ -126,6 +109,8 @@ ConfigManager::ConfigManager()
   groupBoardConfig.addItem(&telemetry3rdParam);
   groupBoardConfig.addItem(&testParam);
   groupBoardConfig.addItem(&autoUpdateParam);
+  groupBoardConfig.addItem(&autoLocationParam);
+  groupBoardConfig.addItem(&gnssIntervalParam);
   addParameterGroup(&groupBoardConfig);
 
   groupAdvanced.addItem(&boardTemplateParam);
@@ -149,7 +134,7 @@ void ConfigManager::handleRoot()
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_HTML_BODY_INNER);
   s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
-  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) { 
     s += F("<div>Device is not connected to tinyGS:</div>"); 
     s += F("<table style=\"width:75%;\">");
     s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b>" + String(mqttCredentials.getOTPCode()) + "</b></td></tr>";
@@ -160,7 +145,7 @@ void ConfigManager::handleRoot()
   s += "<button onclick=\"window.location.href='" + String(UPDATE_URL) + "';\">Upload new version</button><br /><br />";
   s += "<button onclick=\"window.location.href='" + String(RESTART_URL) + "';\">Restart Station</button><br /><br />";
   
- if ((getThingName()[0] == 'M') && (getThingName()[2] == ' ')  && (getMqttPass()[0] == '\0')) {
+ if ((getThingName()[0] == 'M') && (getThingName()[2] == ' ')  && (getMqttPass()[0] == '\0')) { 
     s += F("<table style=\"width:75%;\">");
     s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></b></td></tr>"; 
     s += "</table><br />";
@@ -210,8 +195,8 @@ void ConfigManager::handleDashboard()
     // build svg of world map with animated satellite position
   uint ix = 0;
   uint sx;
-  String svg = "<div style=""margin-left:35px""><svg width""100%"" height=""auto"" viewBox=""0 0 262 134"" xmlns=""http://www.w3.org/2000/svg"">";
-  svg += "<rect x=""1"" y=""1"" width=""262"" height=""134"" stroke=""gray"" fill=""none"" stroke-width=""2"" />";
+  String svg = "<div style=\"margin-left:35px\"><svg width=\"100%\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
+  svg += "<rect x=\"1\" y=\"1\" width=\"262\" height=\"134\" stroke=\"gray\" fill=\"none\" stroke-width=\"2\" />";
   for (uint y = 0; y < earth_height; y++)
   {
     uint n = 0;
@@ -232,7 +217,7 @@ void ConfigManager::handleDashboard()
           if (n > 0)
           {
             // append current land pixel string
-            svg += "<rect x="""+ String(sx * 2 + 3) + """ y=""" + String(y * 2 + 3) + """ width=""" + String(n * 2) + """ height=""2"" />";
+            svg += "<rect x=\""+ String(sx * 2 + 3) + "\" y=\"" + String(y * 2 + 3) + "\" width=\"" + String(n * 2) + "\" height=\"2\" />";
             n = 0;
           }
         }
@@ -241,33 +226,48 @@ void ConfigManager::handleDashboard()
     }
   }
   // add animated satellite position
-  svg += "<circle id=""wmsatpos"" cx=""" + String(status.satPos[0] * 2 + 3) + """ cy=""" + String(status.satPos[1] * 2 + 3) + """ stroke=""red"" fill=""none"" stroke-width=""2"">";
-  svg += "  <animate attributeName=""r"" values=""2;4;6"" dur=""0.75s"" repeatCount=""indefinite"" />";
+  svg += "<circle id=\"wmsatpos\" cx=\"" + String(status.satPos[0] * 2 + 3) + "\" cy=\"" + String(status.satPos[1] * 2 + 3) + "\" stroke=\"red\" fill=\"none\" stroke-width=\"2\">";
+  svg += "  <animate attributeName=\"r\" values=\"2;4;6\" dur=\"0.75s\" repeatCount=\"indefinite\" />";
   svg += "</circle>";
   svg += "</svg></div>";
   s += svg;
 
 
 
-  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) { 
     s += F("Device is not connected to tinyGS.<br /> OTP code:"); 
     s += "<div style=\"color:blue;\"><h3><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></h3></div>";
     }
 
-  s += F("</table></div><div class=\"card\"><h3>Groundstation Status</h3><table id=""gsstatus"">");
+  s += F("</table></div><div class=\"card\"><h3>Groundstation Status</h3><table id=\"gsstatus\">");
   s += "<tr><td>Name </td><td>" + String(getThingName()) + "</td></tr>";
   s += "<tr><td>Version </td><td>" + String(status.version) + "</td></tr>";
   s += "<tr><td>MQTT Server </td><td>" + String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
   s += "<tr><td>WiFi RSSI </td><td>" + String(WiFi.isConnected() ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
   s += "<tr><td>Radio </td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
-  s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>"; 
+  
+  if (GnssManager::getInstance().isSleeping()) {
+      s += "<tr><td>GNSS </td><td><span class='G'>SLEEP (" + String(GnssManager::getInstance().getSatellites()) + ")</span></td></tr>";
+  } else if (GnssManager::getInstance().hasFix()) {
+      s += "<tr><td>GNSS </td><td><span class='G'>FIX (" + String(GnssManager::getInstance().getSatellites()) + ")</span></td></tr>";
+  } else {
+      s += "<tr><td>GNSS </td><td><span class='R'>NO FIX (" + String(GnssManager::getInstance().getSatellites()) + ")</span></td></tr>";
+  }
+
+  float battVol = Power::getInstance().getBatteryVoltage();
+  int battPct = Power::getInstance().getBatteryPercentage();
+  if (battVol > 0) { 
+      s += "<tr><td>Battery </td><td>" + String(battVol/1000.0, 2) + "V (" + String(battPct) + "%)</td></tr>";
+  }
+  
   s += F("</table></div>");
 
 
-  s += F("<div class=\"card\"><h3>Modem Configuration</h3><table id=""modemconfig"">");
+  s += F("<div class=\"card\"><h3>Modem Configuration</h3><table id=\"modemconfig\">");
   s += "<tr><td>Modulation </td><td>" + String(status.modeminfo.modem_mode) + "</td></tr>";
   s += "<tr><td>Frequency </td><td>" + String(status.modeminfo.frequency) + "</td></tr>";
   s += "<tr><td>Freq. Offset </td><td>" + String(status.modeminfo.freqOffset) + "</td></tr>";
+  s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>";
 
   if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
@@ -284,17 +284,17 @@ void ConfigManager::handleDashboard()
 
   char timeStr[10];  // "13:45:21 "
   time_t currentTime = time (NULL);
-  if (currentTime > 0) {
+  if (currentTime > 0) { 
       struct tm *timeinfo = gmtime (&currentTime);
       snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
   }
-  else {
+  else { 
       timeStr[0] = '\0';
   }
 
-  s += F("</table></div><div class=\"card\"><h3>Satellite Tracking Data</h3><table id=""satdata"">");
+  s += F("</table></div><div class=\"card\"><h3>Satellite Tracking Data</h3><table id=\"satdata\">");
   s += "<tr><td>Listening to </td><td>" + String(status.modeminfo.satellite) + "</td></tr>";
-  if (status.modeminfo.tle[0] != 0) {
+  if (status.modeminfo.tle[0] != 0) { 
     s += "<tr><td>Lat / Lon </td><td>" + String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º </td></tr>";
     s += "<tr><td>Az  / El  </td><td>" + String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º </td></tr>";
     s += "<tr><td>Doppler </td><td>" + String(status.tle.new_freqDoppler) + " Hz </td></tr>";
@@ -312,7 +312,7 @@ void ConfigManager::handleDashboard()
     struct tm *timeinfo = localtime (&currentTime);
     snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
   }
-  else {
+  else { 
       timeStr[0] = '\0';
   }
   s += "<tr><td>Local Time </td><td>" + String(timeStr) + "</td></tr>";
@@ -320,8 +320,7 @@ void ConfigManager::handleDashboard()
   s += F("</table></div>");
 
 
-
-  s += F("</table></div><div class=\"card\"><h3>Last Packet Received</h3><table id=""lastpacket"">");
+  s += F("</table></div><div class=\"card\"><h3>Last Packet Received</h3><table id=\"lastpacket\">");
   s += "<tr><td>Received at </td><td>" + String(status.lastPacketInfo.time) + "</td></tr>";
   s += "<tr><td>Signal RSSI </td><td>" + String(status.lastPacketInfo.rssi) + "</td></tr>";
   s += "<tr><td>Signal SNR </td><td>" + String(status.lastPacketInfo.snr) + "</td></tr>";
@@ -379,6 +378,10 @@ void ConfigManager::handleRefreshConsole()
           Log::consoleAsync(PSTR("Sending test packet to nearby stations!"));
         }
       }
+    } else if (strcmp (svalue.c_str (), "!W") == 0) {
+        Log::consoleAsync (PSTR ("Forcing WiFi connection attempt..."));
+        WiFi.disconnect();
+        WiFi.begin();
     } else if (strcmp (svalue.c_str (), "!w") == 0) {
         Log::consoleAsync (PSTR ("Getting weblogin"));
         askForWeblogin = true;
@@ -466,6 +469,13 @@ void ConfigManager::handleRefreshWorldmap()
   // modem configuration (for modemconfig id table data)
   data_string += String(status.modeminfo.modem_mode) + "," +
                  String(status.modeminfo.frequency) + "," + String(status.modeminfo.freqOffset) + ",";
+                 
+  // Noise floor (moved to modem config)
+  Radio& radio = Radio::getInstance ();
+  if (status.radio_ready)
+    radio.currentRssi ();
+  data_string += String(status.modeminfo.currentRssi) + ",";
+
   if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
     data_string += String(status.modeminfo.sf) + ",";
@@ -493,28 +503,44 @@ void ConfigManager::handleRefreshWorldmap()
     data_string += String("<span class='R'>NOT CONNECTED</span>") + ",";
   }
   data_string += String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + ",";
-  Radio& radio = Radio::getInstance ();
-  if (status.radio_ready)
-    radio.currentRssi ();
-  data_string += String(status.modeminfo.currentRssi) + ",";
+  
+  // GNSS Status
+  if (GnssManager::getInstance().isSleeping()) {
+      data_string += "<span class='G'>SLEEP (" + String(GnssManager::getInstance().getSatellites()) + ")</span>,";
+  } else if (GnssManager::getInstance().hasFix()) {
+      data_string += "<span class='G'>FIX (" + String(GnssManager::getInstance().getSatellites()) + ")</span>,";
+  } else {
+      data_string += "<span class='R'>NO FIX (" + String(GnssManager::getInstance().getSatellites()) + ")</span>,";
+  }
+
+  // Battery Status
+  float battVol = Power::getInstance().getBatteryVoltage();
+  int battPct = Power::getInstance().getBatteryPercentage();
+  if (battVol > 0) { 
+      data_string += String(battVol/1000.0, 2) + "V (" + String(battPct) + "%),";
+  } else {
+      data_string += ",";
+  }
+  
+  // Old location of currentRssi was here - REMOVED
 
  
    // sat_info
    char timeStr[10];  // "13:45:21 "
    time_t currentTime = time (NULL);
-   if (currentTime > 0) {
+   if (currentTime > 0) { 
        struct tm *timeinfo = gmtime (&currentTime);
        snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
    }
-   else {
+   else { 
        timeStr[0] = '\0';
    }
 
    data_string += String(status.modeminfo.satellite) + "," ;
-   if (status.modeminfo.tle[0] != 0) {
+   if (status.modeminfo.tle[0] != 0) { 
    data_string += String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º ," ;
    data_string += String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º ," ;
-   data_string += String( status.tle.new_freqDoppler) + " Hz," ; 
+   data_string += String( status.tle.new_freqDoppler) + " Hz," ;
    } else    {
    data_string += " - / - ," ;
    data_string += " - / - ," ;
@@ -653,12 +679,16 @@ boolean ConfigManager::init()
 {
   boolean validConfig = IotWebConf2::init();
 
-  // when wifi credentials are set but we are not able to connect (maybe wrong credentials)
+  // when wifi credentials are set but we are not able to connect (maybe wrong credentials) 
   // we fall back to AP mode during 2 minutes after which we try to connect again and repeat.
   setApTimeoutMs(atoi(AP_TIMEOUT_MS));
 
-  // no board selected
-  if (!strcmp(board, ""))
+  // no board selected or default S3 board 0 (might be unconfigured Supreme)
+  #if CONFIG_IDF_TARGET_ESP32S3
+  if (board[0] == '\0' || getBoard() == 0)
+  #else
+  if (board[0] == '\0')
+  #endif
   {
     boardDetection();
   }
@@ -674,43 +704,38 @@ boolean ConfigManager::init()
 
 void ConfigManager::boardDetection()
 {
-  // List all compatible boards configuration
-  /*Serial.println(F("\nSupported boards:"));
-  for (uint8_t ite=0; ite<((sizeof(boards)/sizeof(boards[0])));ite++)
-  {
-    Serial.println("");
-    Serial.println(boards[ite].BOARD);
-    Serial.print(F(" OLED: Adrs 0x"));    Serial.print(boards[ite].OLED__address,HEX);
-    Serial.print(F(" SDA:"));      Serial.print(boards[ite].OLED__SDA);
-    Serial.print(F(" SCL:"));      Serial.print(boards[ite].OLED__SCL);
-    Serial.print(F(" RST:"));      Serial.print(boards[ite].OLED__RST);
-    Serial.print(F(" BUTTON:"));   Serial.println(boards[ite].PROG__BUTTON);
-    Serial.print(F(" Lora Module "));
-    if (boards[ite].L_radio) {Serial.print(F("SX1278 ")); } else {Serial.print(F("SX1268:"));} ;
-    Serial.print(F(" NSS:"));      Serial.print(boards[ite].L_NSS);
-    Serial.print(F(" MOSI:"));     Serial.print(boards[ite].L_MOSI);
-    Serial.print(F(" MISO:"));     Serial.print(boards[ite].L_MISO);
-    Serial.print(F(" SCK:"));      Serial.print(boards[ite].L_SCK);
-
-    if (boards[ite].L_DI00) {Serial.print(F(" DI00:")); Serial.print(boards[ite].L_DI00);}
-    if (boards[ite].L_DI01) {Serial.print(F(" DI01:")); Serial.print(boards[ite].L_DI01);}
-    if (boards[ite].L_BUSSY) {Serial.print(F(" BUSSY:")); Serial.print(boards[ite].L_BUSSY);}
-    Serial.println("");
-  }*/
-
   // test OLED configuration
   Log::error(PSTR("Automatic board detection running... "));
  
- 
-  // If the cpu is a ESP32-PICO-D4 (Lilygo T3_v1.6.1) we have to avoid using pin GPIO16 as this is used for the FLASH_CS 
-  // https://github.com/mpmarks/tinyGS-newboards/commit/e520086f1b43c7cea4cb85d996f0fc379f2d2786
+#if CONFIG_IDF_TARGET_ESP32S3
+  // Unconditionally check for T-Beam Supreme PMU on S3
+  Wire1.begin(SUPREME_PMU_SDA, SUPREME_PMU_SCL);
+  Wire1.beginTransmission(0x34);
+  if (Wire1.endTransmission() == 0) {
+      Log::error(PSTR("T-Beam Supreme detected via PMU on Wire1!"));
+      itoa(LILYGO_TBEAM_SUPREME, board, 10);
+      currentBoardDirty = true;
+      return;
+  }
+#endif
 
 #if CONFIG_IDF_TARGET_ESP32S3
-// nothing yet
+  // S3 OLED detection loop (if PMU not found)
+  for (uint8_t ite = 0; ite < ((sizeof(boards) / sizeof(boards[0]))); ite++)
+  {
+      Wire.begin(boards[ite].OLED__SDA, boards[ite].OLED__SCL);
+      Wire.beginTransmission(boards[ite].OLED__address);
+      if (!Wire.endTransmission()) { 
+          Log::error(PSTR("Compatible OLED FOUND at index %d"), ite);
+          itoa(ite, board, 10);
+          currentBoardDirty = true;
+          return;
+      }
+  }
 #elif CONFIG_IDF_TARGET_ESP32C3
 // nothing yet
 #else
-  if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") != 0) {
+  if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") != 0) { // ESP32-PICO-D4 is Lilygo T3_v1.6.1
         for (uint8_t ite = 0; ite < ((sizeof(boards) / sizeof(boards[0]))); ite++)
       {
         Log::error(PSTR("%s \n"), boards[ite].BOARD);
@@ -733,7 +758,7 @@ void ConfigManager::boardDetection()
           Log::error(PSTR("Not Compatible board found, please select it manually on the web config panel"));
         }
       }
-    };
+    }
 #endif
 }
 
@@ -746,68 +771,6 @@ void ConfigManager::printConfig()
   else 
     Log::debug(PSTR("board: %u --> %s\n:"),getBoard(), boards[getBoard()].BOARD.c_str());
 }
-
-// void ConfigManager::setMqttServer(const char *server)
-// {
-//   // check if server is valid
-//   if (strlen(server) < MQTT_SERVER_LENGTH)
-//   {
-//     strncpy(mqttServer, server, MQTT_SERVER_LENGTH);
-//     this->saveConfig();
-//   }
-// }
-
-// void ConfigManager::setMqttPort (uint16_t port)
-// {
-//   if (port > 0 && port < 65535)
-//   {
-//     itoa(port, mqttPort, 10);
-//     this->saveConfig();
-//   }
-// }
-
-// void ConfigManager::setMqttUser(const char *user)
-// {
-//   if (strlen(user) < MQTT_USER_LENGTH)
-//   {
-//     strncpy(mqttUser, user, MQTT_USER_LENGTH);
-//     this->saveConfig();
-//   }
-// }
-
-// void ConfigManager::setMqttPass(const char *pass)
-// {
-//   if (strlen(pass) < MQTT_PASS_LENGTH)
-//   {
-//       strncpy (mqttPass, pass, MQTT_PASS_LENGTH);
-//       this->saveConfig ();
-//   }
-// }
-
-// void ConfigManager::setLatitude (const char* lat) {
-//     if (strlen (lat) < MIN_COORDINATE_LENGTH) {
-//         if (!isnan (atof (lat))) {
-//             strncpy (latitude, lat, COORDINATE_LENGTH);
-//             this->saveConfig ();
-//         }
-//     }
-// }
-
-// void ConfigManager::setLongitude (const char* lon) {
-//     if (strlen (lon) < MIN_COORDINATE_LENGTH) {
-//         if (!isnan (atof (lon))) {
-//             strncpy (longitude, lon, COORDINATE_LENGTH);
-//             this->saveConfig ();
-//         }
-//     }
-// }
-
-// void ConfigManager::setTZ (const char* tz) {
-//     if (strlen (tz) < TZ_LENGTH) {
-//         strncpy (this->tz, tz, TZ_LENGTH);
-//         this->saveConfig ();
-//     }
-// }
 
 void ConfigManager::configSavedCallback()
 {
@@ -847,7 +810,7 @@ void ConfigManager::configSavedCallback()
                strcpy(board, "9");
                this->saveConfig();
                break;
-        } 
+        }
       // seems that prog butto is still pressed wrong so chosing a safe config.
         if (!digitalRead(boards[getBoard()].PROG__BUTTON)) {
                Log::error(PSTR("Wrong board moving to a safe config"));
@@ -1012,6 +975,18 @@ bool ConfigManager::parseBoardTemplate(board_t &board)
     board.TX_EN = doc["TXEN"];
   else
     board.TX_EN = UNUSED;
+  if (doc.containsKey("gnssRX"))
+    board.GNSS_RX = doc["gnssRX"];
+  else
+    board.GNSS_RX = UNUSED;
+  if (doc.containsKey("gnssTX"))
+    board.GNSS_TX = doc["gnssTX"];
+  else
+    board.GNSS_TX = UNUSED;
+  if (doc.containsKey("gnssWK"))
+    board.GNSS_WAKEUP = doc["gnssWK"];
+  else
+    board.GNSS_WAKEUP = UNUSED;
 
   return true;
 }

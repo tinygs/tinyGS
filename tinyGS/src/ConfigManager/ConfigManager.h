@@ -141,6 +141,9 @@ typedef struct
   float L_TCXO_V;
   uint8_t RX_EN;
   uint8_t TX_EN;
+  uint8_t GNSS_RX;
+  uint8_t GNSS_TX;
+  uint8_t GNSS_WAKEUP;
   String BOARD;
 } board_t;
 
@@ -167,13 +170,15 @@ public:
   boolean init();
   void printConfig();
 
+  bool getAutoLocation() { return !strcmp(autoLocation, CB_SELECTED_STR); }
+  uint16_t getGnssInterval() { return (uint16_t)atoi(gnssInterval); }
   uint16_t getMqttPort() { return (uint16_t)atoi(mqttPort); }
   const char *getMqttServer() { return mqttServer; }
   const char *getMqttUser() { return mqttUser; }
   const char *getMqttPass() { return mqttPass; }
   float getLatitude() { return atof(latitude); }
   float getLongitude() { return atof(longitude); }
-  const char *getTZ() { return tz + 3; } // +3 removes the first 3 digits used for time zone deduplication
+  const char *getTZ() { return strlen(tz) > 3 ? tz + 3 : "GMT0"; } // Safe offset, default to GMT0
   uint8_t getBoard() { return atoi(board); }
   uint8_t getOledBright() { return atoi(oledBright); }
   bool getAllowTx() { return !strcmp(allowTx, CB_SELECTED_STR); }
@@ -227,6 +232,16 @@ public:
     strcpy(longitude, buffer);
     this->saveConfig();
   }
+  // Runtime setters that do not save to flash
+  void setLatRuntime(float lat) {
+      if (isnan(lat)) return;
+      dtostrf(lat, 1, 3, latitude);
+  }
+  void setLonRuntime(float lon) {
+      if (isnan(lon)) return;
+      dtostrf(lon, 1, 3, longitude);
+  }
+
   void setName(const char *buffer)
   {
     strncpy(getThingNameParameter()->valueBuffer, buffer, IOTWEBCONF_WORD_LEN);
@@ -240,6 +255,7 @@ public:
   }
 
   const char *getWiFiSSID() { return getWifiSsidParameter()->valueBuffer; }
+  const char *getWiFiPassword() { return getWifiPasswordParameter()->valueBuffer; }
   bool isConnected() { return getState() == IOTWEBCONF_STATE_ONLINE; };
   bool isApMode() { return (getState() != IOTWEBCONF_STATE_CONNECTING && getState() != IOTWEBCONF_STATE_ONLINE); }
   bool getFlipOled() { return advancedConf.flipOled; }
@@ -250,7 +266,7 @@ public:
     bool ret = true;
     if (!currentBoardDirty) { board = currentBoard; return ret; }
 
-    if (getBoardTemplate()[0] == '\0') { currentBoard = boards[getBoard()]; }
+    if (getBoardTemplate()[0] == '\0') { currentBoard = boards[getBoard()]; } 
     else { ret = parseBoardTemplate(currentBoard); }
     currentBoardDirty = false;
     board = currentBoard;
@@ -340,6 +356,8 @@ private:
   char telemetry3rd[CHECKBOX_LENGTH] = "";
   char testMode[CHECKBOX_LENGTH] = "";
   char autoUpdate[CHECKBOX_LENGTH] = "";
+  char autoLocation[CHECKBOX_LENGTH] = "selected";
+  char gnssInterval[NUMBER_LEN] = "";
   char boardTemplate[TEMPLATE_LEN] = "";
   char modemStartup[MODEM_LEN] = "";
   char advancedConfig[ADVANCED_LEN] = "";
@@ -363,6 +381,8 @@ private:
   iotwebconf2::CheckboxParameter telemetry3rdParam = iotwebconf2::CheckboxParameter("Allow sending telemetry to third party", "telemetry3rd", telemetry3rd, CHECKBOX_LENGTH, true);
   iotwebconf2::CheckboxParameter testParam = iotwebconf2::CheckboxParameter("Test mode", "test", testMode, CHECKBOX_LENGTH, false);
   iotwebconf2::CheckboxParameter autoUpdateParam = iotwebconf2::CheckboxParameter("Automatic Firmware Update", "auto_update", autoUpdate, CHECKBOX_LENGTH, true);
+  iotwebconf2::CheckboxParameter autoLocationParam = iotwebconf2::CheckboxParameter("Auto Location (GNSS)", "auto_loc", autoLocation, CHECKBOX_LENGTH, true);
+  iotwebconf2::NumberParameter gnssIntervalParam = iotwebconf2::NumberParameter("GNSS Update Interval (sec, 0=once)", "gnss_int", gnssInterval, NUMBER_LEN, "0", "0..3600", "min='0' max='3600' step='1'");
 
   iotwebconf2::ParameterGroup groupAdvanced = iotwebconf2::ParameterGroup("Advanced config", "Advanced Config (do not modify unless you know what you are doing)");
   iotwebconf2::TextParameter boardTemplateParam = iotwebconf2::TextParameter("Board Template (requires manual restart)", "board_template", boardTemplate, TEMPLATE_LEN, NULL, NULL, "type=\"text\" maxlength=255");

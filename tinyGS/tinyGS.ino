@@ -33,9 +33,10 @@
     TTGO LoRa32 V1 (433MHz & 868-915MHz versions)
     TTGO LoRa32 V2 (433MHz & 868-915MHz versions)
     TTGO LoRa32 V2 (Manually swapped SX1267 to SX1278)
-    T-BEAM + OLED (433MHz & 868-915MHz versions)
+    T-BEAM + OLED (433MHz & 863-928MHz versions)
     T-BEAM V1.0 + OLED
-    FOSSA 1W Ground Station (433MHz & 868-915MHz versions)
+    LilyGO T-Beam Supreme (ESP32-S3, SX1262, GPS, PSRAM)
+    FOSSA 1W Ground Station (433MHz & 863-928MHz versions)
     ESP32 dev board + SX126X with crystal (Custom build, OLED optional)
     ESP32 dev board + SX126X with TCXO (Custom build, OLED optional)
     ESP32 dev board + SX127X (Custom build, OLED optional)
@@ -80,6 +81,7 @@
 #include "time.h"
 #include "src/Mqtt/MQTT_credentials.h"
 #include "src/Improv/tinygs_improv.h"
+#include "src/GnssManager/GnssManager.h"
 
 
 #if  RADIOLIB_VERSION_MAJOR != (0x07) || RADIOLIB_VERSION_MINOR != (0x05) || RADIOLIB_VERSION_PATCH != (0x00) || RADIOLIB_VERSION_EXTRA != (0x00)
@@ -108,30 +110,40 @@ void checkButton();
 void setupNTP ();
 void handleSerial ();
 void handleRawSerial ();
+void checkStationStatus();
+
+void wifiConnected()
+{
+  Log::console(PSTR("WiFi Connected! IP: %s"), WiFi.localIP().toString().c_str());
+  setupNTP();
+  arduino_ota_setup();
+  displayShowConnected();
+}
+
+void onWiFiEvent(WiFiEvent_t event) {
+    switch (event) {
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+            Log::console(PSTR("WiFi Disconnected! Reason: %d"), WiFi.status());
+            break;
+        case ARDUINO_EVENT_WIFI_STA_START:
+            Log::console(PSTR("WiFi Station Started"));
+            break;
+        case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+            Log::console(PSTR("WiFi Station Connected"));
+            break;
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            Log::console(PSTR("WiFi Station Got IP: %s"), WiFi.localIP().toString().c_str());
+            break;
+        default:
+            break;
+    }
+}
 
 void configured()
 {
   configManager.setConfiguredCallback(NULL);
   configManager.printConfig();
   radio.init();
-}
-
-void wifiConnected()
-{
-  configManager.setWifiConnectionCallback (NULL);
-  //improvWiFi.onConnected (NULL);
-  setupNTP ();
-  displayShowConnected();
-  arduino_ota_setup();
-  configManager.delay(100); // finish animation
-  
-  if (configManager.getLowPower())
-  {
-    Log::debug(PSTR("Set low power CPU=80Mhz"));
-    setCpuFrequencyMhz(80); //Set CPU clock to 80MHz
-  }
-
-  configManager.delay(400); // wait to show the connected screen and stabilize frequency
 }
 
 void setup()
@@ -142,10 +154,12 @@ void setup()
   setCpuFrequencyMhz(240);
 #endif
   Serial.begin(115200);
+  WiFi.onEvent(onWiFiEvent);
   delay (100);
   
   // Initialize async logging early
   Log::initAsync();
+  Log::setLogLevel(Log::LOG_LEVEL_DEBUG);
   
   improvWiFi.setVersion (status.version);
   Log::console (PSTR ("TinyGS Version %d - %s"), status.version, status.git_version);
@@ -153,9 +167,21 @@ void setup()
   if ((configManager.getMqttServer ()[0] == '\0') || (configManager.getMqttUser ()[0] == '\0') || (configManager.getMqttPass ()[0] == '\0')) {
       mqttCredentials.generateOTPCode ();
   }
+  setupNTP(); // Initialize NTP and Timezone
   configManager.setWifiConnectionCallback(wifiConnected);
   configManager.setConfiguredCallback(configured);
   configManager.init();
+  Power::getInstance().checkAXP();
+  radio.init(); // Initialize radio hardware early
+  GnssManager::getInstance().begin();
+  
+  if (strlen(configManager.getWiFiSSID()) > 0) {
+      Log::console(PSTR("WiFi credentials found, forcing station mode..."));
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(configManager.getWiFiSSID(), configManager.getWiFiPassword());
+      configManager.forceApMode(false);
+  }
+
   if (configManager.isFailSafeActive())
   {
     configManager.setConfiguredCallback(NULL);
@@ -276,6 +302,8 @@ unsigned long lastTleRefresh = millis();
 
 void loop() {  
     configManager.doLoop ();
+    GnssManager::getInstance().loop();
+    checkStationStatus();
     if (configManager.isFailSafeActive ())
   {
     static bool updateAttepted = false;
@@ -323,6 +351,23 @@ void loop() {
 
   // connected
 
+  // Check for GNSS Location Updates
+  if (GnssManager::getInstance().isLocationUpdated()) {
+      Log::console(PSTR("GNSS: Location changed, sending status to MQTT..."));
+      mqtt.sendStatus();
+      GnssManager::getInstance().clearLocationUpdated();
+  }
+
+  // Attempt to fetch configuration if location is missing (e.g. first run after partial config)
+  if (configManager.getLatitude() == 0.0 && configManager.getLongitude() == 0.0) {
+      static bool triedLocFetch = false;
+      if (!triedLocFetch) {
+          Log::console(PSTR("Location missing. Attempting to fetch configuration from TinyGS server..."));
+          mqttAutoconf();
+          triedLocFetch = true;
+      }
+  }
+
   mqtt.loop();
   OTA::loop();
 
@@ -361,6 +406,7 @@ void checkButton()
   
   if (configManager.getBoardConfig(board) && !digitalRead (board.PROG__BUTTON))
   {
+    displayResetTimeout();
     if (!buttPressedStart)
     {
       buttPressedStart = millis();
@@ -382,8 +428,33 @@ void checkButton()
   }
 }
 
+void checkStationStatus() {
+    // Trigger in NOT_CONFIGURED (1) or AP_MODE (2)
+    uint8_t state = configManager.getState();
+    if (state != IOTWEBCONF_STATE_NOT_CONFIGURED && state != IOTWEBCONF_STATE_AP_MODE) return;
+
+    bool hasWifi = strlen(configManager.getWiFiSSID()) > 0;
+    bool hasMqtt = (configManager.getMqttUser()[0] != '\0') && (configManager.getMqttPass()[0] != '\0');
+    bool hasLoc = (configManager.getLatitude() != 0.0) || (configManager.getLongitude() != 0.0);
+    bool hasName = strcmp(configManager.getThingName(), "My TinyGS") != 0;
+    bool isConnected = (WiFi.status() == WL_CONNECTED);
+
+    static unsigned long lastDebug = 0;
+    if (millis() - lastDebug > 10000) {
+        Log::console(PSTR("Status Check (State %d): WiFi:%d, MQTT:%d, Loc:%d, Name:%d, Connected:%d"), 
+            state, hasWifi, hasMqtt, hasLoc, hasName, isConnected);
+        lastDebug = millis();
+    }
+
+    if (hasWifi && hasMqtt && hasLoc && hasName && isConnected) {
+        Log::console(PSTR("Auto-config: All parameters present and WiFi connected. Transitioning to ONLINE..."));
+        configManager.changeState(IOTWEBCONF_STATE_ONLINE);
+    }
+}
+
 void handleSerial () {
     while (Serial.available () > 0) {
+        displayResetTimeout();
         yield ();
         byte next = Serial.peek ();
         if (next == 'I') {
@@ -407,12 +478,7 @@ void handleRawSerial()
     // wait for a bit to receive any trailing characters
     configManager.delay(500);
     if (serialCmd1 == '!') serialCmd = Serial.read();
-    // dump the serial buffer
-    while(Serial.available())
-    {
-      Serial.read();
-    }
-
+    
     // process serial command
     switch(serialCmd) {
       case ' ':
@@ -425,6 +491,11 @@ void handleRawSerial()
         ESP.restart();
         break;
       case 'p':
+        if (!radio.isReady())
+        {
+          Log::console(PSTR("Radio is not initialized! Check your configuration."));
+          break;
+        }
         if (!configManager.getAllowTx())
         {
           Log::console(PSTR("Radio transmission is not allowed by config! Check your config on the web panel and make sure transmission is allowed by local regulations"));
@@ -449,6 +520,118 @@ void handleRawSerial()
       case 'o':
           Log::console (PSTR ("OTP Code: %s"), mqttCredentials.getOTPCode ());
           break;
+      case 'C': {
+          // Format: !CSSID PASSWORD
+          String payload = Serial.readStringUntil('\n');
+          payload.trim();
+          int spaceIdx = payload.indexOf(' ');
+          if (spaceIdx != -1) {
+              String ssid = payload.substring(0, spaceIdx);
+              String pass = payload.substring(spaceIdx + 1);
+              if (ssid.length() > 0) {
+                  Log::console(PSTR("Setting WiFi to SSID: %s"), ssid.c_str());
+                  strncpy(configManager.getWifiSsidParameter()->valueBuffer, ssid.c_str(), configManager.getWifiSsidParameter()->getLength());
+                  strncpy(configManager.getWifiPasswordParameter()->valueBuffer, pass.c_str(), configManager.getWifiPasswordParameter()->getLength());
+                  configManager.saveConfig();
+                  Log::console(PSTR("Config saved. Rebooting..."));
+                  delay(1000);
+                  ESP.restart();
+              }
+          } else {
+              Log::console(PSTR("Usage: !CSSID PASSWORD"));
+          }
+          break;
+      }
+      case 'M': {
+          // Format: !M USER PASS
+          String payload = Serial.readStringUntil('\n');
+          payload.trim();
+          int spaceIdx = payload.indexOf(' ');
+          if (spaceIdx != -1) {
+              String user = payload.substring(0, spaceIdx);
+              String pass = payload.substring(spaceIdx + 1);
+              if (user.length() > 0) {
+                  Log::console(PSTR("Setting MQTT User: %s"), user.c_str());
+                  strncpy(configManager.getMqttUserParameter()->valueBuffer, user.c_str(), configManager.getMqttUserParameter()->getLength());
+                  strncpy(configManager.getMqttPassParameter()->valueBuffer, pass.c_str(), configManager.getMqttPassParameter()->getLength());
+                  configManager.saveConfig();
+                  Log::console(PSTR("Config saved. Rebooting..."));
+                  delay(1000);
+                  ESP.restart();
+              }
+          } else {
+              Log::console(PSTR("Usage: !M USER PASS"));
+          }
+          break;
+      }
+      case 'L': {
+          // Format: !L LAT LON
+          String payload = Serial.readStringUntil('\n');
+          payload.trim();
+          int spaceIdx = payload.indexOf(' ');
+          if (spaceIdx != -1) {
+              String lat = payload.substring(0, spaceIdx);
+              String lon = payload.substring(spaceIdx + 1);
+              Log::console(PSTR("Setting Location: %s, %s"), lat.c_str(), lon.c_str());
+              configManager.setLat(lat.c_str());
+              configManager.setLon(lon.c_str());
+              Log::console(PSTR("Location saved."));
+          } else {
+              Log::console(PSTR("Usage: !L LAT LON"));
+          }
+          break;
+      }
+      case 'T': {
+          // Format: !T NAME
+          String name = Serial.readStringUntil('\n');
+          name.trim();
+          if (name.length() > 0) {
+              Log::console(PSTR("Setting Station Name: %s"), name.c_str());
+              configManager.setName(name.c_str());
+              Log::console(PSTR("Name saved. Rebooting..."));
+              delay(1000);
+              ESP.restart();
+          }
+          break;
+      }
+      case 's': {
+          Log::console(PSTR("Station Name: %s"), configManager.getThingName());
+          Log::console(PSTR("Lat/Lon: %.3f, %.3f"), configManager.getLatitude(), configManager.getLongitude());
+          Log::console(PSTR("MQTT Server: %s"), configManager.getMqttServer());
+          Log::console(PSTR("MQTT User: %s"), configManager.getMqttUser());
+          Log::console(PSTR("MQTT Pass: %s"), strlen(configManager.getMqttPass()) > 0 ? "SET" : "EMPTY");
+          Log::console(PSTR("WiFi SSID: %s"), configManager.getWiFiSSID());
+          Log::console(PSTR("WiFi Status: %d"), WiFi.status());
+          Log::console(PSTR("WiFi Mode: %d"), WiFi.getMode());
+          Log::console(PSTR("WiFi IP: %s"), WiFi.localIP().toString().c_str());
+          Log::console(PSTR("IotWebConf State: %d"), configManager.getState());
+          
+          Log::console(PSTR("I2C Scan (PMU Bus)..."));
+          TwoWire* scanWire = Power::getInstance().getPmuWire();
+          for (uint8_t adr = 1; adr < 127; adr++) {
+              scanWire->beginTransmission(adr);
+              if (scanWire->endTransmission() == 0) {
+                  Log::console(PSTR("I2C Device at 0x%02X"), adr);
+              }
+          }
+
+          Log::console(PSTR("Battery: %.2fV (%d%%)"), Power::getInstance().getBatteryVoltage()/1000.0, Power::getInstance().getBatteryPercentage());
+          Log::console(PSTR("VBUS: %.2fV"), Power::getInstance().getVbusVoltage()/1000.0);
+          Log::console(PSTR("AutoLoc: %d, Interval: %d"), configManager.getAutoLocation(), configManager.getGnssInterval());
+          Log::console(PSTR("Radio Ready: %s"), radio.isReady() ? "YES" : "NO");
+          break;
+      }
+      case 'W':
+          Log::console(PSTR("Forcing WiFi Connect (Aggressive STA)..."));
+          WiFi.disconnect();
+          WiFi.mode(WIFI_STA);
+          WiFi.begin(configManager.getWiFiSSID(), configManager.getWiFiPassword());
+          configManager.forceApMode(false);
+          break;
+      case 'R':
+          Log::console(PSTR("Manually initializing radio..."));
+          radio.init();
+          break;
       default:
         Log::console(PSTR("Unknown command: %c"), serialCmd);
         break;
@@ -467,5 +650,11 @@ void printControls()
   Log::console (PSTR ("!p - send test packet to nearby stations (to check transmission)"));
   Log::console (PSTR ("!w - ask for weblogin link"));
   Log::console (PSTR ("!o - get OTP code"));
+  Log::console (PSTR ("!C SSID PASSWORD - set WiFi credentials"));
+  Log::console (PSTR ("!M USER PASS - set MQTT credentials"));
+  Log::console (PSTR ("!L LAT LON - set Station location (manual GNSS override)"));
+  Log::console (PSTR ("!T NAME - set Station name"));
+  Log::console (PSTR ("!W - force WiFi connection"));
+  Log::console (PSTR ("!s - show status and scan I2C"));
   Log::console (PSTR ("------------------------------------"));
 }
