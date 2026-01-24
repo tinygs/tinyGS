@@ -71,6 +71,17 @@ constexpr auto configVersion = "0.05"; //max 4 chars
 
 constexpr auto AP_TIMEOUT_MS = "300000";
 
+// LilyGo T-Beam Supreme Pin Definitions
+constexpr uint8_t SUPREME_SDA = 17;
+constexpr uint8_t SUPREME_SCL = 18;
+constexpr uint8_t SUPREME_GNSS_TX = 8;  // Connected to ESP RX
+constexpr uint8_t SUPREME_GNSS_RX = 9;  // Connected to ESP TX
+constexpr uint8_t SUPREME_GNSS_WAKEUP = 7;
+constexpr uint8_t SUPREME_GNSS_PPS = 6;
+constexpr uint8_t SUPREME_PMU_SDA = 42;
+constexpr uint8_t SUPREME_PMU_SCL = 41;
+constexpr uint8_t SUPREME_LED = 3;
+
 enum boardNum
 {
  #if CONFIG_IDF_TARGET_ESP32S3
@@ -78,6 +89,7 @@ enum boardNum
   ESP32S3_SX1278_LF,
   TTGO_TBEAM_SX1262,
   LILYGO_T3S3_SX1280,
+  LILYGO_TBEAM_SUPREME,
  #elif CONFIG_IDF_TARGET_ESP32C3
   HELTEC_LORA32_HTCT62 = 0,
   ESP32C3_SX1278_LF,
