@@ -46,6 +46,7 @@ Radio::Radio()
   : spi(VSPI)
 #endif
 {
+  radioHal = nullptr;
 }
 
 void Radio::init()
@@ -108,6 +109,11 @@ int16_t Radio::begin()
   if (!ConfigManager::getInstance().getBoardConfig(board))
     return -1;
   
+  if (!radioHal) {
+      Log::console(PSTR("Radio HAL not initialized!"));
+      return -1;
+  }
+
   ModemInfo &m = status.modeminfo;
   if (strcmp(m.modem_mode, "LoRa") == 0)
   {
@@ -329,35 +335,22 @@ void Radio::startRx()
 
   void Radio::clearPacketReceivedAction()
   {
-    radioHal->clearPacketReceivedAction();
+    if (radioHal)
+      radioHal->clearPacketReceivedAction();
   }
 
  void Radio::currentRssi()
 {
   // get current RSSI
-  status.modeminfo.currentRssi = radioHal->getRSSI(false,true);
+  if (radioHal)
+    status.modeminfo.currentRssi = radioHal->getRSSI(false,true);
 
 }
 
 void Radio::setFrequency()
 {
-  // get current RSSI
-  Log::debugAsync(PSTR("Base: %.4f Mhz Offset: %.1f Hz Doppler: %.1f Hz "),status.modeminfo.frequency, status.modeminfo.freqOffset,status.tle.freqDoppler);
-  begin();
-  //radioHal->setFrequency( (status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
-  //Log::debug(PSTR("Base: %.4f Mhz Offset: %.1f Hz Doppler: %.1f Hz --> Modem: %.4f Mhz"),status.modeminfo.frequency, status.modeminfo.freqOffset,status.tle.freqDoppler,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
-  //Serial.print("base: ;
-  //Serial.println( status.modeminfo.frequency ,4 );
-  //Serial.print("offset: ");
-  //Serial.println( status.modeminfo.freqOffset , 4 );
-  //Serial.print("Dopler: " );
-  //Serial.println( status.tle.freqDoppler ,4 );
-  //Serial.print("modem: ");
-  //Serial.println( (status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000 , 4);
-
-
-
-
+  if (!radioHal) return;
+  radioHal->setFrequency((status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
 }
 
 
@@ -389,11 +382,13 @@ int16_t Radio::sendTestPacket()
 
 int16_t Radio::moduleSleep()
 {
+  if (!radioHal) return 0;
   return radioHal->sleep();
 }
 
 uint8_t Radio::listen()
 {
+  if (!radioHal) return 0;
   // check if the flag is set (received interruption)
   if (!received)
     return 1;

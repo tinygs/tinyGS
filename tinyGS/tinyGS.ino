@@ -156,6 +156,7 @@ void setup()
   configManager.setWifiConnectionCallback(wifiConnected);
   configManager.setConfiguredCallback(configured);
   configManager.init();
+  radio.init(); // Initialize radio hardware early
   if (configManager.isFailSafeActive())
   {
     configManager.setConfiguredCallback(NULL);
