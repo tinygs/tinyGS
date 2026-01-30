@@ -171,7 +171,7 @@ public:
   void printConfig();
 
   bool getAutoLocation() { return !strcmp(autoLocation, CB_SELECTED_STR); }
-  uint16_t getGnssInterval() { return (uint16_t)atoi(gnssInterval); }
+  uint16_t getGnssInterval();
   uint16_t getMqttPort() { return (uint16_t)atoi(mqttPort); }
   const char *getMqttServer() { return mqttServer; }
   const char *getMqttUser() { return mqttUser; }
@@ -382,7 +382,7 @@ private:
   iotwebconf2::CheckboxParameter testParam = iotwebconf2::CheckboxParameter("Test mode", "test", testMode, CHECKBOX_LENGTH, false);
   iotwebconf2::CheckboxParameter autoUpdateParam = iotwebconf2::CheckboxParameter("Automatic Firmware Update", "auto_update", autoUpdate, CHECKBOX_LENGTH, true);
   iotwebconf2::CheckboxParameter autoLocationParam = iotwebconf2::CheckboxParameter("Auto Location (GNSS)", "auto_loc", autoLocation, CHECKBOX_LENGTH, true);
-  iotwebconf2::NumberParameter gnssIntervalParam = iotwebconf2::NumberParameter("GNSS Update Interval (sec, 0=once)", "gnss_int", gnssInterval, NUMBER_LEN, "0", "0..3600", "min='0' max='3600' step='1'");
+  iotwebconf2::NumberParameter gnssIntervalParam = iotwebconf2::NumberParameter("GNSS Update Interval (e.g. 60s, 1h, 0=once)", "gnss_int", gnssInterval, NUMBER_LEN, "0", "0..3600", "min='0' max='3600' step='1'");
 
   iotwebconf2::ParameterGroup groupAdvanced = iotwebconf2::ParameterGroup("Advanced config", "Advanced Config (do not modify unless you know what you are doing)");
   iotwebconf2::TextParameter boardTemplateParam = iotwebconf2::TextParameter("Board Template (requires manual restart)", "board_template", boardTemplate, TEMPLATE_LEN, NULL, NULL, "type=\"text\" maxlength=255");

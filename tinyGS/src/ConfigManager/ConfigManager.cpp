@@ -638,6 +638,9 @@ bool ConfigManager::formValidator(iotwebconf2::WebRequestWrapper *webRequestWrap
   return true;
 }
 
+
+
+
 void ConfigManager::resetAPConfig()
 {
   getWifiSsidParameter()->valueBuffer[0] = '\0';
@@ -989,4 +992,25 @@ bool ConfigManager::parseBoardTemplate(board_t &board)
     board.GNSS_WAKEUP = UNUSED;
 
   return true;
+}
+
+static uint32_t parseDuration(const char* str) {
+    if (!str || !*str) return 0;
+    while (*str == ' ') str++; // Skip spaces
+    uint32_t val = atol(str);
+    while (*str >= '0' && *str <= '9') str++; // Skip digits
+    while (*str == ' ') str++; // Skip spaces
+    
+    switch (*str) {
+        case 'm': val *= 60; break;
+        case 'h': val *= 3600; break;
+        case 'd': val *= 86400; break;
+        case 's': // Fallthrough
+        default: break; // Already seconds
+    }
+    return val;
+}
+
+uint16_t ConfigManager::getGnssInterval() {
+    return (uint16_t)parseDuration(gnssInterval);
 }
