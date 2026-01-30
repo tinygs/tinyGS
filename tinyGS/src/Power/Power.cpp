@@ -150,7 +150,7 @@ void Power::checkAXP()
     I2CwriteByte(0x34, 0x50, 0x14);       // set TS pin to EXTERNAL input (not temperature)
     I2CwriteByte(0x34, 0x69, 0x01);       // set CHGLED for 'type A' and enable pin function
     I2CwriteByte(0x34, 0x27, 0x00);       // set IRQLevel/OFFLevel/ONLevel to minimum (1S/4S/128mS)
-    I2CwriteByte(0x34, 0x30, 0x0F);       // enable ADC for SYS, VBUS, TS and Battery
+    I2CwriteByte(0x34, 0x30, 0xFF);       // enable ADC for SYS, VBUS, TS and Battery
     pmustat1 = I2CreadByte(0x34, 0x00); pmustat2 = I2CreadByte(0x34, 0x01);
     pwronsta = I2CreadByte(0x34, 0x20); pwrofsta = I2CreadByte(0x34, 0x21);
     irqstat0 = I2CreadByte(0x34, 0x48); irqstat1 = I2CreadByte(0x34, 0x49); irqstat2 = I2CreadByte(0x34, 0x4A);
@@ -259,8 +259,8 @@ void Power::setGnssPower(bool on) {
         uint8_t boardIdx = ConfigManager::getInstance().getBoard();
         
         if (boardIdx == LILYGO_TBEAM_SUPREME || boardIdx == TTGO_TBEAM_SX1262) { // Supreme
-             if (on) reg |= (1 << AXP2101_ALDO4_BIT) | (1 << AXP2101_ALDO3_BIT); 
-             else reg &= ~((1 << AXP2101_ALDO4_BIT) | (1 << AXP2101_ALDO3_BIT));
+             if (on) reg |= (1 << AXP2101_ALDO4_BIT); 
+             else reg &= ~(1 << AXP2101_ALDO4_BIT);
         } else {
              if (on) reg |= (1 << AXP2101_ALDO3_BIT); else reg &= ~(1 << AXP2101_ALDO3_BIT);
         }
