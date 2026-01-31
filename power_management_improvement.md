@@ -45,6 +45,7 @@ Minimize power consumption for solar/battery-powered stations (specifically Lily
 
 ### 5. Server-Driven Schedule (Protocol Change)
 **Concept:** Instead of the station calculating passes or staying awake, the server tells the station exactly when to wake up.
+**Reference:** [GitHub Issue #83: save Power - Solar Panel powerd](https://github.com/G4lile0/tinyGS/issues/83)
 **Implementation:**
 - **Protocol:** Add `next_pass_epoch` field to the MQTT configuration packet.
 - **Behavior:**
