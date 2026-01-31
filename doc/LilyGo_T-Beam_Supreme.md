@@ -41,6 +41,11 @@ The LilyGo T-Beam Supreme is an ESP32-S3 based board with an SX1262 LoRa radio, 
 - Station pushes its new location to the TinyGS MQTT server immediately when GNSS detects a change.
 - Defaulted to "Auto Location" enabled for this board.
 
+### 4. Power Saving & Peripherals
+- **OLED Display**: Times out and turns off after 5 minutes of inactivity to save power.
+- **Shared Rail (ALDO1)**: Powers the OLED and onboard sensors (QMC5883L Compass, BME280). This rail remains active even when the display is off to support potential future sensor usage.
+- **Unused Rails**: Unused PMU rails (ALDO2, BLDO1/2, DLDO1/2) are explicitly disabled to minimize quiescent current.
+
 ## Configuration
 
 1. Connect to the TinyGS Access Point.

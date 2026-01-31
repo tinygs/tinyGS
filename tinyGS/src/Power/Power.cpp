@@ -124,7 +124,13 @@ void Power::checkAXP()
       I2CwriteByte(0x34, 0x62, 0x0A);       // set Main battery charger current to 400mA
       I2CwriteByte(0x34, 0x63, 0x15);       // set Main battery term charge current to 125mA
       
+      // Explicitly disable unused rails (ALDO2, BLDO1/2, DLDO1/2)
+      // AXP2101_LDO_ONOFF_CTRL0 (0x90): Bit 1 (ALDO2) -> 0
+      // AXP2101_LDO_ONOFF_CTRL1 (0x91): Bit 0-1 (BLDO1-2), Bit 2-3 (DLDO1-2) -> 0
+      I2CwriteByte(0x34, 0x91, 0x00); // Disable BLDO1, BLDO2, DLDO1, DLDO2
+
       regV = I2CreadByte(0x34, AXP2101_LDO_ONOFF_CTRL0);
+      regV &= ~(1 << AXP2101_ALDO2_BIT); // Disable ALDO2
       regV = regV | (1 << AXP2101_ALDO1_BIT) | (1 << AXP2101_ALDO3_BIT) | (1 << AXP2101_ALDO4_BIT);
       I2CwriteByte(0x34, AXP2101_LDO_ONOFF_CTRL0, regV);       // and power channels now enabled
     } else {
