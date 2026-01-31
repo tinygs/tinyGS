@@ -173,6 +173,12 @@ void Power::checkAXP()
 }
 
 void Power::deepSleepSensors() {
+    board_t board;
+    if (!ConfigManager::getInstance().getBoardConfig(board)) return;
+
+    // Initialize primary Wire bus for sensors/OLED (pins 17/18 on Supreme)
+    Wire.begin(board.OLED__SDA, board.OLED__SCL);
+
     // Check for QMC5883L (Compass) at 0x0D
     Wire.beginTransmission(0x0D);
     if (Wire.endTransmission() == 0) {
