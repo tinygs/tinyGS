@@ -75,6 +75,7 @@ public:
      int getBatteryPercentage();
      float getVbusVoltage();
      void setGnssPower(bool on);
+     void deepSleepSensors();
      TwoWire* getPmuWire() { return pmuWire; }
      Power();
 private:

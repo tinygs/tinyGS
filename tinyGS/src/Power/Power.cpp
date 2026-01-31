@@ -163,9 +163,35 @@ void Power::checkAXP()
     Log::console(PSTR("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
     Log::console(PSTR("PWRON,PWROFF status : %02X,%02X"), pwronsta, pwrofsta);
     Log::console(PSTR("IRQ status 0,1,2    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
+    
+    if (boardIdx == LILYGO_TBEAM_SUPREME || boardIdx == TTGO_TBEAM_SX1262) {
+        deepSleepSensors();
+    }
   }
   // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
   Wire.end();
+}
+
+void Power::deepSleepSensors() {
+    // Check for QMC5883L (Compass) at 0x0D
+    Wire.beginTransmission(0x0D);
+    if (Wire.endTransmission() == 0) {
+        Log::console(PSTR("Found QMC5883L at 0x0D, putting to sleep..."));
+        Wire.beginTransmission(0x0D);
+        Wire.write(0x09); // Control Register 1
+        Wire.write(0x00); // Standby Mode
+        Wire.endTransmission();
+    }
+
+    // Check for BME280 (Environment) at 0x77
+    Wire.beginTransmission(0x77);
+    if (Wire.endTransmission() == 0) {
+        Log::console(PSTR("Found BME280 at 0x77, putting to sleep..."));
+        Wire.beginTransmission(0x77);
+        Wire.write(0xF4); // CTRL_MEAS register
+        Wire.write(0x00); // Sleep mode
+        Wire.endTransmission();
+    }
 }
 
 float Power::getBatteryVoltage() {
