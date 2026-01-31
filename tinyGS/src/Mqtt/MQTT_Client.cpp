@@ -1174,33 +1174,6 @@ void MQTT_Client::begin()
 
 
 int MQTT_Client::voltage() {
-  int medianVoltage;
-  int length = 21;
-  int voltages[22];
-  
-  for (int i = 0; i < 21; i++)
-  {
-    voltages[i] = analogRead(36); 
-    }
-  
-  //    BubbleSortAsc   from https://www.luisllamas.es/arduino-bubble-sort/
-   int i, j, flag = 1;
-   int temp;
-   for (i = 1; (i <= length) && flag; i++)
-   {
-      flag = 0;
-      for (j = 0; j < (length - 1); j++)
-      {
-         if (voltages[j + 1] < voltages[j])
-         {
-            temp = voltages[j];
-            voltages[j] = voltages[j + 1];
-            voltages[j + 1] = temp;
-            flag = 1;
-         }
-      }
-   }
-  medianVoltage = voltages[10];
-  return medianVoltage;
+  return (int)Power::getInstance().getBatteryVoltage();
 }
 
