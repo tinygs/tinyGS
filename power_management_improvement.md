@@ -43,7 +43,22 @@ Minimize power consumption for solar/battery-powered stations (specifically Lily
 - Drop CPU frequency to 80MHz or 160MHz when not processing heavy tasks (like OTA or heavy JSON parsing).
 - **Status:** Currently hardcoded to 240MHz in `setup()`.
 
+### 5. Server-Driven Schedule (Protocol Change)
+**Concept:** Instead of the station calculating passes or staying awake, the server tells the station exactly when to wake up.
+**Implementation:**
+- **Protocol:** Add `next_pass_epoch` field to the MQTT configuration packet.
+- **Behavior:**
+    - Station receives config + `next_pass_epoch`.
+    - If `next_pass_epoch` is > 10 minutes away:
+        - Calculate duration.
+        - Send `!d <duration>` (Deep Sleep) command internally.
+        - Station powers down WiFi/CPU/Radio completely (~7µA).
+        - Wakes up 2 minutes before `next_pass_epoch` to reconnect and tune.
+- **Trade-off:** The station becomes "deaf" to new commands during sleep. It cannot be dynamically re-tasked until it wakes up.
+- **Savings:** Massive. Reduces average current from ~100mA to <1mA for sparse satellite schedules.
+
 ## Roadmap
 1. **Phase 1 (Safe):** Implement USB PHY switching based on VBUS.
 2. **Phase 2 (Complex):** Prototype Radio Sleep logic based on elevation.
 3. **Phase 3 (System):** Experiment with Light Sleep and CPU frequency scaling (requires stability testing with WiFi).
+4. **Phase 4 (Protocol):** Implement Server-Driven Deep Sleep for ultimate power saving.
