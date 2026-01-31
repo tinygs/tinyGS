@@ -7,7 +7,7 @@
 #define GNSS_SYNC_INTERVAL ((24 * 3600 - 61) * 1000) 
 #define GNSS_TIMEOUT (15 * 60 * 1000)         // 15 Minutes max on time without fix
 
-GnssManager::GnssManager() : serial(nullptr), enabled(false), powered(false), locationUpdated(false), lastSync(0), lastLocationUpdate(0), powerOnTime(0) {}
+GnssManager::GnssManager() : serial(nullptr), enabled(false), powered(false), locationUpdated(false), fixLoggedThisCycle(false), lastSync(0), lastLocationUpdate(0), powerOnTime(0) {}
 
 void GnssManager::begin() {
     board_t board;
@@ -51,8 +51,9 @@ void GnssManager::loop() {
         }
 
         static unsigned long lastStatusLog = 0;
+        
         if (millis() - lastStatusLog > 30000) {
-            Log::debug(PSTR("GNSS Status: %s, Sats: %d, HDOP: %d"), 
+            Log::console(PSTR("GNSS Status: %s, Sats: %d, HDOP: %d"), 
                 hasFix() ? "FIX" : "NO FIX", 
                 gps.satellites.value(), 
                 gps.hdop.value());
@@ -60,6 +61,10 @@ void GnssManager::loop() {
         }
 
         if (hasFix()) {
+            if (!fixLoggedThisCycle) {
+                Log::console(PSTR("GNSS: Fix obtained! Sats: %d, HDOP: %d"), gps.satellites.value(), gps.hdop.value());
+                fixLoggedThisCycle = true;
+            }
             syncTime();
 
             // Auto Location Logic
@@ -120,6 +125,7 @@ void GnssManager::checkPowerCycle() {
                     Power::getInstance().setGnssPower(true);
                     powered = true;
                     powerOnTime = now;
+                    fixLoggedThisCycle = false; // Reset for new cycle
                 }
             }
             return; // Skip legacy logic
@@ -159,6 +165,7 @@ void GnssManager::checkPowerCycle() {
             Power::getInstance().setGnssPower(true);
             powered = true;
             powerOnTime = now;
+            fixLoggedThisCycle = false;
         }
     }
 }

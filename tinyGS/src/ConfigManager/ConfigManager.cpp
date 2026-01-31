@@ -246,7 +246,9 @@ void ConfigManager::handleDashboard()
   s += "<tr><td>WiFi RSSI </td><td>" + String(WiFi.isConnected() ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
   s += "<tr><td>Radio </td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
   
-  if (GnssManager::getInstance().isSleeping()) {
+  if (!GnssManager::getInstance().isEnabled()) {
+      s += "<tr><td>GNSS </td><td> - </td></tr>";
+  } else if (GnssManager::getInstance().isSleeping()) {
       s += "<tr><td>GNSS </td><td><span class='G'>SLEEP (" + String(GnssManager::getInstance().getSatellites()) + ")</span></td></tr>";
   } else if (GnssManager::getInstance().hasFix()) {
       s += "<tr><td>GNSS </td><td><span class='G'>FIX (" + String(GnssManager::getInstance().getSatellites()) + ")</span></td></tr>";
@@ -256,9 +258,7 @@ void ConfigManager::handleDashboard()
 
   float battVol = Power::getInstance().getBatteryVoltage();
   int battPct = Power::getInstance().getBatteryPercentage();
-  if (battVol > 0) { 
-      s += "<tr><td>Battery </td><td>" + String(battVol/1000.0, 2) + "V (" + String(battPct) + "%)</td></tr>";
-  }
+  s += "<tr><td>Battery </td><td>" + (battVol > 0 ? String(battVol/1000.0, 2) + "V (" + String(battPct) + "%)" : String(" - ")) + "</td></tr>";
   
   s += F("</table></div>");
 
@@ -505,7 +505,9 @@ void ConfigManager::handleRefreshWorldmap()
   data_string += String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + ",";
   
   // GNSS Status
-  if (GnssManager::getInstance().isSleeping()) {
+  if (!GnssManager::getInstance().isEnabled()) {
+      data_string += " - ,";
+  } else if (GnssManager::getInstance().isSleeping()) {
       data_string += "<span class='G'>SLEEP (" + String(GnssManager::getInstance().getSatellites()) + ")</span>,";
   } else if (GnssManager::getInstance().hasFix()) {
       data_string += "<span class='G'>FIX (" + String(GnssManager::getInstance().getSatellites()) + ")</span>,";

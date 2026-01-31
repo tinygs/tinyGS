@@ -22,6 +22,7 @@ public:
     double getLongitude();
     double getAltitude();
     void syncTime();
+    bool isEnabled() { return enabled; }
     bool isSleeping();
     bool isLocationUpdated() { return locationUpdated; }
     void clearLocationUpdated() { locationUpdated = false; }
@@ -34,6 +35,7 @@ private:
     bool enabled; // Configured and pins available
     bool powered; // Currently powered on
     bool locationUpdated;
+    bool fixLoggedThisCycle;
     unsigned long lastSync;
     unsigned long lastLocationUpdate;
     unsigned long powerOnTime;
