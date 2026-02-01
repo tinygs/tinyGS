@@ -1,4 +1,5 @@
 #include "RadioHal.hpp"
+#include "../Logger/Logger.h"
 
 template<>
 int16_t RadioHal<SX1278>::begin(float freq, float bw, uint8_t sf, uint8_t cr, uint8_t syncWord, int8_t power, uint16_t preambleLength, uint8_t gain, float tcxoVoltage)
@@ -29,24 +30,44 @@ template<>
 int16_t RadioHal<SX1268>::begin(float freq, float bw, uint8_t sf, uint8_t cr, uint8_t syncWord, int8_t power, uint16_t preambleLength, uint8_t gain, float tcxoVoltage)
 {
     if (power>=17) radio->setCurrentLimit(150);
-    return radio->begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage);
+    int16_t state = radio->begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage);
+    if (state == RADIOLIB_ERR_NONE) {
+        state = radio->setDio2AsRfSwitch(true);
+    }
+    return state;
 }
 template<>
 int16_t RadioHal<SX1268>::begin()
 {
-    return radio->begin();
+    int16_t state = radio->begin();
+    if (state == RADIOLIB_ERR_NONE) {
+        state = radio->setDio2AsRfSwitch(true);
+    }
+    return state;
 }
 
 template<>
 int16_t RadioHal<SX1262>::begin(float freq, float bw, uint8_t sf, uint8_t cr, uint8_t syncWord, int8_t power, uint16_t preambleLength, uint8_t gain, float tcxoVoltage)
 {
     if (power>=17) radio->setCurrentLimit(150);
-    return radio->begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage);
+    int16_t state = radio->begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage);
+    Log::console(PSTR("[SX1262] begin() code: %d"), state);
+    if (state == RADIOLIB_ERR_NONE) {
+        state = radio->setDio2AsRfSwitch(true);
+        Log::console(PSTR("[SX1262] setDio2AsRfSwitch() code: %d"), state);
+    }
+    return state;
 }
 template<>
 int16_t RadioHal<SX1262>::begin()
 {
-    return radio->begin();
+    int16_t state = radio->begin();
+    Log::console(PSTR("[SX1262] begin(default) code: %d"), state);
+    if (state == RADIOLIB_ERR_NONE) {
+        state = radio->setDio2AsRfSwitch(true);
+        Log::console(PSTR("[SX1262] setDio2AsRfSwitch() code: %d"), state);
+    }
+    return state;
 }
 
 
@@ -80,14 +101,22 @@ template<>
 int16_t RadioHal<SX1268>::beginFSK(float freq, float br, float freqDev, float rxBw, int8_t power, uint16_t preambleLength, bool enableOOK, float tcxoVoltage, bool useRegulatorLDO)
 {
     if (power>=17) radio->setCurrentLimit(150);
-    return radio->beginFSK(freq, br, freqDev, rxBw, power, preambleLength, tcxoVoltage, useRegulatorLDO);
+    int16_t state = radio->beginFSK(freq, br, freqDev, rxBw, power, preambleLength, tcxoVoltage, useRegulatorLDO);
+    if (state == RADIOLIB_ERR_NONE) {
+        state = radio->setDio2AsRfSwitch(true);
+    }
+    return state;
 }
 
 template<>
 int16_t RadioHal<SX1262>::beginFSK(float freq, float br, float freqDev, float rxBw, int8_t power, uint16_t preambleLength, bool enableOOK, float tcxoVoltage, bool useRegulatorLDO)
 {
     if (power>=17) radio->setCurrentLimit(150);
-    return radio->beginFSK(freq, br, freqDev, rxBw, power, preambleLength, tcxoVoltage, useRegulatorLDO);
+    int16_t state = radio->beginFSK(freq, br, freqDev, rxBw, power, preambleLength, tcxoVoltage, useRegulatorLDO);
+    if (state == RADIOLIB_ERR_NONE) {
+        state = radio->setDio2AsRfSwitch(true);
+    }
+    return state;
 }
 
 template<>
