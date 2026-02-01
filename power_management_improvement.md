@@ -30,7 +30,16 @@ Minimize power consumption for solar/battery-powered stations (specifically Lily
 - Wake up radio X minutes before AOS (Acquisition of Signal).
 **Challenge:** Requires robust TLE propagation logic and handling of "unknown" or "new" satellites which might require constant scanning.
 
-### 3. ESP32 Light Sleep (Medium Impact: ~10-20mA)
+### 3. Channel Activity Detection (CAD) (Medium Impact: ~2-4mA)
+**Concept:** Instead of keeping the radio in continuous RX mode (High current), use the SX1262's built-in CAD feature.
+**Implementation:**
+- Configure radio to sleep and periodically wake up to "sniff" for a LoRa preamble.
+- If preamble detected -> Switch to Full RX.
+- If no preamble -> Return to Sleep.
+- **Benefit:** Reduces average radio current significantly compared to continuous RX, while still being able to catch unexpected packets (unlike TLE-based sleep which is blind outside of windows).
+- **Trade-off:** Minimal risk of missing the very start of a packet if CAD interval is too long.
+
+### 4. ESP32 Light Sleep (Medium Impact: ~10-20mA)
 **Concept:** The ESP32-S3 is dual-core 240MHz. It spends most time waiting for interrupts (Radio Rx) or network events.
 **Implementation:**
 - Enable `Automatic Light Sleep` in ESP-IDF configuration.
