@@ -36,8 +36,8 @@ Minimize power consumption for solar/battery-powered stations (specifically Lily
 - Configure radio to sleep and periodically wake up to "sniff" for a LoRa preamble.
 - If preamble detected -> Switch to Full RX.
 - If no preamble -> Return to Sleep.
-- **Benefit:** Reduces average radio current significantly compared to continuous RX, while still being able to catch unexpected packets (unlike TLE-based sleep which is blind outside of windows).
-- **Trade-off:** Minimal risk of missing the very start of a packet if CAD interval is too long.
+- **Benefit:** Reduces average radio current significantly compared to continuous RX.
+- **Critical Limitation:** CAD is **LoRa-only**. It cannot detect FSK signals. Using CAD would make the station "deaf" to FSK satellites (like Colibri-S, SAMSAT). It should only be enabled when the expected satellite is known to be LoRa.
 
 ### 4. ESP32 Light Sleep (Medium Impact: ~10-20mA)
 **Concept:** The ESP32-S3 is dual-core 240MHz. It spends most time waiting for interrupts (Radio Rx) or network events.
