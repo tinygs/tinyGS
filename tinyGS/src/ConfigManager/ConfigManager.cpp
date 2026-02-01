@@ -390,6 +390,12 @@ void ConfigManager::handleRefreshConsole()
         ESP.restart ();
     } else if (strcmp (svalue.c_str (), "!o") == 0) {
         Log::consoleAsync ("OTP Code: %s", mqttCredentials.getOTPCode ());
+    } else if (svalue.startsWith("!f ")) {
+        String freqStr = svalue.substring(3);
+        char freqBuf[16];
+        freqStr.toCharArray(freqBuf, sizeof(freqBuf));
+        Radio::getInstance().remote_freq(freqBuf, freqStr.length());
+        Log::consoleAsync(PSTR("Manual tuning to %s MHz"), freqBuf);
     } else {
       Log::consoleAsync(PSTR("%s"), F("Command still not supported in web serial console!"));
     }
