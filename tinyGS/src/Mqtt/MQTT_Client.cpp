@@ -26,6 +26,7 @@
 #include "../Radio/Radio.h"
 #include "../OTA/OTA.h"
 #include "../Logger/Logger.h"
+#include "../GnssManager/GnssManager.h"
 #include <esp_ota_ops.h>
 
 
@@ -324,8 +325,13 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
   }
   
   serializeJson(doc, buffer, bufferSize);
-  Log::debugAsync(PSTR("%s"), buffer);
-  publish(buildTopic(teleTopic, topicRx).c_str(), buffer, false);
+  Log::debugAsync(PSTR("MQTT Publish Payload: %s"), buffer);
+  
+  if (publish(buildTopic(teleTopic, topicRx).c_str(), buffer, false)) {
+      Log::consoleAsync(PSTR("MQTT: Packet uploaded successfully!"));
+  } else {
+      Log::consoleAsync(PSTR("MQTT: Packet upload FAILED!"));
+  }
   
   free(buffer);
 }
@@ -388,8 +394,13 @@ void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg)
   }
   
   serializeJson(doc, buffer, bufferSize);
-  Log::debugAsync(PSTR("%s"), buffer);
-  publish(buildTopic(teleTopic, topicRx).c_str(), buffer, false);
+  Log::debugAsync(PSTR("MQTT Queue Payload: %s"), buffer);
+  
+  if (publish(buildTopic(teleTopic, topicRx).c_str(), buffer, false)) {
+      Log::consoleAsync(PSTR("MQTT: Queued Packet uploaded successfully!"));
+  } else {
+      Log::consoleAsync(PSTR("MQTT: Queued Packet upload FAILED!"));
+  }
   
   free(buffer);
 }
@@ -495,6 +506,11 @@ void MQTT_Client::sendStatus()
   JsonArray station_location = doc.createNestedArray("station_location");
   station_location.add(configManager.getLatitude());
   station_location.add(configManager.getLongitude());
+  
+  // Add Altitude if available (GnssManager)
+  if (GnssManager::getInstance().hasFix() || GnssManager::getInstance().getAltitude() != 0) {
+      station_location.add(GnssManager::getInstance().getAltitude());
+  }
 
   doc["version"] = status.version;
   doc["board"] = configManager.getBoard();
