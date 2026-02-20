@@ -23,12 +23,12 @@ const char IOTWEBCONF_HTML_FORM_GROUP_END[] PROGMEM =
   "</fieldset>\n";
 
 const char IOTWEBCONF_HTML_FORM_PARAM[] PROGMEM =
-  "<div class='{s}'><label for='{i}'>{b}</label><input type='{t}' id='{i}' "
+  "<div class='{s}' style='margin:0.6rem 0;'><label for='{i}'>{b}</label><input type='{t}' id='{i}' "
   "name='{i}' {l} placeholder='{p}' value='{v}' {c}/>"
   "<div class='em'>{e}</div></div>\n";
 
 const char IOTWEBCONF_HTML_FORM_SELECT_PARAM[] PROGMEM =
-  "<div class='{s}'><label for='{i}'>{b}</label><select id='{i}' "
+  "<div class='{s}' style='margin:0.6rem 0;'><label for='{i}'>{b}</label><select id='{i}' "
   "name='{i}' {c}/>\n{o}"
   "</select><div class='em'>{e}</div></div>\n";
 const char IOTWEBCONF_HTML_FORM_OPTION[] PROGMEM =

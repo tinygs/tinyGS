@@ -7,6 +7,9 @@ tinyGS/tinyGS.ino.cpp
 .aider*
 .env
 .vscode/*
+!.vscode/extensions.json
+!.vscode/mcp.json
 context_portal
 
 *.bin
+

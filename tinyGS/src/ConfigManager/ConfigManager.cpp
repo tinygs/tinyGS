@@ -50,59 +50,68 @@ na   SX1281    2.4–2.5Ghz  130       5.5            2000         0.476-202    
 
 ConfigManager::ConfigManager()
     : IotWebConf2(thingName, &dnsServer, &server, initialApPassword, configVersion), server(80), gsConfigHtmlFormatProvider(*this), boards{
-  //OLED_add, OLED_SDA,  OLED_SCL, OLED_RST, PROG_BUTTON, BOARD_LED,      L_SX127X?,   L_NSS, L_DI00, L_DI01, L_BUSSY, L_RST,  L_MISO, L_MOSI, L_SCK, L_TCXO_V, RX_EN, TX_EN,   BOARD
+// OLED_add, OLED_SDA,  OLED_SCL, OLED_RST, PROG_BUTTON, BOARD_LED,      L_SX127X?,   L_NSS, L_DI00, L_DI01, L_BUSSY, L_RST,  L_MISO, L_MOSI, L_SCK, L_TCXO_V, RX_EN, TX_EN,   BOARD
 #if CONFIG_IDF_TARGET_ESP32S3
-  {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
-  {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
-  {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
-  {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
+                                                                                                                                        {0x3c, 17, 18, 21, 0, 35, RADIO_SX1262, 8, UNUSED, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262"},  // SX1262
+                                                                                                                                        {0x3c, 17, 18, UNUSED, 0, 35, RADIO_SX1278, 8, 6, 14, UNUSED, 12, 11, 10, 9, 0.0f, UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278"},      // SX1278 @g4lile0
+                                                                                                                                        {0x3c, 17, 18, UNUSED, 0, 3, RADIO_SX1262, 10, UNUSED, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED, UNUSED, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"}, // SX1268 @ Stephen
+                                                                                                                                        {0x3c, 17, 18, UNUSED, 0, 37, RADIO_SX1280, 7, UNUSED, 9, UNUSED, 8, 3, 6, 5, 0.0f, 21, 10, "2.4Ghz LILYGO SX1280"},                      // SX1280 @ K4KDR
 #elif CONFIG_IDF_TARGET_ESP32C3
-  {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1262,    8,   UNUSED,    3,      4,     5,       6,      7,    10,     1.6f,    UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262" },  // SX1262  @gargomoma
-  {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1278,    8,     4,   UNUSED,  UNUSED,   5,       6,      7,    10,     0.0f,    UNUSED, UNUSED, "Custom ESP32-C3 433MHz SX1278"     },  // SX1278 @gargomoma
+                                                                                                                                        {0x3c, 0, 1, UNUSED, 20, 21, RADIO_SX1262, 8, UNUSED, 3, 4, 5, 6, 7, 10, 1.6f, UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262"}, // SX1262  @gargomoma
+                                                                                                                                        {0x3c, 0, 1, UNUSED, 20, 21, RADIO_SX1278, 8, 4, UNUSED, UNUSED, 5, 6, 7, 10, 0.0f, UNUSED, UNUSED, "Custom ESP32-C3 433MHz SX1278"},  // SX1278 @gargomoma
 #else
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V1" },      // SX1278 @4m1g0
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     12,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V1" },  // SX1276
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1278,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V2" },      // SX1278 @4m1g0  
-  {      0x3c,        4,        15,       16,           0,        25,      RADIO_SX1276,    18,     26,     35,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V2" },  // SX1276
-  {      0x3c,        4,        15,       16,           0,         2,      RADIO_SX1278,    18,     26,   UNUSED, UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433Mhz  TTGO LoRa 32 v1"        },     // SX1278 @g4lile0 
-  {      0x3c,        4,        15,       16,           0,         2,      RADIO_SX1276,    18,     26,   UNUSED, UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz TTGO LoRa 32 v1"        },  // SX1276
-  {      0x3c,       21,        22,     UNUSED,         0,        22,      RADIO_SX1278,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz TTGO LoRA 32 v2"        },      // SX1278  @TCRobotics
-  {      0x3c,       21,        22,       16,           0,        22,      RADIO_SX1276,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz TTGO LoRA 32 v2"        },  // SX1276
-  {      0x3c,       21,        22,       16,          39,        22,      RADIO_SX1278,    18,     26,     33,     32,    14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz T-BEAM + OLED"        },        // SX1278
-  {      0x3c,       21,        22,       16,          39,        22,      RADIO_SX1276,    18,     26,     33,     32,    14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz T-BEAM + OLED"        },    // SX1276
-  {      0x3c,       21,        22,       16,           0,        25,      RADIO_SX1268,     5,   UNUSED,   27,     26,    14,      19,     23,    18,     0.0f,   UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x (Crystal)"  }, // SX1268 @4m1g0, @lillefyr
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1268,    18,   UNUSED,   33,     32,    14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "TTGO LoRa 32 V2 Modified with module SX126x (crystal)"  }, // SX1268 @TCRobotics
-  {      0x3c,       21,        22,       16,           0,        25,      RADIO_SX1268,     5,   UNUSED,    2,     13,    26,      19,     23,    18,     1.6f,   UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 2, 26, 13)"  }, // SX1268 @sdey76
-  {      0x3c,       21,        22,       16,           0,        25,      RADIO_SX1268,     5,   UNUSED,   26,     12,    14,      19,     23,    18,     1.6f,   UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 26, 14, 12)"  }, // SX1268 @imants
-  {      0x3c,       21,        22,     UNUSED,        38,        22,      RADIO_SX1278,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz T-BEAM V1.0 + OLED"     },       // SX1278 @fafu
-  {      0x3c,       21,        22,       16,           0,         2,      RADIO_SX1268,     5,   UNUSED,   34,     32,    14,      19,     27,    18,     1.6f,   UNUSED, UNUSED, "433MHz FOSSA 1W Ground Station"  },     // SX1268 @jgromes
-  {      0x3c,       21,        22,       16,           0,         2,      RADIO_SX1276,     5,   UNUSED,   34,     32,    14,      19,     27,    18,     1.6f,   UNUSED, UNUSED, "868-915MHz FOSSA 1W Ground Station"  }, //SX1276 @jgromes
-  {      0x3c,       21,        22,     UNUSED,         0,        22,      RADIO_SX1280,     5,     26,     34,     32,    14,      19,     27,    18,     0.0f,   UNUSED, UNUSED, "2.4GHz ESP32 + SX1280"  },              //SX1280 @g4lile0
-  {      0x3c,       21,        22,     UNUSED,        38,        22,      RADIO_SX1276,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz T-BEAM V1.0 + OLED"     },   // SX1276 @fafu
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1278,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz LILYGO T3_V1.6.1"     },         // SX1278
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1"     },     // SX1276
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,   UNUSED,   32,    23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1 TCXO"    }, // SX1276
-  {      0x3c,       21,        22,     UNUSED,        38,         4,      RADIO_SX1268,    18,     26,     33,     32,    23,      19,     27,     5,     1.6f,   UNUSED, UNUSED, "433 Mhz T-Beam SX1268 V1.0"    }, // SX1268 @ Antonio 
-  
+                                                                                                                                        {0x3c, 4, 15, 16, 0, 25, RADIO_SX1278, 18, 26, 12, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V1"},                                // SX1278 @4m1g0
+                                                                                                                                        {0x3c, 4, 15, 16, 0, 25, RADIO_SX1276, 18, 26, 12, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V1"},                            // SX1276
+                                                                                                                                        {0x3c, 4, 15, 16, 0, 25, RADIO_SX1278, 18, 26, 35, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "433MHz HELTEC WiFi LoRA 32 V2"},                                // SX1278 @4m1g0
+                                                                                                                                        {0x3c, 4, 15, 16, 0, 25, RADIO_SX1276, 18, 26, 35, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "863-928MHz HELTEC WiFi LoRA 32 V2"},                            // SX1276
+                                                                                                                                        {0x3c, 4, 15, 16, 0, 2, RADIO_SX1278, 18, 26, UNUSED, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "433Mhz  TTGO LoRa 32 v1"},                                   // SX1278 @g4lile0
+                                                                                                                                        {0x3c, 4, 15, 16, 0, 2, RADIO_SX1276, 18, 26, UNUSED, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "868-915MHz TTGO LoRa 32 v1"},                                // SX1276
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 0, 22, RADIO_SX1278, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "433MHz TTGO LoRA 32 v2"},                                  // SX1278  @TCRobotics
+                                                                                                                                        {0x3c, 21, 22, 16, 0, 22, RADIO_SX1276, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "868-915MHz TTGO LoRA 32 v2"},                                  // SX1276
+                                                                                                                                        {0x3c, 21, 22, 16, 39, 22, RADIO_SX1278, 18, 26, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "433MHz T-BEAM + OLED"},                                           // SX1278
+                                                                                                                                        {0x3c, 21, 22, 16, 39, 22, RADIO_SX1276, 18, 26, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "868-915MHz T-BEAM + OLED"},                                       // SX1276
+                                                                                                                                        {0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED, 27, 26, 14, 19, 23, 18, 0.0f, UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x (Crystal)"},                       // SX1268 @4m1g0, @lillefyr
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1268, 18, UNUSED, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "TTGO LoRa 32 V2 Modified with module SX126x (crystal)"},   // SX1268 @TCRobotics
+                                                                                                                                        {0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED, 2, 13, 26, 19, 23, 18, 1.6f, UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 2, 26, 13)"},   // SX1268 @sdey76
+                                                                                                                                        {0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED, 26, 12, 14, 19, 23, 18, 1.6f, UNUSED, UNUSED, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 26, 14, 12)"}, // SX1268 @imants
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 38, 22, RADIO_SX1278, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "433MHz T-BEAM V1.0 + OLED"},                              // SX1278 @fafu
+                                                                                                                                        {0x3c, 21, 22, 16, 0, 2, RADIO_SX1268, 5, UNUSED, 34, 32, 14, 19, 27, 18, 1.6f, UNUSED, UNUSED, "433MHz FOSSA 1W Ground Station"},                               // SX1268 @jgromes
+                                                                                                                                        {0x3c, 21, 22, 16, 0, 2, RADIO_SX1276, 5, UNUSED, 34, 32, 14, 19, 27, 18, 1.6f, UNUSED, UNUSED, "868-915MHz FOSSA 1W Ground Station"},                           // SX1276 @jgromes
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 0, 22, RADIO_SX1280, 5, 26, 34, 32, 14, 19, 27, 18, 0.0f, UNUSED, UNUSED, "2.4GHz ESP32 + SX1280"},                                       // SX1280 @g4lile0
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 38, 22, RADIO_SX1276, 18, 26, 33, UNUSED, 14, 19, 27, 5, 0.0f, UNUSED, UNUSED, "868-915MHz T-BEAM V1.0 + OLED"},                          // SX1276 @fafu
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1278, 18, 26, 33, UNUSED, 23, 19, 27, 5, 0.0f, UNUSED, UNUSED, "433MHz LILYGO T3_V1.6.1"},                                 // SX1278
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1276, 18, 26, 33, UNUSED, 23, 19, 27, 5, 0.0f, UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1"},                             // SX1276
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 0, 25, RADIO_SX1276, 18, 26, UNUSED, 32, 23, 19, 27, 5, 0.0f, UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1 TCXO"},                        // SX1276
+                                                                                                                                        {0x3c, 21, 22, UNUSED, 38, 4, RADIO_SX1268, 18, 26, 33, 32, 23, 19, 27, 5, 1.6f, UNUSED, UNUSED, "433 Mhz T-Beam SX1268 V1.0"},                                  // SX1268 @ Antonio
 
- #endif
-  }
+#endif
+                                                                                                                                    }
 {
-  server.on(ROOT_URL, [this] { handleRoot(); });
-  server.on(LOGO_URL, [this] { handleImage(LOGO_PNG, sizeof(LOGO_PNG)); });
- // server.on(FAVICON_URL, [this] { handleImage(FAVICON_PNG, sizeof(FAVICON_PNG)); });
-  server.on(CONFIG_URL, [this] { handleConfig(); });
-  server.on(DASHBOARD_URL, [this] { handleDashboard(); });
-  server.on(RESTART_URL, [this] { handleRestart(); });
-  server.on(REFRESH_CONSOLE_URL, [this] { handleRefreshConsole(); });
-  server.on(REFRESH_WORLDMAP_URL, [this] { handleRefreshWorldmap(); });
+  server.on(ROOT_URL, [this]
+            { handleRoot(); });
+  server.on(LOGO_URL, [this]
+            { handleImage(LOGO_PNG, sizeof(LOGO_PNG)); });
+  // server.on(FAVICON_URL, [this] { handleImage(FAVICON_PNG, sizeof(FAVICON_PNG)); });
+  server.on(CONFIG_URL, [this]
+            { handleConfig(); });
+  server.on(DASHBOARD_URL, [this]
+            { handleDashboard(); });
+  server.on(RESTART_URL, [this]
+            { handleRestart(); });
+  server.on(REFRESH_CONSOLE_URL, [this]
+            { handleRefreshConsole(); });
+  server.on(REFRESH_WORLDMAP_URL, [this]
+            { handleRefreshWorldmap(); });
   setupUpdateServer(
-      [this](const char *updatePath) { httpUpdater.setup(&server, updatePath); },
-      [this](const char *userName, char *password) { httpUpdater.updateCredentials(userName, password); });
+      [this](const char *updatePath)
+      { httpUpdater.setup(&server, updatePath); },
+      [this](const char *userName, char *password)
+      { httpUpdater.updateCredentials(userName, password); });
   setHtmlFormatProvider(&gsConfigHtmlFormatProvider);
   formValidatorStd = std::bind(&ConfigManager::formValidator, this, std::placeholders::_1);
   setFormValidator(formValidatorStd);
-  setConfigSavedCallback([this] { configSavedCallback(); });
+  setConfigSavedCallback([this]
+                         { configSavedCallback(); });
   skipApStartup();
 
   // Customize own parameters
@@ -144,34 +153,53 @@ void ConfigManager::handleRoot()
   }
 
   String s = String(FPSTR(IOTWEBCONF_HTML_HEAD));
-//  s += "<link rel=\"icon\" href=\"" + String(FAVICON_URL) + "\"/>";
   s += "<style>" + String(FPSTR(IOTWEBCONF_HTML_STYLE_INNER)) + "</style>";
+  s += "<style>"
+       ".home-wrap{max-width:420px;margin:0 auto;padding:2rem 1rem;text-align:center;}"
+       ".logo-wrap{margin-bottom:1.5rem;}"
+       ".logo-wrap img{max-width:200px;filter:drop-shadow(0 0 20px rgba(59,130,246,0.3));}"
+       ".nav-btn{display:block;width:100%;margin:0.5rem 0;padding:0.75rem 1rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);font-size:0.95rem;font-weight:500;cursor:pointer;transition:all .2s;text-align:center;text-decoration:none;}"
+       ".nav-btn:hover{border-color:var(--accent);background:var(--surface2);color:var(--accent);transform:translateY(-1px);}"
+       ".nav-btn svg{vertical-align:middle;margin-right:0.5rem;}"
+       ".otp-box{background:rgba(59,130,246,0.08);border:1px solid var(--accent);border-radius:var(--radius);padding:0.8rem;margin:1rem 0;}"
+       ".otp-code{font-size:1.3rem;font-weight:700;color:var(--accent);letter-spacing:0.1em;}"
+       ".info-table{width:100%;margin:0.5rem 0;text-align:left;border-collapse:collapse;}"
+       ".info-table td{padding:0.3rem 0.5rem;font-size:0.85rem;}"
+       ".info-table td:first-child{color:var(--text2);}"
+       ".info-table td:last-child{font-weight:600;}"
+       "</style>";
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
-  s += FPSTR(IOTWEBCONF_HTML_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
-  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
-    s += F("<div>Device is not connected to tinyGS:</div>"); 
-    s += F("<table style=\"width:75%;\">");
-    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b>" + String(mqttCredentials.getOTPCode()) + "</b></td></tr>";
-    s += "</table><br />";
-}
-  s += "<button onclick=\"window.location.href='" + String(DASHBOARD_URL) + "';\">Station dashboard</button><br /><br />";
-  s += "<button onclick=\"window.location.href='" + String(CONFIG_URL) + "';\">Configure parameters</button><br /><br />";
-  s += "<button onclick=\"window.location.href='" + String(UPDATE_URL) + "';\">Upload new version</button><br /><br />";
-  s += "<button onclick=\"window.location.href='" + String(RESTART_URL) + "';\">Restart Station</button><br /><br />";
-  
- if ((getThingName()[0] == 'M') && (getThingName()[2] == ' ')  && (getMqttPass()[0] == '\0')) {
-    s += F("<table style=\"width:75%;\">");
-    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></b></td></tr>"; 
-    s += "</table><br />";
-    s += F("<div>Default local dashboard credentials:</div>"); 
-    s += F("<table style=\"width:75%;\">");
-    s += F("<tr><td style=\"text-align:left;\">user:</td><td style=\"text-align:left;\"><b>admin</b></td></tr>");
-    s += "<tr><td style=\"text-align:left;\">password:</td><td style=\"text-align:left;\"><b>" + String(getApPasswordParameter()->valueBuffer) + "</b></td></tr>";
-    s += "</table>";
-}
+  s += "<div class='home-wrap'>";
+  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
 
-  
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0'))
+  {
+    s += F("<div class='otp-box'>");
+    s += F("<div style='font-size:0.82rem;color:var(--text2);margin-bottom:0.3rem;'>Device not connected to TinyGS</div>");
+    s += "<div class='otp-code'>" + String(mqttCredentials.getOTPCode()) + "</div>";
+    s += F("</div>");
+  }
+
+  s += "<a class='nav-btn' href='" + String(DASHBOARD_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></svg>Station Dashboard</a>";
+  s += "<a class='nav-btn' href='" + String(CONFIG_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z'/></svg>Configure Parameters</a>";
+  s += "<a class='nav-btn' href='" + String(UPDATE_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4'/><polyline points='17 8 12 3 7 8'/><line x1='12' y1='3' x2='12' y2='15'/></svg>Upload Firmware</a>";
+  s += "<a class='nav-btn' href='" + String(RESTART_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><polyline points='23 4 23 10 17 10'/><path d='M20.49 15a9 9 0 11-2.12-9.36L23 10'/></svg>Restart Station</a>";
+
+  if ((getThingName()[0] == 'M') && (getThingName()[2] == ' ') && (getMqttPass()[0] == '\0'))
+  {
+    s += F("<div class='otp-box'>");
+    s += "<div style='font-size:0.82rem;color:var(--text2);margin-bottom:0.3rem;'>OTP Code</div>";
+    s += "<div class='otp-code'><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></div>";
+    s += F("</div>");
+    s += F("<div style='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.8rem;margin:0.5rem 0;'>");
+    s += F("<div style='font-size:0.8rem;color:var(--text2);margin-bottom:0.4rem;'>Default dashboard credentials</div>");
+    s += F("<table class='info-table'>");
+    s += F("<tr><td>User:</td><td>admin</td></tr>");
+    s += "<tr><td>Password:</td><td>" + String(getApPasswordParameter()->valueBuffer) + "</td></tr>";
+    s += F("</table></div>");
+  }
+
+  s += "</div>";
   s += FPSTR(IOTWEBCONF_HTML_END);
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
@@ -198,7 +226,6 @@ void ConfigManager::handleDashboard()
     }
   }
 
-  // uint64_t time = millis(); // TODO: add current time
   String s = String(FPSTR(IOTWEBCONF_HTML_HEAD));
   s += "<style>" + String(FPSTR(IOTWEBCONF_HTML_STYLE_INNER)) + "</style>";
   s += "<style>" + String(FPSTR(IOTWEBCONF_DASHBOARD_STYLE_INNER)) + "</style>";
@@ -206,12 +233,15 @@ void ConfigManager::handleDashboard()
   s += "<script>" + String(FPSTR(IOTWEBCONF_WORLDMAP_SCRIPT)) + "</script>";
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_DASHBOARD_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
-    // build svg of world map with animated satellite position
+  s += "<div style='text-align:center;margin-bottom:0.75rem;'><img class='logo' src=\"" + String(LOGO_URL) + "\" style='max-width:160px;'></div>";
+
+  // build svg of world map with animated satellite position
   uint ix = 0;
   uint sx;
-  String svg = "<div style=""margin-left:35px""><svg width""100%"" height=""auto"" viewBox=""0 0 262 134"" xmlns=""http://www.w3.org/2000/svg"">";
-  svg += "<rect x=""1"" y=""1"" width=""262"" height=""134"" stroke=""gray"" fill=""none"" stroke-width=""2"" />";
+  String svg = "<div class='map-wrap'><svg viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
+  svg += "<style>.mb{fill:var(--map-bg)}.md{stroke:var(--map-border);fill:none}.ml{fill:var(--map-land)}</style>";
+  svg += "<rect class=\"mb\" x=\"0\" y=\"0\" width=\"262\" height=\"134\" rx=\"4\"/>";
+  svg += "<rect class=\"md\" x=\"1\" y=\"1\" width=\"260\" height=\"132\" stroke-width=\"1\" rx=\"3\"/>";
   for (uint y = 0; y < earth_height; y++)
   {
     uint n = 0;
@@ -231,8 +261,7 @@ void ConfigManager::handleDashboard()
         {
           if (n > 0)
           {
-            // append current land pixel string
-            svg += "<rect x="""+ String(sx * 2 + 3) + """ y=""" + String(y * 2 + 3) + """ width=""" + String(n * 2) + """ height=""2"" />";
+            svg += "<rect class=\"ml\" x=\"" + String(sx * 2 + 3) + "\" y=\"" + String(y * 2 + 3) + "\" width=\"" + String(n * 2) + "\" height=\"2\"/>";
             n = 0;
           }
         }
@@ -241,95 +270,109 @@ void ConfigManager::handleDashboard()
     }
   }
   // add animated satellite position
-  svg += "<circle id=""wmsatpos"" cx=""" + String(status.satPos[0] * 2 + 3) + """ cy=""" + String(status.satPos[1] * 2 + 3) + """ stroke=""red"" fill=""none"" stroke-width=""2"">";
-  svg += "  <animate attributeName=""r"" values=""2;4;6"" dur=""0.75s"" repeatCount=""indefinite"" />";
+  svg += "<circle id=\"wmsatpos\" cx=\"" + String(status.satPos[0] * 2 + 3) + "\" cy=\"" + String(status.satPos[1] * 2 + 3) + "\" stroke=\"#3b82f6\" fill=\"none\" stroke-width=\"1.5\">";
+  svg += "  <animate attributeName=\"r\" values=\"2;5;8\" dur=\"1s\" repeatCount=\"indefinite\" />";
+  svg += "  <animate attributeName=\"opacity\" values=\"1;0.4;0\" dur=\"1s\" repeatCount=\"indefinite\" />";
   svg += "</circle>";
+  svg += "<circle cx=\"" + String(status.satPos[0] * 2 + 3) + "\" cy=\"" + String(status.satPos[1] * 2 + 3) + "\" r=\"2\" fill=\"#3b82f6\"/>";
   svg += "</svg></div>";
   s += svg;
 
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0'))
+  {
+    s += F("<div style='background:rgba(239,68,68,0.08);border:1px solid var(--danger);border-radius:var(--radius);padding:0.8rem;margin:0.5rem auto;max-width:560px;text-align:center;'>");
+    s += F("<span style='font-size:0.85rem;'>Device not connected to TinyGS &mdash; OTP: </span>");
+    s += "<a href=\"https://tinygs.com/user/addstation\" style='font-weight:700;font-size:1.1rem;'>" + String(mqttCredentials.getOTPCode()) + "</a>";
+    s += F("</div>");
+  }
 
+  s += F("<div class='cards'>");
 
-  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
-    s += F("Device is not connected to tinyGS.<br /> OTP code:"); 
-    s += "<div style=\"color:blue;\"><h3><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></h3></div>";
-    }
-
-  s += F("</table></div><div class=\"card\"><h3>Groundstation Status</h3><table id=""gsstatus"">");
-  s += "<tr><td>Name </td><td>" + String(getThingName()) + "</td></tr>";
-  s += "<tr><td>Version </td><td>" + String(status.version) + "</td></tr>";
-  s += "<tr><td>MQTT Server </td><td>" + String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
-  s += "<tr><td>WiFi RSSI </td><td>" + String(WiFi.isConnected() ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
-  s += "<tr><td>Radio </td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
-  s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>"; 
+  // Card: Ground Station Status
+  s += F("<div class='card'><h3>Ground Station</h3><table id=\"gsstatus\">");
+  s += "<tr><td>Name</td><td>" + String(getThingName()) + "</td></tr>";
+  s += "<tr><td>Version</td><td>" + String(status.version) + "</td></tr>";
+  s += "<tr><td>MQTT</td><td>" + String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
+  s += "<tr><td>WiFi</td><td>" + String(WiFi.isConnected() ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
+  s += "<tr><td>Radio</td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
+  s += "<tr><td>Noise Floor</td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>";
   s += F("</table></div>");
 
-
-  s += F("<div class=\"card\"><h3>Modem Configuration</h3><table id=""modemconfig"">");
-  s += "<tr><td>Modulation </td><td>" + String(status.modeminfo.modem_mode) + "</td></tr>";
-  s += "<tr><td>Frequency </td><td>" + String(status.modeminfo.frequency) + "</td></tr>";
-  s += "<tr><td>Freq. Offset </td><td>" + String(status.modeminfo.freqOffset) + "</td></tr>";
+  // Card: Modem Configuration
+  s += F("<div class='card'><h3>Modem Config</h3><table id=\"modemconfig\">");
+  s += "<tr><td>Modulation</td><td>" + String(status.modeminfo.modem_mode) + "</td></tr>";
+  s += "<tr><td>Frequency</td><td>" + String(status.modeminfo.frequency) + "</td></tr>";
+  s += "<tr><td>Freq. Offset</td><td>" + String(status.modeminfo.freqOffset) + "</td></tr>";
 
   if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
-    s += "<tr><td>Spreading Factor </td><td>" + String(status.modeminfo.sf) + "</td></tr>";
-    s += "<tr><td>Coding Rate </td><td>" + String(status.modeminfo.cr) + "</td></tr>";
-    s += "<tr><td>Bandwidth </td><td>" + String(status.modeminfo.bw) + "</td></tr>";
+    s += "<tr><td>Spreading Factor</td><td>" + String(status.modeminfo.sf) + "</td></tr>";
+    s += "<tr><td>Coding Rate</td><td>" + String(status.modeminfo.cr) + "</td></tr>";
+    s += "<tr><td>Bandwidth</td><td>" + String(status.modeminfo.bw) + "</td></tr>";
   }
   else
   {
-    s += "<tr><td>Bitrate </td><td>" + String(status.modeminfo.bitrate) + "</td></tr>";
-    s += "<tr><td>Frequency dev </td><td>" + String(status.modeminfo.freqDev) + "</td></tr>";
-    s += "<tr><td>Bandwidth </td><td>" + String(status.modeminfo.bw) + "</td></tr>";
+    s += "<tr><td>Bitrate</td><td>" + String(status.modeminfo.bitrate) + "</td></tr>";
+    s += "<tr><td>Frequency dev</td><td>" + String(status.modeminfo.freqDev) + "</td></tr>";
+    s += "<tr><td>Bandwidth</td><td>" + String(status.modeminfo.bw) + "</td></tr>";
   }
+  s += F("</table></div>");
 
-  char timeStr[10];  // "13:45:21 "
-  time_t currentTime = time (NULL);
-  if (currentTime > 0) {
-      struct tm *timeinfo = gmtime (&currentTime);
-      snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-  }
-  else {
-      timeStr[0] = '\0';
-  }
-
-  s += F("</table></div><div class=\"card\"><h3>Satellite Tracking Data</h3><table id=""satdata"">");
-  s += "<tr><td>Listening to </td><td>" + String(status.modeminfo.satellite) + "</td></tr>";
-  if (status.modeminfo.tle[0] != 0) {
-    s += "<tr><td>Lat / Lon </td><td>" + String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º </td></tr>";
-    s += "<tr><td>Az  / El  </td><td>" + String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º </td></tr>";
-    s += "<tr><td>Doppler </td><td>" + String(status.tle.new_freqDoppler) + " Hz </td></tr>";
-  } else 
+  char timeStr[10];
+  time_t currentTime = time(NULL);
+  if (currentTime > 0)
   {
-    s += "<tr><td>Lat / Lon </td><td> - / - </td></tr>";
-    s += "<tr><td>Az  / El  </td><td> - / - </td></tr>";
-    s += "<tr><td>Doppler </td><td>  -  </td></tr>";
+    struct tm *timeinfo = gmtime(&currentTime);
+    snprintf_P(timeStr, sizeof(timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
   }
-  
-  
+  else
+  {
+    timeStr[0] = '\0';
+  }
 
-  s += "<tr><td>UTC Time </td><td>" + String(timeStr) + "</td></tr>";
-  if (currentTime > 0) {
-    struct tm *timeinfo = localtime (&currentTime);
-    snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  // Card: Satellite Tracking
+  s += F("<div class='card'><h3>Satellite Tracking</h3><table id=\"satdata\">");
+  s += "<tr><td>Listening to</td><td>" + String(status.modeminfo.satellite) + "</td></tr>";
+  if (status.modeminfo.tle[0] != 0)
+  {
+    s += "<tr><td>Lat / Lon</td><td>" + String(status.tle.dSatLAT) + "&deg; / " + String(status.tle.dSatLON) + "&deg;</td></tr>";
+    s += "<tr><td>Az / El</td><td>" + String(status.tle.dSatAZ) + "&deg; / " + String(status.tle.dSatEL) + "&deg;</td></tr>";
+    s += "<tr><td>Doppler</td><td>" + String(status.tle.new_freqDoppler) + " Hz</td></tr>";
   }
-  else {
-      timeStr[0] = '\0';
+  else
+  {
+    s += "<tr><td>Lat / Lon</td><td>&mdash; / &mdash;</td></tr>";
+    s += "<tr><td>Az / El</td><td>&mdash; / &mdash;</td></tr>";
+    s += "<tr><td>Doppler</td><td>&mdash;</td></tr>";
   }
-  s += "<tr><td>Local Time </td><td>" + String(timeStr) + "</td></tr>";
 
+  s += "<tr><td>UTC Time</td><td>" + String(timeStr) + "</td></tr>";
+  if (currentTime > 0)
+  {
+    struct tm *timeinfo = localtime(&currentTime);
+    snprintf_P(timeStr, sizeof(timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  }
+  else
+  {
+    timeStr[0] = '\0';
+  }
+  s += "<tr><td>Local Time</td><td>" + String(timeStr) + "</td></tr>";
   s += F("</table></div>");
 
-
-
-  s += F("</table></div><div class=\"card\"><h3>Last Packet Received</h3><table id=""lastpacket"">");
-  s += "<tr><td>Received at </td><td>" + String(status.lastPacketInfo.time) + "</td></tr>";
-  s += "<tr><td>Signal RSSI </td><td>" + String(status.lastPacketInfo.rssi) + "</td></tr>";
-  s += "<tr><td>Signal SNR </td><td>" + String(status.lastPacketInfo.snr) + "</td></tr>";
-  s += "<tr><td>Frequency error </td><td>" + String(status.lastPacketInfo.frequencyerror) + "</td></tr>";
-  s += "<tr><td colspan=\"2\" style=\"text-align:center;\">" + String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "") + "</td></tr>";
+  // Card: Last Packet
+  s += F("<div class='card'><h3>Last Packet</h3><table id=\"lastpacket\">");
+  s += "<tr><td>Received at</td><td>" + String(status.lastPacketInfo.time) + "</td></tr>";
+  s += "<tr><td>Signal RSSI</td><td>" + String(status.lastPacketInfo.rssi) + "</td></tr>";
+  s += "<tr><td>Signal SNR</td><td>" + String(status.lastPacketInfo.snr) + "</td></tr>";
+  s += "<tr><td>Freq. Error</td><td>" + String(status.lastPacketInfo.frequencyerror) + "</td></tr>";
+  s += "<tr><td colspan=\"2\" style=\"text-align:center;color:var(--danger);font-weight:600;\">" + String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "") + "</td></tr>";
   s += F("</table></div>");
+
+  s += F("</div>"); // end .cards
+
   s += FPSTR(IOTWEBCONF_CONSOLE_BODY_INNER);
-  s += "<br /><button style='max-width: 1080px;' onclick=\"window.location.href='" + String(ROOT_URL) + "';\">Go Back</button><br /><br />";
+  s += "<div style='text-align:center;margin:0.75rem 0;'><a href='" + String(ROOT_URL) + "' style='display:inline-block;max-width:1080px;width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.6rem;text-decoration:none;font-weight:500;transition:all .2s;'>&larr; Go Back</a></div>";
+  s += F("</div>"); // end .dash-wrap
   s += FPSTR(IOTWEBCONF_HTML_END);
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
@@ -379,15 +422,23 @@ void ConfigManager::handleRefreshConsole()
           Log::consoleAsync(PSTR("Sending test packet to nearby stations!"));
         }
       }
-    } else if (strcmp (svalue.c_str (), "!w") == 0) {
-        Log::consoleAsync (PSTR ("Getting weblogin"));
-        askForWeblogin = true;
-    } else if (strcmp (svalue.c_str (), "!e") == 0) {
-        resetAllConfig ();
-        ESP.restart ();
-    } else if (strcmp (svalue.c_str (), "!o") == 0) {
-        Log::consoleAsync ("OTP Code: %s", mqttCredentials.getOTPCode ());
-    } else {
+    }
+    else if (strcmp(svalue.c_str(), "!w") == 0)
+    {
+      Log::consoleAsync(PSTR("Getting weblogin"));
+      askForWeblogin = true;
+    }
+    else if (strcmp(svalue.c_str(), "!e") == 0)
+    {
+      resetAllConfig();
+      ESP.restart();
+    }
+    else if (strcmp(svalue.c_str(), "!o") == 0)
+    {
+      Log::consoleAsync("OTP Code: %s", mqttCredentials.getOTPCode());
+    }
+    else
+    {
       Log::consoleAsync(PSTR("%s"), F("Command still not supported in web serial console!"));
     }
   }
@@ -400,7 +451,7 @@ void ConfigManager::handleRefreshConsole()
     counter = atoi(stmp);
   }
 
-#if CONFIG_IDF_TARGET_ESP32S3  
+#if CONFIG_IDF_TARGET_ESP32S3
   server.client().clear();
 #else
   server.client().flush();
@@ -457,7 +508,7 @@ void ConfigManager::handleRefreshWorldmap()
     }
   }
 
-#if CONFIG_IDF_TARGET_ESP32S3  
+#if CONFIG_IDF_TARGET_ESP32S3
   server.client().clear();
 #else
   server.client().flush();
@@ -469,8 +520,8 @@ void ConfigManager::handleRefreshWorldmap()
   server.send(200, F("text/plain"), "");
 
   // world map satellite position (for wmsatpos id attributes)
-  String cx= String(status.satPos[0] * 2 + 3);
-  String cy= String(status.satPos[1] * 2 + 3);
+  String cx = String(status.satPos[0] * 2 + 3);
+  String cy = String(status.satPos[1] * 2 + 3);
   String data_string = cx + "," + cy + ",";
 
   // modem configuration (for modemconfig id table data)
@@ -488,67 +539,72 @@ void ConfigManager::handleRefreshWorldmap()
   }
   data_string += String(status.modeminfo.bw) + ",";
 
-
-
   // ground station status (for gsstatus id table data)
   data_string += String(getThingName()) + ",";
   data_string += String(status.version) + ",";
   data_string += String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + ",";
-  if (WiFi.isConnected())  
+  if (WiFi.isConnected())
   {
     data_string += String(WiFi.RSSI()) + ",";
-  }  
-  else  
+  }
+  else
   {
     data_string += String("<span class='R'>NOT CONNECTED</span>") + ",";
   }
   data_string += String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + ",";
-  Radio& radio = Radio::getInstance ();
+  Radio &radio = Radio::getInstance();
   if (status.radio_ready)
-    radio.currentRssi ();
+    radio.currentRssi();
   data_string += String(status.modeminfo.currentRssi) + ",";
 
- 
-   // sat_info
-   char timeStr[10];  // "13:45:21 "
-   time_t currentTime = time (NULL);
-   if (currentTime > 0) {
-       struct tm *timeinfo = gmtime (&currentTime);
-       snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-   }
-   else {
-       timeStr[0] = '\0';
-   }
+  // sat_info
+  char timeStr[10]; // "13:45:21 "
+  time_t currentTime = time(NULL);
+  if (currentTime > 0)
+  {
+    struct tm *timeinfo = gmtime(&currentTime);
+    snprintf_P(timeStr, sizeof(timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  }
+  else
+  {
+    timeStr[0] = '\0';
+  }
 
-   data_string += String(status.modeminfo.satellite) + "," ;
-   if (status.modeminfo.tle[0] != 0) {
-   data_string += String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º ," ;
-   data_string += String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º ," ;
-   data_string += String( status.tle.new_freqDoppler) + " Hz," ; 
-   } else    {
-   data_string += " - / - ," ;
-   data_string += " - / - ," ;
-   data_string += " - ," ;
-   }
- 
-   if (currentTime > 0) {
-    struct tm *timeinfo = gmtime (&currentTime);
-    snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-}
-else {
+  data_string += String(status.modeminfo.satellite) + ",";
+  if (status.modeminfo.tle[0] != 0)
+  {
+    data_string += String(status.tle.dSatLAT) + "º / " + String(status.tle.dSatLON) + "º ,";
+    data_string += String(status.tle.dSatAZ) + "º / " + String(status.tle.dSatEL) + "º ,";
+    data_string += String(status.tle.new_freqDoppler) + " Hz,";
+  }
+  else
+  {
+    data_string += " - / - ,";
+    data_string += " - / - ,";
+    data_string += " - ,";
+  }
+
+  if (currentTime > 0)
+  {
+    struct tm *timeinfo = gmtime(&currentTime);
+    snprintf_P(timeStr, sizeof(timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  }
+  else
+  {
     timeStr[0] = '\0';
-}
-   data_string += String(timeStr) + "," ;
-   
-   if (currentTime > 0) {
-    struct tm *timeinfo = localtime (&currentTime);
-    snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
-}
-else {
+  }
+  data_string += String(timeStr) + ",";
+
+  if (currentTime > 0)
+  {
+    struct tm *timeinfo = localtime(&currentTime);
+    snprintf_P(timeStr, sizeof(timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  }
+  else
+  {
     timeStr[0] = '\0';
-}
-   data_string += String(timeStr) + "," ;
- 
+  }
+  data_string += String(timeStr) + ",";
 
   // last packet received data (for lastpacket id table data)
   data_string += String(status.lastPacketInfo.time) + ",";
@@ -556,7 +612,6 @@ else {
   data_string += String(status.lastPacketInfo.snr) + ",";
   data_string += String(status.lastPacketInfo.frequencyerror) + ",";
   data_string += String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "");
-
 
   server.sendContent(data_string + "\n");
 
@@ -579,12 +634,15 @@ void ConfigManager::handleRestart()
 
   String s = String(FPSTR(IOTWEBCONF_HTML_HEAD));
   s += "<style>" + String(FPSTR(IOTWEBCONF_HTML_STYLE_INNER)) + "</style>";
+  s += "<style>@keyframes spin{to{transform:rotate(360deg)}}.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:1.5rem auto;}</style>";
   s += "<meta http-equiv=\"refresh\" content=\"8; url=/\">";
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
-  s += FPSTR(IOTWEBCONF_HTML_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
-  s += "Ground Station is restarting...<br /><br/>";
-  s += FPSTR(IOTWEBCONF_HTML_END);
+  s += "<div style='max-width:420px;margin:0 auto;padding:3rem 1rem;text-align:center;'>";
+  s += "<div style='margin-bottom:1.5rem;'><img class='logo' src=\"" + String(LOGO_URL) + "\" style='max-width:160px;'></div>";
+  s += "<div class='spinner'></div>";
+  s += "<div style='font-size:1rem;font-weight:500;color:var(--text);'>Restarting station...</div>";
+  s += "<div style='font-size:0.8rem;color:var(--text2);margin-top:0.5rem;'>You will be redirected automatically</div>";
+  s += "</div>";
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
 
@@ -646,7 +704,7 @@ void ConfigManager::resetAllConfig()
   mqttPassParam.valueBuffer[0] = '\0';
   latitude[0] = '\0';
   longitude[0] = '\0';
-  //oledBright[0] = '\0'; // Disabled to avoid turining display off
+  // oledBright[0] = '\0'; // Disabled to avoid turining display off
   allowTx[0] = '\0';
   remoteTune[0] = '\0';
   telemetry3rd[0] = '\0';
@@ -710,9 +768,8 @@ void ConfigManager::boardDetection()
 
   // test OLED configuration
   Log::error(PSTR("Automatic board detection running... "));
- 
- 
-  // If the cpu is a ESP32-PICO-D4 (Lilygo T3_v1.6.1) we have to avoid using pin GPIO16 as this is used for the FLASH_CS 
+
+  // If the cpu is a ESP32-PICO-D4 (Lilygo T3_v1.6.1) we have to avoid using pin GPIO16 as this is used for the FLASH_CS
   // https://github.com/mpmarks/tinyGS-newboards/commit/e520086f1b43c7cea4cb85d996f0fc379f2d2786
 
 #if CONFIG_IDF_TARGET_ESP32S3
@@ -720,41 +777,43 @@ void ConfigManager::boardDetection()
 #elif CONFIG_IDF_TARGET_ESP32C3
 // nothing yet
 #else
-  if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") != 0) {
-        for (uint8_t ite = 0; ite < ((sizeof(boards) / sizeof(boards[0]))); ite++)
+  if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") != 0)
+  {
+    for (uint8_t ite = 0; ite < ((sizeof(boards) / sizeof(boards[0]))); ite++)
+    {
+      Log::error(PSTR("%s \n"), boards[ite].BOARD);
+      if (boards[ite].OLED__RST != UNUSED)
       {
-        Log::error(PSTR("%s \n"), boards[ite].BOARD);
-      if (boards[ite].OLED__RST != UNUSED) {
         pinMode(boards[ite].OLED__RST, OUTPUT);
         digitalWrite(boards[ite].OLED__RST, LOW);
         delay(25);
         digitalWrite(boards[ite].OLED__RST, HIGH);
       }
-        Wire.begin(boards[ite].OLED__SDA, boards[ite].OLED__SCL);
-        Wire.beginTransmission(boards[ite].OLED__address);
-        if (!Wire.endTransmission())
-        {
-          Log::error(PSTR("Compatible OLED FOUND"));
-          itoa(ite, board, 10);
-          return;
-        }
-        else
-        {
-          Log::error(PSTR("Not Compatible board found, please select it manually on the web config panel"));
-        }
+      Wire.begin(boards[ite].OLED__SDA, boards[ite].OLED__SCL);
+      Wire.beginTransmission(boards[ite].OLED__address);
+      if (!Wire.endTransmission())
+      {
+        Log::error(PSTR("Compatible OLED FOUND"));
+        itoa(ite, board, 10);
+        return;
       }
-    };
+      else
+      {
+        Log::error(PSTR("Not Compatible board found, please select it manually on the web config panel"));
+      }
+    }
+  };
 #endif
 }
 
 void ConfigManager::printConfig()
 {
   Log::debug(PSTR("MQTT Port: %u\nMQTT Server: %s\nMQTT Pass: %s\nLatitude: %f\nLongitude: %f"), getMqttPort(), getMqttServer(), getMqttPass(), getLatitude(), getLongitude());
-  Log::debug(PSTR("tz: %s\nOLED Bright: %u\nTX %s"), getTZ(),  getOledBright(), getAllowTx() ? "Enable" : "Disable");
-  if (getBoardTemplate()[0] != '\0') 
-    Log::debug(PSTR("board_template: %s"),getBoardTemplate());
-  else 
-    Log::debug(PSTR("board: %u --> %s\n:"),getBoard(), boards[getBoard()].BOARD.c_str());
+  Log::debug(PSTR("tz: %s\nOLED Bright: %u\nTX %s"), getTZ(), getOledBright(), getAllowTx() ? "Enable" : "Disable");
+  if (getBoardTemplate()[0] != '\0')
+    Log::debug(PSTR("board_template: %s"), getBoardTemplate());
+  else
+    Log::debug(PSTR("board: %u --> %s\n:"), getBoard(), boards[getBoard()].BOARD.c_str());
 }
 
 // void ConfigManager::setMqttServer(const char *server)
@@ -832,44 +891,46 @@ void ConfigManager::configSavedCallback()
     forceApMode(false);
     parseModemStartup();
     MQTT_Client::getInstance().scheduleRestart();
- 
+
     // Prog button already pressed so something is wrong.. trying to amend it..
-    if (!digitalRead(boards[getBoard()].PROG__BUTTON)) {
-        Log::error(PSTR("Wrong selection Prog button pressed, trying to solve it"));
-        switch (getBoard()) {
-          case 8:
-               Log::error(PSTR("8->14"));
-               strcpy(board, "14");
-               this->saveConfig();
-               break;
-          case 9:
-               Log::error(PSTR("9->18"));
-               strcpy(board, "18");
-               this->saveConfig();
-               break;
-          case 14:
-               Log::error(PSTR("14->8"));
-               strcpy(board, "8");
-               this->saveConfig();
-               break;
-          case 18:
-               Log::error(PSTR("18->9"));
-               strcpy(board, "9");
-               this->saveConfig();
-               break;
-        } 
+    if (!digitalRead(boards[getBoard()].PROG__BUTTON))
+    {
+      Log::error(PSTR("Wrong selection Prog button pressed, trying to solve it"));
+      switch (getBoard())
+      {
+      case 8:
+        Log::error(PSTR("8->14"));
+        strcpy(board, "14");
+        this->saveConfig();
+        break;
+      case 9:
+        Log::error(PSTR("9->18"));
+        strcpy(board, "18");
+        this->saveConfig();
+        break;
+      case 14:
+        Log::error(PSTR("14->8"));
+        strcpy(board, "8");
+        this->saveConfig();
+        break;
+      case 18:
+        Log::error(PSTR("18->9"));
+        strcpy(board, "9");
+        this->saveConfig();
+        break;
+      }
       // seems that prog butto is still pressed wrong so chosing a safe config.
-        if (!digitalRead(boards[getBoard()].PROG__BUTTON)) {
-               Log::error(PSTR("Wrong board moving to a safe config"));
-               strcpy(board, "0");
-               this->saveConfig();
-                    }
+      if (!digitalRead(boards[getBoard()].PROG__BUTTON))
+      {
+        Log::error(PSTR("Wrong board moving to a safe config"));
+        strcpy(board, "0");
+        this->saveConfig();
+      }
     }
   }
 
   parseAdvancedConf();
   remoteSave = false; // reset to false so web callbacks are received as false
-  
 }
 
 void ConfigManager::parseAdvancedConf()
@@ -905,7 +966,7 @@ void ConfigManager::parseModemStartup()
 {
   if (modemStartup[0] == '\0')
     return; // no modem configured yet
-  
+
   StaticJsonDocument<768> doc;
   DeserializationError error = deserializeJson(doc, (const char *)modemStartup);
 
@@ -918,7 +979,7 @@ void ConfigManager::parseModemStartup()
   }
 
   ModemInfo &m = status.modeminfo;
-  const char* mode = doc["mode"].as<const char*>();
+  const char *mode = doc["mode"].as<const char *>();
   strncpy(m.modem_mode, mode ? mode : "", sizeof(m.modem_mode) - 1);
   m.modem_mode[sizeof(m.modem_mode) - 1] = '\0';
   strcpy(m.satellite, doc["sat"].as<char *>());
@@ -957,17 +1018,17 @@ void ConfigManager::parseModemStartup()
       else
         m.fsw[i] = 0;
     }
-    m.enc= doc["enc"];
+    m.enc = doc["enc"];
     /////////////////////////////////////
-    m.whitening_seed= doc["ws"];
-    m.framing= doc["fr"];
-    m.crc_by_sw= doc["cSw"];
-    m.crc_nbytes= doc["cB"];
-    m.crc_init= doc["cI"];
-    m.crc_poly= doc["cP"];
-    m.crc_finalxor= doc["cF"];
-    m.crc_refIn= doc["cRI"];
-    m.crc_refOut= doc["cRO"];
+    m.whitening_seed = doc["ws"];
+    m.framing = doc["fr"];
+    m.crc_by_sw = doc["cSw"];
+    m.crc_nbytes = doc["cB"];
+    m.crc_init = doc["cI"];
+    m.crc_poly = doc["cP"];
+    m.crc_finalxor = doc["cF"];
+    m.crc_refIn = doc["cRI"];
+    m.crc_refOut = doc["cRO"];
   }
 
   // packets Filter
