@@ -83,7 +83,8 @@ const char IOTWEBCONF_DASHBOARD_STYLE_INNER[] PROGMEM =
     ".card td:last-child{color:var(--text);font-weight:500;}"
     ".map-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem;margin:0.75rem auto;max-width:560px;}"
     ".map-wrap svg{width:100%;height:auto;}"
-    "textarea{resize:vertical;width:100%;height:300px;background:#0d1117;color:#22c55e;border:1px solid var(--border);border-radius:var(--radius);padding:0.6rem;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.5;}"
+    "textarea{resize:vertical;width:100%;height:300px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.6rem;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.5;}"
+    "html.dark textarea{background:#0d1117;color:#22c55e;}"
     "#c1{width:100%;margin-top:0.4rem;font-family:'Courier New',monospace;font-size:0.85rem;}"
     ".console{display:block;max-width:1440px;margin:0.75rem auto;text-align:center;}";
 const char IOTWEBCONF_DASHBOARD_BODY_INNER[] PROGMEM = "<div class='dash-wrap'>\n";
