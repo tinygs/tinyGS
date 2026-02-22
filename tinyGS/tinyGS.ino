@@ -80,7 +80,7 @@
 #include "time.h"
 #include "src/Mqtt/MQTT_credentials.h"
 #include "src/Improv/tinygs_improv.h"
-
+#include "src/Power/Power.h"
 
 #if  RADIOLIB_VERSION_MAJOR != (0x07) || RADIOLIB_VERSION_MINOR != (0x06) || RADIOLIB_VERSION_PATCH != (0x00) || RADIOLIB_VERSION_EXTRA != (0x00)
 #error "You are not using the correct version of RadioLib please copy TinyGS/lib/RadioLib on Arduino/libraries"
@@ -113,6 +113,7 @@ void configured()
 {
   configManager.setConfiguredCallback(NULL);
   configManager.printConfig();
+  Power::getInstance().checkAXP();
   radio.init();
 }
 
@@ -376,14 +377,17 @@ void checkButton()
   }
   else {
     unsigned long elapsedTime = millis() - buttPressedStart;
-    if (elapsedTime > 30 && elapsedTime < 1000) // short press
+    if (elapsedTime > 30 && elapsedTime < 1000) { // short press
+      displayResetTimeout();
       displayNextFrame();
+    }
     buttPressedStart = 0;
   }
 }
 
 void handleSerial () {
     while (Serial.available () > 0) {
+        displayResetTimeout();
         yield ();
         byte next = Serial.peek ();
         if (next == 'I') {
