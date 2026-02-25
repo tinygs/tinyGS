@@ -8,5 +8,6 @@ tinyGS/tinyGS.ino.cpp
 .env
 .vscode/*
 context_portal
+memvidagentmemory.instructions.md
 
 *.bin
