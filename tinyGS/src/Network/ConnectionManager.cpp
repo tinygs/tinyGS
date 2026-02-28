@@ -44,10 +44,21 @@ void ConnectionManager::setupEthWiFiManager() {
   ewmCfg.wifi.ssid     = cfg.getWifiSSID();
   ewmCfg.wifi.password = cfg.getWifiPassword();
 
-  // Configure Ethernet if board supports it and mode allows it
+  // Configure Ethernet if board defines it (ethEN=true in board template).
+  // InterfaceMode only controls WiFi-disable, not whether Ethernet is initialised.
   board_t board;
-  if (cfg.getBoardConfig(board) && board.ethEN &&
-      cfg.getInterfaceMode() != InterfaceMode::WIFI_ONLY) {
+  if (cfg.getBoardConfig(board) && board.ethEN) {
+
+    // If the board defines a hardware reset pin, pulse it now so the
+    // chip is guaranteed to be out of reset before SPI probing starts.
+    if (board.ethRST != UNUSED_PIN) {
+      Log::console(PSTR("[ETH] Resetting module on GPIO %d"), board.ethRST);
+      pinMode(board.ethRST, OUTPUT);
+      digitalWrite(board.ethRST, LOW);
+      delay(50);
+      digitalWrite(board.ethRST, HIGH);
+      delay(50);
+    }
 
     ewmCfg.ethernet.enabled = true;
 
@@ -62,7 +73,7 @@ void ConnectionManager::setupEthWiFiManager() {
     ewmCfg.ethernet.csPin  = (gpio_num_t)board.ethCS;
     ewmCfg.ethernet.intPin = (gpio_num_t)board.ethINT;
 
-    // Determine SPI bus for Ethernet
+    // Determine SPI pins for Ethernet
     if (board.ethMISO != UNUSED_PIN && board.ethMOSI != UNUSED_PIN && board.ethSCK != UNUSED_PIN) {
       // Dedicated SPI bus for Ethernet
       ewmCfg.ethernet.misoPin = (gpio_num_t)board.ethMISO;
@@ -74,8 +85,15 @@ void ConnectionManager::setupEthWiFiManager() {
       ewmCfg.ethernet.mosiPin = (gpio_num_t)board.L_MOSI;
       ewmCfg.ethernet.sckPin  = (gpio_num_t)board.L_SCK;
     }
+
+    Log::console(PSTR("[ETH] Config: PHY=%d CS=%d INT=%d RST=%d MISO=%d MOSI=%d SCK=%d SPI=%d"),
+      board.ethPHY, board.ethCS, board.ethINT, board.ethRST,
+      ewmCfg.ethernet.misoPin, ewmCfg.ethernet.mosiPin, ewmCfg.ethernet.sckPin,
+      board.ethSPI);
   } else {
     ewmCfg.ethernet.enabled = false;
+    if (!board.ethEN)
+      Log::console(PSTR("[ETH] Disabled (ethEN=false in board template)"));
   }
 
   // Register event handler

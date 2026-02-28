@@ -657,8 +657,8 @@ String TinyGSWebServer::buildConfigPage() {
   // ---- Advanced ----
   s += F("<fieldset><legend>Advanced Config (do not modify unless you know what you are doing)</legend>");
   s += F("<div><label for='board_template'>Board Template (requires manual restart)</label>");
-  s += F("<div style='display:flex;align-items:center;gap:6px'>");
-  s += "<input type='text' id='board_template' name='board_template' maxlength='255' placeholder='' value='" + String(cfg.getBoardTemplate()) + "' style='flex:1'>";
+  s += F("<div style='display:flex;align-items:flex-start;gap:6px'>");
+  s += "<textarea id='board_template' name='board_template' maxlength='511' rows='4' style='flex:1;font-family:monospace;font-size:0.85em;resize:vertical'>" + String(cfg.getBoardTemplate()) + "</textarea>";
   s += F("<button type='button' onclick='btWzOpen()' style='white-space:nowrap;padding:3px 10px;width:auto;background:#555;color:#fff;font-size:0.82em;border-radius:4px;border:none;cursor:pointer;flex-shrink:0'>&#128295; Wizard</button>");
   s += F("</div></div>");
   s += F("<div><label for='modem_startup'>Modem startup</label>");
