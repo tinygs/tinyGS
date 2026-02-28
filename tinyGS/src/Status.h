@@ -108,6 +108,8 @@ struct Status {
   TextFrame remoteTextFrame[4][15];
  // float time_offset = 0;
   Tle tle;
+  uint8_t activeInterface = 0; // 0=NONE, 1=WIFI, 2=ETHERNET
+  char localIP[16] = "";
  };
 
 #endif

@@ -1,6 +1,6 @@
 /*
-  MQTTClient.cpp - MQTT connection class
-  
+  MQTT_Client.cpp - MQTT client using native ESP-IDF esp-mqtt
+
   Copyright (C) 2020 -2021 @G4lile0, @gmag12 and @dev_4m1g0
 
   This program is free software: you can redistribute it and/or modify
@@ -18,209 +18,282 @@
 */
 
 #include "MQTT_Client.h"
+#include <esp_idf_version.h>
 #include "ArduinoJson.h"
 #if ARDUINOJSON_USE_LONG_LONG == 0 && !PLATFORMIO
-#error "Using Arduino IDE is not recommended, please follow this guide https://github.com/G4lile0/tinyGS/wiki/Arduino-IDE or edit /ArduinoJson/src/ArduinoJson/Configuration.hpp and amend to #define ARDUINOJSON_USE_LONG_LONG 1 around line 68"
+#error "Using Arduino IDE is not recommended"
 #endif
 #include "mbedtls/base64.h"
 #include "../Radio/Radio.h"
 #include "../OTA/OTA.h"
 #include "../Logger/Logger.h"
+#include "../certs.h"
+#include "../Network/ConnectionManager.h"
 #include <esp_ota_ops.h>
+#include <WiFi.h>
 
-
-MQTT_Client::MQTT_Client()
-    : PubSubClient(espClient)
-{
-#ifdef SECURE_MQTT
-//  espClient.setCACert(usingNewCert ? newRoot_CA : DSTroot_CA);
-espClient.setCACert(newRoot_CA);
-#endif
+MQTT_Client::MQTT_Client() {
   randomTime = random(randomTimeMax - randomTimeMin) + randomTimeMin;
   radioConfigMutex = xSemaphoreCreateMutex();
-  
-  // Crear cola de paquetes RX para envío asíncrono (burst de imágenes FSK)
   rxQueue = xQueueCreate(RX_QUEUE_SIZE, sizeof(RxPacketMessage));
   if (rxQueue == NULL) {
     Log::console(PSTR("ERROR: Failed to create RX packet queue"));
   }
 }
 
-void MQTT_Client::loop()
-{
-  if (!connected())
-  {
+// ---- INetworkAware ----
+void MQTT_Client::onConnected(IPAddress ip, ActiveInterface iface) {
+  _networkAvailable = true;
+  if (!_client) {
+    begin();
+  } else {
+    esp_mqtt_client_start(_client);
+  }
+}
+
+void MQTT_Client::onDisconnected() {
+  _networkAvailable = false;
+  _mqttConnected = false;
+  status.mqtt_connected = false;
+  if (_client) {
+    esp_mqtt_client_stop(_client);
+  }
+}
+
+void MQTT_Client::onInterfaceChanged(ActiveInterface iface, IPAddress ip) {
+  // esp-mqtt handles reconnection internally
+  Log::console(PSTR("MQTT: Network interface changed, reconnecting..."));
+  if (_client) {
+    esp_mqtt_client_reconnect(_client);
+  }
+}
+
+// ---- esp-mqtt event handler (static) ----
+void MQTT_Client::mqttEventHandler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
+  MQTT_Client* self = (MQTT_Client*)handler_args;
+  esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
+  self->handleMqttEvent(event);
+}
+
+void MQTT_Client::handleMqttEvent(esp_mqtt_event_handle_t event) {
+  switch (event->event_id) {
+    case MQTT_EVENT_CONNECTED:
+      Log::console(PSTR("Connected to MQTT!"));
+      _mqttConnected = true;
+      status.mqtt_connected = true;
+      connectionAttempts = 0;
+      subscribeToAll();
+      sendWelcome();
+      break;
+
+    case MQTT_EVENT_DISCONNECTED:
+      Log::console(PSTR("MQTT disconnected"));
+      _mqttConnected = false;
+      status.mqtt_connected = false;
+      connectionAttempts++;
+      break;
+
+    case MQTT_EVENT_DATA:
+      // Handle potentially fragmented messages
+      if (event->topic_len > 0) {
+        // First (or only) fragment - capture topic
+        _inTopic = String(event->topic).substring(0, event->topic_len);
+        _inPayload = "";
+      }
+      // Append payload data
+      if (event->data_len > 0) {
+        _inPayload += String(event->data).substring(0, event->data_len);
+      }
+      // Check if message is complete
+      if (event->data_len + event->current_data_offset >= event->total_data_len) {
+        // Full message received
+        manageMQTTData(
+          (char*)_inTopic.c_str(),
+          (uint8_t*)_inPayload.c_str(),
+          _inPayload.length()
+        );
+        _inTopic = "";
+        _inPayload = "";
+      }
+      break;
+
+    case MQTT_EVENT_ERROR:
+      if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+        Log::error(PSTR("MQTT transport error"));
+      } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+        Log::console(PSTR("MQTT connection refused, code: %d"), event->error_handle->connect_return_code);
+      }
+      break;
+
+    default:
+      break;
+  }
+}
+
+void MQTT_Client::begin() {
+  ConfigStore& cfg = ConfigStore::getInstance();
+
+  if (_client) {
+    esp_mqtt_client_destroy(_client);
+    _client = nullptr;
+  }
+
+  uint64_t chipId = ESP.getEfuseMac();
+  char clientId[13];
+  sprintf(clientId, "%04X%08X", (uint16_t)(chipId >> 32), (uint32_t)chipId);
+
+  // Build LWT topic
+  String lwtTopic = buildTopic(teleTopic, topicStatus);
+
+  // Build MQTT URI: mqtts://server:port
+  String uri = "mqtts://" + String(cfg.getMqttServer()) + ":" + String(cfg.getMqttPort());
+
+  esp_mqtt_client_config_t mqtt_cfg = {};
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  // ESP-IDF 5.x: nested struct format
+  mqtt_cfg.broker.address.uri = uri.c_str();
+  mqtt_cfg.broker.verification.certificate = newRoot_CA;
+  mqtt_cfg.credentials.username = cfg.getMqttUser();
+  mqtt_cfg.credentials.authentication.password = cfg.getMqttPass();
+  mqtt_cfg.credentials.client_id = clientId;
+  mqtt_cfg.session.last_will.topic = lwtTopic.c_str();
+  mqtt_cfg.session.last_will.msg = "0";
+  mqtt_cfg.session.last_will.msg_len = 1;
+  mqtt_cfg.session.last_will.qos = 2;
+  mqtt_cfg.session.last_will.retain = false;
+  mqtt_cfg.network.reconnect_timeout_ms = reconnectionInterval;
+  mqtt_cfg.buffer.size = 2048;
+  mqtt_cfg.buffer.out_size = 2048;
+#else
+  // ESP-IDF 4.x: flat struct format
+  mqtt_cfg.uri = uri.c_str();
+  mqtt_cfg.cert_pem = newRoot_CA;
+  mqtt_cfg.username = cfg.getMqttUser();
+  mqtt_cfg.password = cfg.getMqttPass();
+  mqtt_cfg.client_id = clientId;
+  mqtt_cfg.lwt_topic = lwtTopic.c_str();
+  mqtt_cfg.lwt_msg = "0";
+  mqtt_cfg.lwt_msg_len = 1;
+  mqtt_cfg.lwt_qos = 2;
+  mqtt_cfg.lwt_retain = 0;
+  mqtt_cfg.reconnect_timeout_ms = reconnectionInterval;
+  mqtt_cfg.buffer_size = 2048;
+  mqtt_cfg.out_buffer_size = 2048;
+#endif
+
+  _client = esp_mqtt_client_init(&mqtt_cfg);
+  if (!_client) {
+    Log::error(PSTR("Failed to init MQTT client"));
+    return;
+  }
+
+  esp_mqtt_client_register_event(_client, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, mqttEventHandler, this);
+  esp_mqtt_client_start(_client);
+  Log::console(PSTR("MQTT client started, connecting to %s:%u..."), cfg.getMqttServer(), cfg.getMqttPort());
+}
+
+void MQTT_Client::loop() {
+  if (!_networkAvailable) return;
+
+  // Connection timeout handling
+  if (!_mqttConnected) {
     status.mqtt_connected = false;
-    if (millis() - lastConnectionAtempt > reconnectionInterval * connectionAtempts + randomTime)
-    {
-      Log::debug(PSTR("Random reconnection delay: %lu ms"), randomTime);
-      lastConnectionAtempt = millis();
-      connectionAtempts++;
-
-      lastPing = millis();
-      Log::console(PSTR("Attempting MQTT connection..."));
-      reconnect();
-    }
-  }
-  else
-  {
-    connectionAtempts = 0;
-    status.mqtt_connected = true;
-  }
-
-  if (connectionAtempts > connectionTimeout)
-  {
-    Log::console(PSTR("Unable to connect to MQTT Server after many atempts. Restarting..."));
-    // if board is on LOW POWER mode instead of directly reboot it, force a 4hours deep sleep. 
-    ConfigManager &configManager = ConfigManager::getInstance();
-    if (configManager.getLowPower()) 
-    {
-      Radio &radio = Radio::getInstance();
-      uint32_t sleep_seconds = 4*3600; // 4 hours deep sleep. 
-      Log::debug(PSTR("deep_sleep_enter"));
-      esp_sleep_enable_timer_wakeup( 1000000ULL * sleep_seconds); // using ULL  Unsigned Long long
-      delay(100);
-      Serial.flush();
-      WiFi.disconnect(true);
-      delay(100);
-      //  TODO: apagar OLED
-      radio.moduleSleep();
-      esp_deep_sleep_start();
-      delay(1000);   // shouldn't arrive here
-    }
-    else 
-    {
-      ESP.restart();
+    if (connectionAttempts > connectionTimeout) {
+      Log::console(PSTR("Unable to connect to MQTT Server after many attempts. Restarting..."));
+      ConfigStore& cfg = ConfigStore::getInstance();
+      if (cfg.getLowPower()) {
+        Radio& radio = Radio::getInstance();
+        uint32_t sleep_seconds = 4 * 3600;
+        Log::debug(PSTR("deep_sleep_enter"));
+        esp_sleep_enable_timer_wakeup(1000000ULL * sleep_seconds);
+        delay(100);
+        Serial.flush();
+        WiFi.disconnect(true);
+        delay(100);
+        radio.moduleSleep();
+        esp_deep_sleep_start();
+        delay(1000);
+      } else {
+        ESP.restart();
+      }
     }
   }
 
-  PubSubClient::loop();
-
-  // Procesar cola de paquetes RX pendientes (para burst de imágenes FSK)
+  // Process RX queue
   processRxQueue();
 
+  // Periodic ping
   unsigned long now = millis();
-  if (now - lastPing > pingInterval && connected())
-  {
+  if (now - lastPing > pingInterval && _mqttConnected) {
     lastPing = now;
-    if (scheduledRestart)
+    if (scheduledRestart) {
       sendWelcome();
-    else
-    {
+    } else {
       StaticJsonDocument<192> doc;
       doc["Vbat"] = voltage();
       doc["Mem"] = ESP.getFreeHeap();
-      doc["MinMem"] = ESP.getMinFreeHeap();    // Mínimo histórico
-      doc["MaxBlk"] = ESP.getMaxAllocHeap();   // Bloque más grande disponible
-      doc["RSSI"] = WiFi.RSSI();
+      doc["MinMem"] = ESP.getMinFreeHeap();
+      doc["MaxBlk"] = ESP.getMaxAllocHeap();
+
+      ConnectionManager& cm = ConnectionManager::getInstance();
+      if (cm.getActiveInterface() == ActiveInterface::WIFI) {
+        doc["RSSI"] = WiFi.RSSI();
+      } else {
+        doc["iface"] = cm.getActiveInterfaceName();
+      }
       doc["radio"] = status.radio_error;
       doc["InstRSSI"] = status.modeminfo.currentRssi;
 
       char buffer[256];
       serializeJson(doc, buffer);
       Log::debug(PSTR("%s"), buffer);
-      publish(buildTopic(teleTopic, topicPing).c_str(), buffer, false);
+      mqttPublish(buildTopic(teleTopic, topicPing).c_str(), buffer);
     }
   }
 }
 
-void MQTT_Client::reconnect()
-{
-  ConfigManager &configManager = ConfigManager::getInstance();
-  uint64_t chipId = ESP.getEfuseMac();
-  char clientId[13];
-  sprintf(clientId, "%04X%08X", (uint16_t)(chipId >> 32), (uint32_t)chipId);
-
-  if (connect(clientId, configManager.getMqttUser(), configManager.getMqttPass(), buildTopic(teleTopic, topicStatus).c_str(), 2, false, "0"))
-  {
-    yield();
-    Log::console(PSTR("Connected to MQTT!"));
-    status.mqtt_connected = true;
-    subscribeToAll();
-    sendWelcome();
-  }
-  else
-  {
-    status.mqtt_connected = false;
-
-    switch (state())
-    {
-      case MQTT_CONNECTION_TIMEOUT:
-        if (connectionAtempts > 4)
-          Log::console(PSTR("MQTT conection timeout, check your wifi signal strength retrying..."), state());
-        break;
-      case MQTT_CONNECT_FAILED:
-        if (connectionAtempts > 3)
-        {
-#ifdef SECURE_MQTT
-//          if (usingNewCert)
-//            espClient.setCACert(DSTroot_CA);
-//          else
-            espClient.setCACert(newRoot_CA);
-//          usingNewCert = !usingNewCert;
-#endif
-        }
-        break;
-      case MQTT_CONNECT_BAD_CREDENTIALS:
-      case MQTT_CONNECT_UNAUTHORIZED:
-      {
-        char ipBuffer[16];
-        WiFi.localIP().toString().toCharArray(ipBuffer, sizeof(ipBuffer));
-        Log::console(PSTR("MQTT authentication failure. You can check the MQTT credentials connecting to the config panel on the ip: %s."), ipBuffer);
-        break;
-      }
-      default:
-        Log::console(PSTR("failed, rc=%i"), state());
-    }
-  }
+void MQTT_Client::mqttPublish(const char* topic, const char* data, int len, int qos, bool retain) {
+  if (!_client || !_mqttConnected) return;
+  if (len == 0) len = strlen(data);
+  esp_mqtt_client_publish(_client, topic, data, len, qos, retain ? 1 : 0);
 }
 
-String MQTT_Client::buildTopic(const char *baseTopic, const char *cmnd)
-{
-  ConfigManager &configManager = ConfigManager::getInstance();
-  
-  // Usar buffer estático para evitar fragmentación del heap
+String MQTT_Client::buildTopic(const char* baseTopic, const char* cmnd) {
+  ConfigStore& cfg = ConfigStore::getInstance();
   static char topicBuffer[128];
-  
-  const char* user = configManager.getMqttUser();
-  const char* station = configManager.getThingName();
-  
-  // Construir el topic directamente sin usar String::replace()
+
+  const char* user = cfg.getMqttUser();
+  const char* station = cfg.getThingName();
+
   char* p = topicBuffer;
   const char* src = baseTopic;
-  
+
   while (*src) {
     if (strncmp(src, "%user%", 6) == 0) {
-      strcpy(p, user);
-      p += strlen(user);
-      src += 6;
+      strcpy(p, user); p += strlen(user); src += 6;
     } else if (strncmp(src, "%station%", 9) == 0) {
-      strcpy(p, station);
-      p += strlen(station);
-      src += 9;
+      strcpy(p, station); p += strlen(station); src += 9;
     } else if (strncmp(src, "%cmnd%", 6) == 0) {
-      strcpy(p, cmnd);
-      p += strlen(cmnd);
-      src += 6;
+      strcpy(p, cmnd); p += strlen(cmnd); src += 6;
     } else {
       *p++ = *src++;
     }
   }
   *p = '\0';
-  
   return String(topicBuffer);
 }
 
-void MQTT_Client::subscribeToAll()
-{
-  subscribe(buildTopic(globalTopic, "#").c_str());
-  subscribe(buildTopic(cmndTopic, "#").c_str());
+void MQTT_Client::subscribeToAll() {
+  if (!_client) return;
+  esp_mqtt_client_subscribe(_client, buildTopic(globalTopic, "#").c_str(), 0);
+  esp_mqtt_client_subscribe(_client, buildTopic(cmndTopic, "#").c_str(), 0);
 }
 
-void MQTT_Client::sendWelcome()
-{
+void MQTT_Client::sendWelcome() {
   scheduledRestart = false;
-  ConfigManager &configManager = ConfigManager::getInstance();
+  ConfigStore& cfg = ConfigStore::getInstance();
+  ConnectionManager& cm = ConnectionManager::getInstance();
   time_t now;
   time(&now);
 
@@ -228,76 +301,66 @@ void MQTT_Client::sendWelcome()
   char clientId[13];
   sprintf(clientId, "%04X%08X", (uint16_t)(chipId >> 32), (uint32_t)chipId);
 
-  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(18) + 22 + 20 + 20 + 20 + 40 + 20 + 40;
+  const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(20) + 512;
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
-  station_location.add(configManager.getLatitude());
-  station_location.add(configManager.getLongitude());
-  doc["tx"] = configManager.getAllowTx();
+  station_location.add(cfg.getLatitude());
+  station_location.add(cfg.getLongitude());
+  doc["tx"] = cfg.getAllowTx();
   doc["time"] = now;
   doc["version"] = status.version;
   doc["git_version"] = status.git_version;
   doc["sat"] = status.modeminfo.satellite;
-  doc["ip"] = WiFi.localIP().toString();
-  if (configManager.getLowPower())
-    doc["lp"].set(configManager.getLowPower());
-  doc["modem_conf"].set(configManager.getModemStartup());
-  doc["boardTemplate"].set(configManager.getBoardTemplate());
+  doc["ip"] = cm.getLocalIP().toString();
+  doc["iface"] = cm.getActiveInterfaceName();
+  if (cfg.getLowPower())
+    doc["lp"].set(cfg.getLowPower());
+  doc["modem_conf"].set(cfg.getModemStartup());
+  doc["boardTemplate"].set(cfg.getBoardTemplate());
   doc["Mem"] = ESP.getFreeHeap();
   doc["Size"] = ESP.getSketchSize();
   doc["MD5"] = ESP.getSketchMD5();
-  doc["board"] = configManager.getBoard();
+  doc["board"] = cfg.getBoard();
   doc["mac"] = clientId;
-  doc["seconds"] = millis()/1000;
+  doc["seconds"] = millis() / 1000;
   doc["Vbat"] = voltage();
   doc["chip"] = ESP.getChipModel();
-  doc["slot"] = esp_ota_get_running_partition ()->label;
-  doc["pSize"] = esp_ota_get_running_partition ()->size;
+  doc["slot"] = esp_ota_get_running_partition()->label;
+  doc["pSize"] = esp_ota_get_running_partition()->size;
   doc["idfv"] = esp_get_idf_version();
   board_t board;
-  if (configManager.getBoardConfig(board))
+  if (cfg.getBoardConfig(board))
     doc["radioChip"] = board.L_radio;
-
-  Log::debug(PSTR("Running on %s"),  esp_ota_get_running_partition ()->label);
-  Log::debug(PSTR("Partition size: %d bytes"),esp_ota_get_running_partition ()->size);
-  Log::debug(PSTR("ESP-IDF version: %s"), esp_get_idf_version());
-
 
   char buffer[1048];
   serializeJson(doc, buffer);
-  publish(buildTopic(teleTopic, topicWelcome).c_str(), buffer, false);
+  mqttPublish(buildTopic(teleTopic, topicWelcome).c_str(), buffer);
 }
 
-void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
-{
-  ConfigManager &configManager = ConfigManager::getInstance();
+void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet) {
+  ConfigStore& cfg = ConfigStore::getInstance();
   time_t now;
   time(&now);
   struct timeval tv;
   gettimeofday(&tv, NULL);
 
-  // Capacidad dinámica: base + tamaño de los strings de datos
   const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(24) + 256 + packet.length() + raw_packet.length();
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
-  station_location.add(configManager.getLatitude());
-  station_location.add(configManager.getLongitude());
+  station_location.add(cfg.getLatitude());
+  station_location.add(cfg.getLongitude());
   doc["mode"] = status.modeminfolastpckt.modem_mode;
   doc["frequency"] = status.modeminfolastpckt.frequency;
   doc["frequency_offset"] = status.modeminfolastpckt.freqOffset;
-  if (status.lastPacketInfo.freqDoppler!=0)  doc["f_doppler"]= status.lastPacketInfo.freqDoppler;
- 
+  if (status.lastPacketInfo.freqDoppler != 0) doc["f_doppler"] = status.lastPacketInfo.freqDoppler;
   doc["satellite"] = status.modeminfolastpckt.satellite;
-  
-  if (strcmp(status.modeminfolastpckt.modem_mode, "LoRa") == 0)
-  {
+
+  if (strcmp(status.modeminfolastpckt.modem_mode, "LoRa") == 0) {
     doc["sf"] = status.modeminfolastpckt.sf;
     doc["cr"] = status.modeminfolastpckt.cr;
     doc["bw"] = status.modeminfolastpckt.bw;
     doc["iIQ"] = status.modeminfolastpckt.iIQ;
-  }
-  else
-  {
+  } else {
     doc["bitrate"] = status.modeminfolastpckt.bitrate;
     doc["freqdev"] = status.modeminfolastpckt.freqDev;
     doc["rxBw"] = status.modeminfolastpckt.bw;
@@ -309,32 +372,26 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet)
   doc["frequency_error"] = status.lastPacketInfo.frequencyerror;
   doc["unix_GS_time"] = now;
   doc["usec_time"] = (int64_t)tv.tv_usec + tv.tv_sec * 1000000ll;
-//  doc["time_offset"] = status.time_offset;
   doc["crc_error"] = status.lastPacketInfo.crc_error;
   doc["data"] = packet;
   doc["NORAD"] = status.modeminfolastpckt.NORAD;
   doc["noisy"] = noisy;
 
-  // Buffer dinámico basado en tamaño real del JSON
   size_t bufferSize = measureJson(doc) + 1;
   char* buffer = (char*)malloc(bufferSize);
-  if (buffer == nullptr) {
+  if (!buffer) {
     Log::error(PSTR("sendRx: Failed to allocate buffer (%u bytes)"), bufferSize);
     return;
   }
-  
+
   serializeJson(doc, buffer, bufferSize);
   Log::debugAsync(PSTR("%s"), buffer);
-  publish(buildTopic(teleTopic, topicRx).c_str(), buffer, false);
-  
+  mqttPublish(buildTopic(teleTopic, topicRx).c_str(), buffer, bufferSize - 1);
   free(buffer);
 }
 
-// Versión de sendRx que usa la info guardada en la cola
-// Esto evita problemas si la configuración cambió entre encolar y enviar
-void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg)
-{
-  ConfigManager &configManager = ConfigManager::getInstance();
+void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg) {
+  ConfigStore& cfg = ConfigStore::getInstance();
   time_t now;
   time(&now);
   struct timeval tv;
@@ -342,28 +399,23 @@ void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg)
 
   size_t packetLen = strlen(msg.packet);
   size_t rawLen = strlen(msg.raw_packet);
-  
   const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(24) + 256 + packetLen + rawLen;
   DynamicJsonDocument doc(capacity);
   JsonArray station_location = doc.createNestedArray("station_location");
-  station_location.add(configManager.getLatitude());
-  station_location.add(configManager.getLongitude());
+  station_location.add(cfg.getLatitude());
+  station_location.add(cfg.getLongitude());
   doc["mode"] = msg.modem_mode;
   doc["frequency"] = msg.frequency;
   doc["frequency_offset"] = msg.freqOffset;
   if (msg.freqDoppler != 0) doc["f_doppler"] = msg.freqDoppler;
- 
   doc["satellite"] = msg.satellite;
-  
-  if (strcmp(msg.modem_mode, "LoRa") == 0)
-  {
+
+  if (strcmp(msg.modem_mode, "LoRa") == 0) {
     doc["sf"] = msg.sf;
     doc["cr"] = msg.cr;
     doc["bw"] = msg.bw;
     doc["iIQ"] = msg.iIQ;
-  }
-  else
-  {
+  } else {
     doc["bitrate"] = msg.bitrate;
     doc["freqdev"] = msg.freqDev;
     doc["rxBw"] = msg.bw;
@@ -382,33 +434,25 @@ void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg)
 
   size_t bufferSize = measureJson(doc) + 1;
   char* buffer = (char*)malloc(bufferSize);
-  if (buffer == nullptr) {
+  if (!buffer) {
     Log::error(PSTR("sendRxFromQueue: Failed to allocate buffer (%u bytes)"), bufferSize);
     return;
   }
-  
+
   serializeJson(doc, buffer, bufferSize);
   Log::debugAsync(PSTR("%s"), buffer);
-  publish(buildTopic(teleTopic, topicRx).c_str(), buffer, false);
-  
+  mqttPublish(buildTopic(teleTopic, topicRx).c_str(), buffer, bufferSize - 1);
   free(buffer);
 }
 
-// Encolar paquete para envío asíncrono (no bloquea la recepción de radio)
-// Guarda copia de la info del modem AL MOMENTO DE RECIBIR para evitar
-// problemas si la configuración cambia antes de enviar por MQTT
-void MQTT_Client::queueRx(const String& packet, bool noisy, const String& raw_packet)
-{
+void MQTT_Client::queueRx(const String& packet, bool noisy, const String& raw_packet) {
   if (rxQueue == NULL) {
-    // Fallback: enviar directamente si no hay cola
     sendRx(packet, noisy, raw_packet);
     return;
   }
-  
+
   RxPacketMessage msg;
   msg.noisy = noisy;
-  
-  // Copiar info del modem AL MOMENTO DE RECIBIR (solo campos necesarios)
   strncpy(msg.modem_mode, status.modeminfolastpckt.modem_mode, sizeof(msg.modem_mode) - 1);
   msg.modem_mode[sizeof(msg.modem_mode) - 1] = '\0';
   strncpy(msg.satellite, status.modeminfolastpckt.satellite, sizeof(msg.satellite) - 1);
@@ -422,36 +466,23 @@ void MQTT_Client::queueRx(const String& packet, bool noisy, const String& raw_pa
   msg.iIQ = status.modeminfolastpckt.iIQ;
   msg.bitrate = status.modeminfolastpckt.bitrate;
   msg.freqDev = status.modeminfolastpckt.freqDev;
-  
-  // Info del paquete
   msg.rssi = status.lastPacketInfo.rssi;
   msg.snr = status.lastPacketInfo.snr;
   msg.frequencyerror = status.lastPacketInfo.frequencyerror;
   msg.freqDoppler = status.lastPacketInfo.freqDoppler;
   msg.crc_error = status.lastPacketInfo.crc_error;
-  
-  // Copiar strings de datos (truncar si es necesario)
+
   size_t packetLen = packet.length();
   size_t rawLen = raw_packet.length();
-  
-  if (packetLen >= sizeof(msg.packet)) {
-    Log::debugAsync(PSTR("Warning: packet truncated from %u to %u"), packetLen, sizeof(msg.packet) - 1);
-    packetLen = sizeof(msg.packet) - 1;
-  }
-  if (rawLen >= sizeof(msg.raw_packet)) {
-    Log::debugAsync(PSTR("Warning: raw_packet truncated from %u to %u"), rawLen, sizeof(msg.raw_packet) - 1);
-    rawLen = sizeof(msg.raw_packet) - 1;
-  }
-  
+  if (packetLen >= sizeof(msg.packet)) packetLen = sizeof(msg.packet) - 1;
+  if (rawLen >= sizeof(msg.raw_packet)) rawLen = sizeof(msg.raw_packet) - 1;
+
   memcpy(msg.packet, packet.c_str(), packetLen);
   msg.packet[packetLen] = '\0';
-  
   memcpy(msg.raw_packet, raw_packet.c_str(), rawLen);
   msg.raw_packet[rawLen] = '\0';
-  
-  // Intentar encolar sin bloquear (timeout = 0)
+
   if (xQueueSend(rxQueue, &msg, 0) != pdTRUE) {
-    // Cola llena - descartar paquete más antiguo e intentar de nuevo
     RxPacketMessage discarded;
     xQueueReceive(rxQueue, &discarded, 0);
     if (xQueueSend(rxQueue, &msg, 0) == pdTRUE) {
@@ -462,58 +493,47 @@ void MQTT_Client::queueRx(const String& packet, bool noisy, const String& raw_pa
   }
 }
 
-// Procesar cola de paquetes pendientes (llamada desde loop)
-void MQTT_Client::processRxQueue()
-{
-  if (rxQueue == NULL || !connected())
-    return;
-  
+void MQTT_Client::processRxQueue() {
+  if (rxQueue == NULL || !_mqttConnected) return;
+
   RxPacketMessage msg;
-  
-  // Procesar hasta 2 paquetes por ciclo para no bloquear demasiado tiempo
   int processed = 0;
   while (processed < 2 && xQueueReceive(rxQueue, &msg, 0) == pdTRUE) {
     sendRxFromQueue(msg);
     processed++;
   }
-  
-  // Debug: mostrar estado de la cola si hay paquetes pendientes
+
   UBaseType_t pending = uxQueueMessagesWaiting(rxQueue);
   if (pending > 0) {
     Log::debugAsync(PSTR("RX queue: %u packets pending"), pending);
   }
 }
 
-void MQTT_Client::sendStatus()
-{
-  ConfigManager &configManager = ConfigManager::getInstance();
+void MQTT_Client::sendStatus() {
+  ConfigStore& cfg = ConfigStore::getInstance();
   time_t now;
   time(&now);
   struct timeval tv;
   gettimeofday(&tv, NULL);
   StaticJsonDocument<512> doc;
   JsonArray station_location = doc.createNestedArray("station_location");
-  station_location.add(configManager.getLatitude());
-  station_location.add(configManager.getLongitude());
+  station_location.add(cfg.getLatitude());
+  station_location.add(cfg.getLongitude());
 
   doc["version"] = status.version;
-  doc["board"] = configManager.getBoard();
-  doc["tx"] = configManager.getAllowTx();
-
+  doc["board"] = cfg.getBoard();
+  doc["tx"] = cfg.getAllowTx();
   doc["mode"] = status.modeminfo.modem_mode;
   doc["frequency"] = status.modeminfo.frequency;
   doc["frequency_offset"] = status.modeminfo.freqOffset;
   doc["satellite"] = status.modeminfo.satellite;
   doc["NORAD"] = status.modeminfo.NORAD;
 
-  if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
-  {
+  if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0) {
     doc["sf"] = status.modeminfo.sf;
     doc["cr"] = status.modeminfo.cr;
     doc["bw"] = status.modeminfo.bw;
-  }
-  else
-  {
+  } else {
     doc["bitrate"] = status.modeminfo.bitrate;
     doc["freqdev"] = status.modeminfo.freqDev;
     doc["rxBw"] = status.modeminfo.bw;
@@ -523,600 +543,398 @@ void MQTT_Client::sendStatus()
   doc["CRC"] = status.modeminfo.crc;
   doc["FLDRO"] = status.modeminfo.fldro;
   doc["OOK"] = status.modeminfo.OOK;
-
   doc["rssi"] = status.lastPacketInfo.rssi;
   doc["snr"] = status.lastPacketInfo.snr;
   doc["frequency_error"] = status.lastPacketInfo.frequencyerror;
   doc["crc_error"] = status.lastPacketInfo.crc_error;
   doc["unix_GS_time"] = now;
   doc["usec_time"] = (int64_t)tv.tv_usec + tv.tv_sec * 1000000ll;
-//  doc["time_offset"] = status.time_offset;
 
   char buffer[1024];
   serializeJson(doc, buffer);
-  publish(buildTopic(statTopic, topicStatus).c_str(), buffer, false);
+  mqttPublish(buildTopic(statTopic, topicStatus).c_str(), buffer);
 }
 
-void MQTT_Client::sendAdvParameters()
-{
-  ConfigManager &configManager = ConfigManager::getInstance();
+void MQTT_Client::sendAdvParameters() {
+  ConfigStore& cfg = ConfigStore::getInstance();
   StaticJsonDocument<512> doc;
-  doc["adv_prm"].set(configManager.getAvancedConfig());
+  doc["adv_prm"].set(cfg.getAdvancedConfig());
   char buffer[512];
   serializeJson(doc, buffer);
   Log::debug(PSTR("%s"), buffer);
-  publish(buildTopic(teleTopic, topicGet_adv_prm).c_str(), buffer, false);
+  mqttPublish(buildTopic(teleTopic, topicGet_adv_prm).c_str(), buffer);
 }
 
-void MQTT_Client::sendWeblogin () {
-    Log::debug (PSTR ("Asking for weblogin link"));
-    if (publish (buildTopic (teleTopic, "get_weblogin").c_str (), "1", false)) {
-        Log::debug (PSTR ("Weblogin link requested by mqtt"));
-    } else {
-        Log::error (PSTR ("Weblogin link request by mqtt failed"));
-    }
+void MQTT_Client::sendWeblogin() {
+  Log::debug(PSTR("Asking for weblogin link"));
+  mqttPublish(buildTopic(teleTopic, "get_weblogin").c_str(), "1");
 }
 
-// helper funcion (this has to dissapear)
-bool isValidFrequency(uint8_t radio, float f)
-{
+bool isValidFrequency(uint8_t radio, float f) {
   return !((radio == 1 && (f < 137 || f > 525)) ||
-        (radio == 2 && (f < 137 || f > 1020)) ||
-        (radio == 5 && (f < 410 || f > 810)) ||
-        (radio == 6 && (f < 150 || f > 960)) ||
-        (radio == 8 && (f < 2400|| f > 2500)));
+           (radio == 2 && (f < 137 || f > 1020)) ||
+           (radio == 5 && (f < 410 || f > 810)) ||
+           (radio == 6 && (f < 150 || f > 960)) ||
+           (radio == 8 && (f < 2400 || f > 2500)));
 }
 
-void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int length)
-{
-  Radio &radio = Radio::getInstance();
+void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int length) {
+  Radio& radio = Radio::getInstance();
 
   bool global = true;
-  char *command;
-  strtok(topic, "/");                      // tinygs
-  if (strcmp(strtok(NULL, "/"), "global")) // user
-  {
+  char topicCopy[128];
+  strncpy(topicCopy, topic, sizeof(topicCopy) - 1);
+  topicCopy[sizeof(topicCopy) - 1] = '\0';
+
+  char* command;
+  strtok(topicCopy, "/");                  // tinygs
+  if (strcmp(strtok(NULL, "/"), "global")) { // user
     global = false;
     strtok(NULL, "/"); // station
   }
   strtok(NULL, "/"); // cmnd
   command = strtok(NULL, "/");
+  if (!command) return;
+
   uint16_t result = 0xFF;
 
-  if (!strcmp(command, commandSatPos))
-  {
-    manageSatPosOled((char *)payload, length);
-    return; // no ack
+  if (!strcmp(command, commandSatPos)) {
+    manageSatPosOled((char*)payload, length);
+    return;
   }
 
   if (!strcmp(command, commandReset))
     ESP.restart();
 
-  if (!strcmp(command, commandUpdate))
-  {
+  if (!strcmp(command, commandUpdate)) {
     OTA::update();
-    return; // no ack
+    return;
   }
 
-  if (!strcmp(command, commandWeblogin))
-  {
+  if (!strcmp(command, commandWeblogin)) {
     Log::consoleAsync(PSTR("Weblogin: %.*s"), length, payload);
-    return; // no ack
+    return;
   }
 
-  if (!strcmp(command, commandFrame))
-  {
-    uint8_t frameNumber = atoi(strtok(NULL, "/"));
+  if (!strcmp(command, commandFrame)) {
+    char* frameNumStr = strtok(NULL, "/");
+    uint8_t frameNumber = frameNumStr ? atoi(frameNumStr) : 0;
     StaticJsonDocument<512> doc;
     deserializeJson(doc, payload, length);
     status.remoteTextFrameLength[frameNumber] = doc.size();
-    Log::debug(PSTR("Received frame: %u"), status.remoteTextFrameLength[frameNumber]);
 
-    for (uint8_t n = 0; n < status.remoteTextFrameLength[frameNumber]; n++)
-    {
+    for (uint8_t n = 0; n < status.remoteTextFrameLength[frameNumber]; n++) {
       status.remoteTextFrame[frameNumber][n].text_font = doc[n][0];
       status.remoteTextFrame[frameNumber][n].text_alignment = doc[n][1];
       status.remoteTextFrame[frameNumber][n].text_pos_x = doc[n][2];
       status.remoteTextFrame[frameNumber][n].text_pos_y = doc[n][3];
       const char* text = doc[n][4].as<const char*>();
-      strncpy(status.remoteTextFrame[frameNumber][n].text, text ? text : "", 
+      strncpy(status.remoteTextFrame[frameNumber][n].text, text ? text : "",
               sizeof(status.remoteTextFrame[frameNumber][n].text) - 1);
       status.remoteTextFrame[frameNumber][n].text[sizeof(status.remoteTextFrame[frameNumber][n].text) - 1] = '\0';
-
-      Log::debug(PSTR("Text: %u Font: %u Alig: %u Pos x: %u Pos y: %u -> %s"), n,
-                 status.remoteTextFrame[frameNumber][n].text_font,
-                 status.remoteTextFrame[frameNumber][n].text_alignment,
-                 status.remoteTextFrame[frameNumber][n].text_pos_x,
-                 status.remoteTextFrame[frameNumber][n].text_pos_y,
-                 status.remoteTextFrame[frameNumber][n].text);
     }
-
     result = 0;
   }
 
-  if (!strcmp(command, commandStatus))
-  {
-    uint8_t mode = payload[0] - '0';
-    Log::debug(PSTR("Remote status requested: %u"), mode); // right now just one mode
+  if (!strcmp(command, commandStatus)) {
     sendStatus();
     return;
   }
 
-  if (!strcmp(command, commandLog))
-  {
+  if (!strcmp(command, commandLog)) {
     char logStr[length + 1];
     memcpy(logStr, payload, length);
     logStr[length] = '\0';
     Log::consoleAsync(PSTR("%s"), logStr);
-    return; // do not send ack for this one
+    return;
   }
 
-  if (!strcmp(command, commandTx))
-  {
-    // Acquire mutex with longer timeout for TX operations
-    if (xSemaphoreTake(radioConfigMutex, pdMS_TO_TICKS(5000)) != pdTRUE)
-    {
+  if (!strcmp(command, commandTx)) {
+    if (xSemaphoreTake(radioConfigMutex, pdMS_TO_TICKS(5000)) != pdTRUE) {
       Log::consoleAsync(PSTR("ERROR: Could not acquire radio config mutex for TX"));
       return;
     }
-    
     result = radio.sendTx(payload, length);
     Log::consoleAsync(PSTR("Sending TX packet!"));
-    
-    // Release mutex after transmission
     xSemaphoreGive(radioConfigMutex);
   }
 
-  // ######################################################
-  // ############## Remote tune commands ##################
-  // ######################################################
-  if (global)
-    return;
+  // Remote tune commands (station-specific only)
+  if (global) return;
 
-  if (!strcmp(command, commandBeginp))
-  {
+  if (!strcmp(command, commandBeginp)) {
     char buff[length + 1];
     memcpy(buff, payload, length);
     buff[length] = '\0';
-    Log::debug(PSTR("%s"), buff);
 
     StaticJsonDocument<768> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
-
-    if (error.code() != DeserializationError::Ok || !doc.containsKey("mode"))
-    {
+    if (error.code() != DeserializationError::Ok || !doc.containsKey("mode")) {
       Log::consoleAsync(PSTR("ERROR: Your modem config is invalid. Resetting to default"));
       return;
     }
 
-    // check frequecy is valid prior to load 
     board_t board;
-    if (!ConfigManager::getInstance().getBoardConfig(board))
-      return; 
-    
-    if (!isValidFrequency(board.L_radio, doc["freq"]))
-    {
+    if (!ConfigStore::getInstance().getBoardConfig(board)) return;
+
+    if (!isValidFrequency(board.L_radio, doc["freq"])) {
       Log::consoleAsync(PSTR("ERROR: Invalid frequency. Ignoring."));
       return;
     }
-    ModemInfo &m = status.modeminfo;
-    m.tle[0]= 0;
+    ModemInfo& m = status.modeminfo;
+    m.tle[0] = 0;
     status.tle.freqDoppler = 0;
-    ConfigManager::getInstance().setModemStartup(buff);
+    ConfigStore::getInstance().setModemStartup(buff);
   }
 
-  if (!strcmp(command, commandBegine))
-  {
+  if (!strcmp(command, commandBegine)) {
     StaticJsonDocument<768> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
-
-    if (error.code() != DeserializationError::Ok || !doc.containsKey("mode"))
-    {
+    if (error.code() != DeserializationError::Ok || !doc.containsKey("mode")) {
       Log::consoleAsync(PSTR("ERROR: The received modem configuration is invalid. Ignoring."));
       return;
     }
 
-    // check frequecy is valid prior to load  
     board_t board;
-    if (!ConfigManager::getInstance().getBoardConfig(board))
-      return; 
-    
-    if (!isValidFrequency(board.L_radio, doc["freq"]))
-    {
+    if (!ConfigStore::getInstance().getBoardConfig(board)) return;
+
+    if (!isValidFrequency(board.L_radio, doc["freq"])) {
       Log::consoleAsync(PSTR("ERROR: Invalid frequency. Ignoring."));
       return;
     }
- 
-    // Acquire mutex to protect radio configuration from race conditions
-    if (xSemaphoreTake(radioConfigMutex, pdMS_TO_TICKS(1000)) != pdTRUE)
-    {
+
+    if (xSemaphoreTake(radioConfigMutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
       Log::consoleAsync(PSTR("ERROR: Could not acquire radio config mutex"));
       return;
     }
 
-    // disable interrup to avoid allocating received packet to the wrong satellite.
     radio.clearPacketReceivedAction();
     radio.disableInterrupt();
 
-    ModemInfo &m = status.modeminfo;
+    ModemInfo& m = status.modeminfo;
     const char* mode = doc["mode"].as<const char*>();
     strncpy(m.modem_mode, mode ? mode : "", sizeof(m.modem_mode) - 1);
     m.modem_mode[sizeof(m.modem_mode) - 1] = '\0';
     strcpy(m.satellite, doc["sat"].as<const char*>());
     m.NORAD = doc["NORAD"];
 
-  
-    if (strcmp(mode, "LoRa") == 0)
-    {
-      m.frequency = doc["freq"];
-      m.bw = doc["bw"];
-      m.sf = doc["sf"];
-      m.cr = doc["cr"];
-      m.sw = doc["sw"];
-      m.power = doc["pwr"];
-      m.preambleLength = doc["pl"];
-      m.gain = doc["gain"];
-      m.crc = doc["crc"];
-      m.fldro = doc["fldro"];
-      m.iIQ = doc["iIQ"] ? doc["iIQ"].as<bool>() : false; // default to false if not set
-      m.len = doc["len"] ? doc["len"].as<int>() : 0;      // default to 0 if not set
-    }
-    else
-    {
-      m.frequency = doc["freq"];
-      m.bw = doc["bw"];
-      m.bitrate = doc["br"];
-      m.freqDev = doc["fd"];
-      m.power = doc["pwr"];
-      m.preambleLength = doc["pl"];
-      m.OOK = doc["ook"];
-      m.len = doc["len"];
-      m.swSize = doc["fsw"].size();
-      for (int i = 0; i < 8; i++)
-      {
-        if (i < m.swSize)
-          m.fsw[i] = doc["fsw"][i];
-        else
-          m.fsw[i] = 0;
-      }
-      m.enc= doc["enc"];
-      /////////////////////////////////////
-      m.whitening_seed= doc["ws"];
-      m.framing= doc["fr"];
-      m.crc_by_sw= doc["cSw"];
-      m.crc_nbytes= doc["cB"];
-      m.crc_init= doc["cI"];
-      m.crc_poly= doc["cP"];
-      m.crc_finalxor= doc["cF"];
-      m.crc_refIn= doc["cRI"];
-      m.crc_refOut= doc["cRO"];
-    }
-
-    // packets Filter
-    uint8_t filterSize = doc["filter"].size();
-    for (int i = 0; i < 8; i++)
-    {
-      if (i < filterSize)
-        status.modeminfo.filter[i] = doc["filter"][i];
-      else
-        status.modeminfo.filter[i] = 0;
-    }
-     // sat tle
-    if (doc.containsKey("tle") && doc["tle"].is<const char*>()) {
-    const char* base64Tle = doc["tle"].as<const char*>();
-    size_t inputLen = strlen(base64Tle);
-    size_t outputLen = 0;
-    size_t maxTleSize = 64;
-
-    // Calculate the maximum possible decoded length.
-    // Base64 expands roughly 4 bytes into 3.
-    size_t maxDecodedLength = (inputLen * 3 + 3) / 4;
-
-    if(maxDecodedLength > maxTleSize){
- //     Serial.println("Error: Decoded TLE too large for buffer.");
-      return;
-    }
-
-    int ret = mbedtls_base64_decode(m.tle, maxTleSize, &outputLen, (const unsigned char*)base64Tle, inputLen);
-
-    
-    if (ret == 0) {
-      // Decoding successful, 'm_tle' now contains the decoded data, and 'outputLen' is the length.
-     // Serial.print("Base64 decoded. Length: ");
-     // Serial.println(outputLen);
-
-      radio.tle();
-
-      //If you want to print the decoded data for debugging purposes:
-    
-      /*
-      Serial.print("Decoded TLE: ");
-      for (size_t i = 0; i < outputLen; i++) {
-        Serial.print(m.tle[i], HEX); // Print in hexadecimal
-        Serial.print(" ");
-      }
-      Serial.println();
-     */
+    if (strcmp(mode, "LoRa") == 0) {
+      m.frequency = doc["freq"]; m.bw = doc["bw"]; m.sf = doc["sf"]; m.cr = doc["cr"];
+      m.sw = doc["sw"]; m.power = doc["pwr"]; m.preambleLength = doc["pl"];
+      m.gain = doc["gain"]; m.crc = doc["crc"]; m.fldro = doc["fldro"];
+      m.iIQ = doc["iIQ"] ? doc["iIQ"].as<bool>() : false;
+      m.len = doc["len"] ? doc["len"].as<int>() : 0;
     } else {
-     // Serial.print("Base64 decode error: ");
-     // Serial.println(ret);
+      m.frequency = doc["freq"]; m.bw = doc["bw"]; m.bitrate = doc["br"];
+      m.freqDev = doc["fd"]; m.power = doc["pwr"]; m.preambleLength = doc["pl"];
+      m.OOK = doc["ook"]; m.len = doc["len"];
+      m.swSize = doc["fsw"].size();
+      for (int i = 0; i < 8; i++) {
+        m.fsw[i] = (i < m.swSize) ? (uint8_t)doc["fsw"][i] : 0;
+      }
+      m.enc = doc["enc"];
+      m.whitening_seed = doc["ws"]; m.framing = doc["fr"];
+      m.crc_by_sw = doc["cSw"]; m.crc_nbytes = doc["cB"];
+      m.crc_init = doc["cI"]; m.crc_poly = doc["cP"];
+      m.crc_finalxor = doc["cF"]; m.crc_refIn = doc["cRI"]; m.crc_refOut = doc["cRO"];
     }
-  } else {
-   // Serial.println("Error: 'tle' key not found or not a string.");
-    m.tle[0]= 0;
-    status.tle.freqDoppler = 0;
-  }
 
-  radio.begin();
-  
-  radio.enableInterrupt();
-  
-  // Release mutex after radio configuration is complete
-  xSemaphoreGive(radioConfigMutex);
-//    radio.currentRssi();
+    uint8_t filterSize = doc["filter"].size();
+    for (int i = 0; i < 8; i++) {
+      status.modeminfo.filter[i] = (i < filterSize) ? (uint8_t)doc["filter"][i] : 0;
+    }
+
+    if (doc.containsKey("tle") && doc["tle"].is<const char*>()) {
+      const char* base64Tle = doc["tle"].as<const char*>();
+      size_t inputLen = strlen(base64Tle);
+      size_t outputLen = 0;
+      size_t maxTleSize = 64;
+      size_t maxDecodedLength = (inputLen * 3 + 3) / 4;
+
+      if (maxDecodedLength <= maxTleSize) {
+        int ret = mbedtls_base64_decode(m.tle, maxTleSize, &outputLen,
+                                        (const unsigned char*)base64Tle, inputLen);
+        if (ret == 0) {
+          radio.tle();
+        }
+      }
+    } else {
+      m.tle[0] = 0;
+      status.tle.freqDoppler = 0;
+    }
+
+    radio.begin();
+    radio.enableInterrupt();
+    xSemaphoreGive(radioConfigMutex);
     result = 0;
   }
 
-  // Remote_Begin_Lora [437.7,125.0,11,8,18,11,120,8,0]
   if (!strcmp(command, commandBeginLora))
-    result = radio.remote_begin_lora((char *)payload, length);
+    result = radio.remote_begin_lora((char*)payload, length);
 
-  // Remote_Begin_FSK [433.5,100.0,10.0,250.0,10,100,16,0,0]
   if (!strcmp(command, commandBeginFSK))
-    result = radio.remote_begin_fsk((char *)payload, length);
+    result = radio.remote_begin_fsk((char*)payload, length);
 
   if (!strcmp(command, commandFreq))
-    result = radio.remote_freq((char *)payload, length);
+    result = radio.remote_freq((char*)payload, length);
 
-
-
-  // Remote_Satellite_Name [\"FossaSat-3\" , 46494 ]
-  if (!strcmp(command, commandSat))
-  {
-    remoteSatCmnd((char *)payload, length);
+  if (!strcmp(command, commandSat)) {
+    remoteSatCmnd((char*)payload, length);
     result = 0;
   }
 
-  // Satellite_Filter [1,0,51]   (lenght,position,byte1,byte2,byte3,byte4)
-  if (!strcmp(command, commandSatFilter))
-  {
-    remoteSatFilter((char *)payload, length);
+  if (!strcmp(command, commandSatFilter)) {
+    remoteSatFilter((char*)payload, length);
     result = 0;
   }
 
-  // Send station to lightsleep (siesta) x seconds
-  if (!strcmp(command, commandGoToSiesta))
-  {
-    if (length < 1)
-      return;
-    remoteGoToSiesta((char *)payload, length);
+  if (!strcmp(command, commandGoToSiesta)) {
+    if (length < 1) return;
+    remoteGoToSiesta((char*)payload, length);
     result = 0;
   }
 
- // Send station to deepsleep x seconds
-  if (!strcmp(command, commandGoToSleep))
-  {
-    if (length < 1)
-      return;
-    remoteGoToSleep((char *)payload, length);
+  if (!strcmp(command, commandGoToSleep)) {
+    if (length < 1) return;
+    remoteGoToSleep((char*)payload, length);
     result = 0;
   }
 
-  // Set frequency offset
-  if (!strcmp(command, commandSetFreqOffset))
-  {
-    if (length < 1)
-      return;
-    result = radio.remoteSetFreqOffset((char *)payload, length);
-  
+  if (!strcmp(command, commandSetFreqOffset)) {
+    if (length < 1) return;
+    result = radio.remoteSetFreqOffset((char*)payload, length);
   }
 
-  if (!strcmp(command, commandSetAdvParameters))
-  {
+  if (!strcmp(command, commandSetAdvParameters)) {
     char buff[length + 1];
     memcpy(buff, payload, length);
     buff[length] = '\0';
-    Log::debug(PSTR("%s"), buff);
-    ConfigManager::getInstance().setAvancedConfig(buff);
+    ConfigStore::getInstance().setAdvancedConfig(buff);
     result = 0;
   }
 
-  
-  if (!strcmp(command, commandSetPosParameters))
-  {
-   
-    manageSetPosParameters((char *)payload, length);
-    return; // no ack
-
+  if (!strcmp(command, commandSetPosParameters)) {
+    manageSetPosParameters((char*)payload, length);
+    return;
   }
 
-  if (!strcmp(command, commandSetName))
-  {
-   
-    manageSetName((char *)payload, length);
-    return; // no ack
+  if (!strcmp(command, commandSetName)) {
+    manageSetName((char*)payload, length);
+    return;
   }
 
-
-  if (!strcmp(command, commandGetAdvParameters))
-  {
+  if (!strcmp(command, commandGetAdvParameters)) {
     sendAdvParameters();
     result = 0;
     return;
   }
 
-
-
-  if (!global)
-    publish(buildTopic(statTopic, command).c_str(), (uint8_t *)&result, 2U, false);
+  if (!global) {
+    mqttPublish(buildTopic(statTopic, command).c_str(), (const char*)&result, 2, 0, false);
+  }
 }
 
-
-void MQTT_Client::manageSetPosParameters(char *payload, size_t payload_len)
-{
+void MQTT_Client::manageSetPosParameters(char* payload, size_t payload_len) {
   StaticJsonDocument<96> doc;
   deserializeJson(doc, payload, payload_len);
-  if (doc.size()==1) {
+  if (doc.size() == 1) {
     status.tle.tgsALT = doc[0];
-    Log::debug(PSTR("Alt received= %.1f "),status.tle.tgsALT );
   }
 
-  if (doc.size()==3) {
-  
+  if (doc.size() == 3) {
     float receivedLat = doc[0];
     float receivedLon = doc[1];
     status.tle.tgsALT = doc[2];
-    //char buff[length + 1];
-    //memcpy(buff, payload, length);
-    //buff[length] = '\0';
-    //Log::debug(PSTR("%s"), buff);
-    float currentLat   = ConfigManager::getInstance().getLatitude();  // Latitude (Breitengrad): N -> +, S -> -
-    float currentLon   = ConfigManager::getInstance().getLongitude(); ;  // Longitude (Längengrad): E -> +, W -> -
-    Log::debug(PSTR("Lat received= %.3f Lat local= %.3f"),receivedLat,currentLat );
-    Log::debug(PSTR("Lon received= %.3f Lon local= %.3f"),receivedLon,currentLon );
-    Log::debug(PSTR("Alt received= %.1f "),status.tle.tgsALT );
+
+    float currentLat = ConfigStore::getInstance().getLatitude();
+    float currentLon = ConfigStore::getInstance().getLongitude();
+
     if (receivedLat != currentLat) {
-          Log::debug(PSTR("Lat received= %.3f Lat local= %.3f"),receivedLat,currentLat );
-          char buff[10];
-          sprintf(buff, "%.3f", receivedLat);
-          Log::debug(PSTR("%s"), buff);
-          ConfigManager::getInstance().setLat(buff);
-        }
-
+      char buff[10];
+      sprintf(buff, "%.3f", receivedLat);
+      ConfigStore::getInstance().setLat(buff);
+    }
     if (receivedLon != currentLon) {
-          Log::debug(PSTR("Lat received= %.3f Lat local= %.3f"),receivedLon,currentLon );
-          char buff[10];
-          sprintf(buff, "%.3f", receivedLon);
-          Log::debug(PSTR("%s"), buff);
-          ConfigManager::getInstance().setLon(buff);
-        } 
+      char buff[10];
+      sprintf(buff, "%.3f", receivedLon);
+      ConfigStore::getInstance().setLon(buff);
+    }
   }
-
 }
 
-
-
-void MQTT_Client::manageSetName(char *payload, size_t payload_len)
-{
+void MQTT_Client::manageSetName(char* payload, size_t payload_len) {
   StaticJsonDocument<128> doc;
   DeserializationError error = deserializeJson(doc, payload, payload_len);
-
-  if (error) {
-    Log::error(PSTR("deserializeJson() failed: %s"), error.c_str());
-    return;
-  }
+  if (error) return;
 
   if (doc.is<JsonArray>() && doc.size() == 2) {
     const char* received_mac_temp = doc[0].as<const char*>();
     const char* new_name_temp = doc[1].as<const char*>();
 
     if (received_mac_temp && new_name_temp) {
-      char received_mac[13]; 
-      char new_name[32];     
-
-      strcpy(received_mac, received_mac_temp);
-      strcpy(new_name, new_name_temp);
-
       uint64_t chipId = ESP.getEfuseMac();
       char clientId[13];
       sprintf(clientId, "%04X%08X", (uint16_t)(chipId >> 32), (uint32_t)chipId);
 
-      if (strcmp(received_mac, clientId) == 0) {
-
-        Log::debug(PSTR("Renaming to %s"), new_name);
-        ConfigManager::getInstance().setName(new_name);
-      } else {
-        Log::debug(PSTR("MAC don't match"));
-
+      if (strcmp(received_mac_temp, clientId) == 0) {
+        Log::debug(PSTR("Renaming to %s"), new_name_temp);
+        ConfigStore::getInstance().setThingName(new_name_temp);
       }
-    } else {
-      Log::debug(PSTR("Invalid values"));
-
     }
-  } else {
-    Log::debug(PSTR("Invalid format"));
   }
-    
 }
 
-
-
-
-
-void MQTT_Client::manageSatPosOled(char *payload, size_t payload_len)
-{
+void MQTT_Client::manageSatPosOled(char* payload, size_t payload_len) {
   StaticJsonDocument<64> doc;
   deserializeJson(doc, payload, payload_len);
   status.satPos[0] = doc[0];
   status.satPos[1] = doc[1];
 }
 
-void MQTT_Client::remoteSatCmnd(char *payload, size_t payload_len)
-{
+void MQTT_Client::remoteSatCmnd(char* payload, size_t payload_len) {
   StaticJsonDocument<256> doc;
   deserializeJson(doc, payload, payload_len);
   strcpy(status.modeminfo.satellite, doc[0]);
   uint32_t NORAD = doc[1];
   status.modeminfo.NORAD = NORAD;
-
   Log::debug(PSTR("Listening Satellite: %s NORAD: %u"), status.modeminfo.satellite, NORAD);
 }
 
-void MQTT_Client::remoteSatFilter(char *payload, size_t payload_len)
-{
+void MQTT_Client::remoteSatFilter(char* payload, size_t payload_len) {
   StaticJsonDocument<256> doc;
   deserializeJson(doc, payload, payload_len);
   uint8_t filter_size = doc.size();
 
-  status.modeminfo.filter[0] = doc[0];
-  status.modeminfo.filter[1] = doc[1];
-
-  Log::debug(PSTR("Set Sat Filter Size %d"), status.modeminfo.filter[0]);
-  Log::debug(PSTR("Set Sat Filter POS  %d"), status.modeminfo.filter[1]);
-  Log::debug(PSTR("-> "));
-  for (uint8_t filter_pos = 2; filter_pos < filter_size; filter_pos++)
-  {
-    status.modeminfo.filter[filter_pos] = doc[filter_pos];
-    Log::debug(PSTR(" 0x%x  ,"), status.modeminfo.filter[filter_pos]);
+  for (uint8_t i = 0; i < 8 && i < filter_size; i++) {
+    status.modeminfo.filter[i] = doc[i];
   }
   Log::debug(PSTR("Sat packets Filter enabled"));
 }
 
-void MQTT_Client::remoteGoToSleep(char *payload, size_t payload_len)
-{
-  Radio &radio = Radio::getInstance();
+void MQTT_Client::remoteGoToSleep(char* payload, size_t payload_len) {
+  Radio& radio = Radio::getInstance();
   StaticJsonDocument<64> doc;
   deserializeJson(doc, payload, payload_len);
 
-  uint32_t sleep_seconds = doc[0];                        // max 
-  //uint8_t  int_pin = doc [1];   // 99 no int pin
-
+  uint32_t sleep_seconds = doc[0];
   Log::debug(PSTR("deep_sleep_enter"));
-  esp_sleep_enable_timer_wakeup( 1000000ULL * sleep_seconds); // using ULL  Unsigned Long long
-  //esp_sleep_enable_ext0_wakeup(int_pin,0);
+  esp_sleep_enable_timer_wakeup(1000000ULL * sleep_seconds);
   delay(100);
   Serial.flush();
   WiFi.disconnect(true);
   delay(100);
-  //  TODO: apagar OLED
   radio.moduleSleep();
   esp_deep_sleep_start();
-  delay(1000);   // shouldn't arrive here
-
+  delay(1000);
 }
 
-
-void MQTT_Client::remoteGoToSiesta(char *payload, size_t payload_len)
-{
+void MQTT_Client::remoteGoToSiesta(char* payload, size_t payload_len) {
   StaticJsonDocument<64> doc;
   deserializeJson(doc, payload, payload_len);
 
-  uint32_t sleep_seconds = doc[0];                        // max 
-  //uint8_t  int_pin = doc [1];   // 99 no int pin
-
+  uint32_t sleep_seconds = doc[0];
   Log::debug(PSTR("light_sleep_enter"));
-  esp_sleep_enable_timer_wakeup( 1000000ULL * sleep_seconds); // using ULL  Unsigned Long long
-  //esp_sleep_enable_ext0_wakeup(int_pin,0);
+  esp_sleep_enable_timer_wakeup(1000000ULL * sleep_seconds);
   delay(100);
   Serial.flush();
   WiFi.disconnect(true);
@@ -1124,83 +942,33 @@ void MQTT_Client::remoteGoToSiesta(char *payload, size_t payload_len)
   int ret = esp_light_sleep_start();
   WiFi.disconnect(false);
   Log::debug(PSTR("light_sleep: %d\n"), ret);
-  // for stations with sleep disable OLED
-  //displayTurnOff();
   delay(500);
-  esp_sleep_wakeup_cause_t wakeup_reason;
-  wakeup_reason = esp_sleep_get_wakeup_cause();
 
-  switch (wakeup_reason)
-  {
-  case ESP_SLEEP_WAKEUP_EXT0:
-    Log::debug(PSTR("Wakeup caused by external signal using RTC_IO"));
-    break;
-  case ESP_SLEEP_WAKEUP_EXT1:
-    Log::debug(PSTR("Wakeup caused by external signal using RTC_CNTL"));
-    break;
-  case ESP_SLEEP_WAKEUP_TIMER:
-    Log::debug(PSTR("Wakeup caused by timer"));
-    break;
-  case ESP_SLEEP_WAKEUP_TOUCHPAD:
-    Log::debug(PSTR("Wakeup caused by touchpad"));
-    break;
-  case ESP_SLEEP_WAKEUP_ULP:
-    Log::debug(PSTR("Wakeup caused by ULP program"));
-    break;
-  default:
-    Log::debug(PSTR("Wakeup was not caused by deep sleep: %d\n"), wakeup_reason);
-    break;
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  switch (wakeup_reason) {
+    case ESP_SLEEP_WAKEUP_EXT0:    Log::debug(PSTR("Wakeup: RTC_IO")); break;
+    case ESP_SLEEP_WAKEUP_EXT1:    Log::debug(PSTR("Wakeup: RTC_CNTL")); break;
+    case ESP_SLEEP_WAKEUP_TIMER:   Log::debug(PSTR("Wakeup: timer")); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD: Log::debug(PSTR("Wakeup: touchpad")); break;
+    case ESP_SLEEP_WAKEUP_ULP:     Log::debug(PSTR("Wakeup: ULP")); break;
+    default: Log::debug(PSTR("Wakeup: unknown %d"), wakeup_reason); break;
   }
 }
 
-
-
-
-
-// Helper class to use as a callback
-void manageMQTTDataCallback(char *topic, uint8_t *payload, unsigned int length)
-{
-  Log::debugAsync(PSTR("Received MQTT message: %s : %.*s"), topic, length, payload);
-  MQTT_Client::getInstance().manageMQTTData(topic, payload, length);
-}
-
-void MQTT_Client::begin()
-{
-  ConfigManager &configManager = ConfigManager::getInstance();
-  setServer(configManager.getMqttServer(), configManager.getMqttPort());
-  setCallback(manageMQTTDataCallback);
-}
-
-
-
 int MQTT_Client::voltage() {
-  int medianVoltage;
-  int length = 21;
-  int voltages[22];
-  
-  for (int i = 0; i < 21; i++)
-  {
-    voltages[i] = analogRead(36); 
-    }
-  
-  //    BubbleSortAsc   from https://www.luisllamas.es/arduino-bubble-sort/
-   int i, j, flag = 1;
-   int temp;
-   for (i = 1; (i <= length) && flag; i++)
-   {
-      flag = 0;
-      for (j = 0; j < (length - 1); j++)
-      {
-         if (voltages[j + 1] < voltages[j])
-         {
-            temp = voltages[j];
-            voltages[j] = voltages[j + 1];
-            voltages[j + 1] = temp;
-            flag = 1;
-         }
+  int voltages[21];
+  for (int i = 0; i < 21; i++) {
+    voltages[i] = analogRead(36);
+  }
+  // Bubble sort
+  for (int i = 1; i < 21; i++) {
+    for (int j = 0; j < 20; j++) {
+      if (voltages[j + 1] < voltages[j]) {
+        int temp = voltages[j];
+        voltages[j] = voltages[j + 1];
+        voltages[j + 1] = temp;
       }
-   }
-  medianVoltage = voltages[10];
-  return medianVoltage;
+    }
+  }
+  return voltages[10]; // median
 }
-

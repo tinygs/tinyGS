@@ -54,7 +54,7 @@ void Radio::init()
   power.checkAXP();                                       // check and setup AXP192 and AXP2101 power controller
   Log::console(PSTR("[SX12xx] Initializing ... "));
   board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
+  if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
 
   spi.begin(board.L_SCK, board.L_MISO, board.L_MOSI, board.L_NSS);
@@ -66,7 +66,7 @@ void Radio::init()
       break;
     case RADIO_SX1276:
       #if CONFIG_IDF_TARGET_ESP32                                    // Heltec Lora 32 V3 patch to enable TCXO
-        if (ConfigManager::getInstance().getBoard()== LILYGO_T3_V1_6_1_HF_TCXO ) { 
+        if (ConfigStore::getInstance().getBoard()== LILYGO_T3_V1_6_1_HF_TCXO ) { 
           Log::console(PSTR("[SX1276] Enable TCXO 33... "));
           pinMode (33, OUTPUT); 
           digitalWrite(33, HIGH);
@@ -105,7 +105,7 @@ int16_t Radio::begin()
 {
   status.radio_ready = false;
   board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
+  if (!ConfigStore::getInstance().getBoardConfig(board))
     return -1;
   
   ModemInfo &m = status.modeminfo;
@@ -187,8 +187,8 @@ if (status.modeminfo.tle[0] != 0)
   //const uint8_t tiny_tle[34] =  { 0x15, 0x01, 0x62, 0x05, 0x4D, 0xB5, 0xED, 0x00, 0x00, 0x04, 0xBB, 0x0E, 0xE8, 0xD3, 0x2C, 0x7D, 0x47, 0x00, 0x00, 0x48, 0x5A, 0x18, 0xE0, 0xEE, 0x1E, 0x14, 0xCD, 0x59, 0xA4, 0x45, 0x1C, 0x00, 0x1A, 0x4F };
   
   const char  *pcMyName = "tinyGS";    // Observer name
-  double       dMyLAT   = ConfigManager::getInstance().getLatitude();  // Latitude (Breitengrad): N -> +, S -> -
-  double       dMyLON   = ConfigManager::getInstance().getLongitude(); ;  // Longitude (Längengrad): E -> +, W -> -
+  double       dMyLAT   = ConfigStore::getInstance().getLatitude();  // Latitude (Breitengrad): N -> +, S -> -
+  double       dMyLON   = ConfigStore::getInstance().getLongitude(); ;  // Longitude (Längengrad): E -> +, W -> -
   double       dMyALT   = status.tle.tgsALT;      // Altitude ASL (m)
   
   double       dfreqRX  = status.modeminfo.frequency;     // Nominal downlink frequency
@@ -365,7 +365,7 @@ void Radio::setFrequency()
 
 int16_t Radio::sendTx(uint8_t *data, size_t length)
 {
-  if (!ConfigManager::getInstance().getAllowTx())
+  if (!ConfigStore::getInstance().getAllowTx())
   {
     Log::error(PSTR("TX disabled by config"));
     return -1;
@@ -546,7 +546,7 @@ uint8_t Radio::listen()
         respFrame=salida;
       }
       board_t board;
-      ConfigManager::getInstance().getBoardConfig(board);
+      ConfigStore::getInstance().getBoardConfig(board);
       // check CRC by software if pckt is <65 bytes, of if it's bigger only for modules SX126x 
       if (frame_error==0 && status.modeminfo.crc_by_sw && ( board.L_radio==RADIO_SX1268 || board.L_radio==RADIO_SX1262 || respLen < 65 )){
         size_t newsize=respLen-status.modeminfo.crc_nbytes;
@@ -706,7 +706,7 @@ int16_t Radio::remote_freq(char *payload, size_t payload_len)
 
   int16_t state = 0;
   board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
+  if (!ConfigStore::getInstance().getBoardConfig(board))
     return -1;
   if (board.L_radio)
   {
@@ -810,7 +810,7 @@ int16_t Radio::remote_begin_lora(char *payload, size_t payload_len)
 
   int16_t state = 0;
   board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
+  if (!ConfigStore::getInstance().getBoardConfig(board))
     return -1;
   if (board.L_radio)
   {
@@ -822,7 +822,7 @@ int16_t Radio::remote_begin_lora(char *payload, size_t payload_len)
   else
   {
     board_t board;
-    if (!ConfigManager::getInstance().getBoardConfig(board))
+    if (!ConfigStore::getInstance().getBoardConfig(board))
       return -1;
     state = ((SX1268 *)lora)->begin(freq + status.modeminfo.freqOffset, bw, sf, cr, syncWord68, power, preambleLength, board.L_TCXO_V);
     ((SX1268 *)lora)->startReceive();
@@ -863,7 +863,7 @@ int16_t Radio::remote_begin_fsk(char *payload, size_t payload_len)
 
   int16_t state = 0;
   board_t board;
-  if (!ConfigManager::getInstance().getBoardConfig(board))
+  if (!ConfigStore::getInstance().getBoardConfig(board))
     return -1;
   if (board.L_radio)
   {
@@ -879,7 +879,7 @@ int16_t Radio::remote_begin_fsk(char *payload, size_t payload_len)
   else
   {
     board_t board;
-    if (!ConfigManager::getInstance().getBoardConfig(board))
+    if (!ConfigStore::getInstance().getBoardConfig(board))
       return -1;
     state = ((SX1268 *)lora)->beginFSK(freq + status.modeminfo.freqOffset, br, freqDev, rxBw, power, preambleLength, board.L_TCXO_V);
     ((SX1268 *)lora)->setDataShaping(ook);

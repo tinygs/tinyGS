@@ -67,7 +67,7 @@ void Power::I2Cread(uint8_t Address, uint8_t Register, uint8_t Nbytes, uint8_t* 
 void Power::checkAXP() 
 { 
    board_t board;
-   if (!ConfigManager::getInstance().getBoardConfig(board))
+   if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
   Log::console(PSTR("AXPxxx chip?"));   
   byte regV = 0;

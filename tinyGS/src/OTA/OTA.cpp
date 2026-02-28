@@ -30,7 +30,7 @@
 #endif
 
 
-#include "../ConfigManager/ConfigManager.h"
+#include "../Network/ConfigStore.h"
 #include "../Status.h"
 #include "../Logger/Logger.h"
 
@@ -54,7 +54,7 @@ void OTA::update()
   char clientId[13];
   sprintf(clientId, "%04X%08X",(uint16_t)(chipId>>32), (uint32_t)chipId);
 
-  ConfigManager& c = ConfigManager::getInstance();
+  ConfigStore& c = ConfigStore::getInstance();
   char url[255];
   sprintf_P(url, PSTR("%s?user=%s&name=%s&mac=%s&version=%d&rescue=%s"), OTA_URL, c.getMqttUser(), c.getThingName(), clientId, status.version, (c.isFailSafeActive()?"true":"false"));
 

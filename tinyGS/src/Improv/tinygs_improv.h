@@ -2,7 +2,8 @@
 #include <Arduino.h>
 #include <improv.h>
 #include <WiFi.h>
-#include "../ConfigManager/ConfigManager.h"
+#include "../Network/ConfigStore.h"
+#include "../Network/ConnectionManager.h"
 
 //typedef std::function<void ()> onConnected_t;
 const uint8_t IMPROV_BUFFER_SIZE = 128;
@@ -12,7 +13,7 @@ public:
     void handleImprovPacket ();
     //void initImprovVersionInfo (uint32_t version);
     //void onConnected (onConnected_t callback);
-    TinyGSImprov () : globalConfigManager (&ConfigManager::getInstance ()) {}
+    TinyGSImprov () : globalConfigStore (&ConfigStore::getInstance ()) {}
     void setVersion (uint32_t version) {
         firmwareVersion = version;
     }
@@ -25,7 +26,7 @@ private:
     uint8_t improvBufferPosition = 0;
     uint32_t firmwareVersion;
     //onConnected_t onConnectedCb = NULL;
-    ConfigManager* globalConfigManager; // Reference to singleton instance
+    ConfigStore* globalConfigStore; // Reference to singleton instance
 
     //onConnected_t _callback;
 

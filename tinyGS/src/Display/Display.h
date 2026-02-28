@@ -19,7 +19,7 @@
 
 #include "SSD1306.h"                         // https://github.com/ThingPulse/esp8266-oled-ssd1306
 #include "OLEDDisplayUi.h"                   // https://github.com/ThingPulse/esp8266-oled-ssd1306
-#include "../ConfigManager/ConfigManager.h"
+#include "../Network/ConfigStore.h"
 #include "../Status.h"
 
 void displayInit();

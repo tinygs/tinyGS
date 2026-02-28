@@ -19,7 +19,7 @@
 
 #include "Display.h"
 #include "graphics.h"
-#include "../ConfigManager/ConfigManager.h"
+#include "../Network/ConfigStore.h"
 #include "../Mqtt/MQTT_credentials.h"
 #include "../Logger/Logger.h"
 
@@ -52,7 +52,7 @@ uint8_t oldOledBright = -1; // to force brightness update on first run
 void displayInit()
 {
   board_t board;
-   if (!ConfigManager::getInstance().getBoardConfig(board))
+   if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
   
   display = new SSD1306(board.OLED__address, board.OLED__SDA, board.OLED__SCL);
@@ -68,7 +68,7 @@ void displayInit()
   ui->setOverlays(overlays, overlaysCount);
 
   #if CONFIG_IDF_TARGET_ESP32S3                                      // Heltec Lora 32 V3 patch to enable Vext that power OLED
-  if (ConfigManager::getInstance().getBoard()== HELTEC_LORA32_V3 ) { 
+  if (ConfigStore::getInstance().getBoard()== HELTEC_LORA32_V3 ) { 
       pinMode (36, OUTPUT); 
       digitalWrite(36, LOW);
       }
@@ -86,7 +86,7 @@ void displayInit()
   /* ui init() also initialises the underlying display */
   ui->init();
 
-  if (ConfigManager::getInstance().getFlipOled())
+  if (ConfigStore::getInstance().getFlipOled())
     display->flipScreenVertically();
 }
 
@@ -110,7 +110,7 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
            timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
   display->drawString(128, 0, timeBuffer);
 
-  if (ConfigManager::getInstance().getDayNightOled())
+  if (ConfigStore::getInstance().getDayNightOled())
   {
     if (timeinfo->tm_hour < 6 || timeinfo->tm_hour > 18) display->normalDisplay(); else display->invertDisplay(); // change the OLED according to the time. 
   }
@@ -153,13 +153,13 @@ void drawRemoteFrame(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x,
 
 void drawFrame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-  ConfigManager& configManager = ConfigManager::getInstance();
+  ConfigStore& configStore = ConfigStore::getInstance();
 
   display->drawXbm(x +10, y , Logo_width, Logo_height, Logo_bits);
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
   char staBuf[40];
-  snprintf(staBuf, sizeof(staBuf), "Sta: %s", configManager.getThingName());
+  snprintf(staBuf, sizeof(staBuf), "Sta: %s", configStore.getThingName());
   display->drawString( x+70, y + 32, staBuf);
 }
 
@@ -200,7 +200,7 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   {
     snprintf(displayBuffer, sizeof(displayBuffer), "SF: %u", status.modeminfo.sf);
     display->drawString(x,  23 + y, displayBuffer);
-    if (ConfigManager::getInstance().getAllowTx())
+    if (ConfigStore::getInstance().getAllowTx())
     {
       snprintf(displayBuffer, sizeof(displayBuffer), "Pwr:%ddBm", status.modeminfo.power);
       display->drawString(x,  34 + y, displayBuffer); 
@@ -218,7 +218,7 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   else
   {
     display->drawString(x,  23 + y, "FD/BW: " );
-    if (ConfigManager::getInstance().getAllowTx()) {
+    if (ConfigStore::getInstance().getAllowTx()) {
       snprintf(displayBuffer, sizeof(displayBuffer), "P:%ddBm", status.modeminfo.power);
       display->drawString(x,  34 + y, displayBuffer); 
     }
@@ -303,7 +303,7 @@ void displayShowConnected()
   display->clear();
   display->drawXbm(34, 0 , WiFi_Logo_width, WiFi_Logo_height, WiFi_Logo_bits);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64 , 34 , "WiFi:" + String(ConfigManager::getInstance().getWiFiSSID()));
+  display->drawString(64 , 34 , "WiFi:" + String(ConfigStore::getInstance().getWifiSSID()));
   display->drawString(64 , 44 , "OTP --->    " + String(mqttCredentials.getOTPCode ()) );
   display->drawString(64 ,53 , (WiFi.localIP().toString()));
   display->display();
@@ -328,7 +328,7 @@ void displayShowApMode()
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->drawString(0, 6,"Connect to AP:");
-  display->drawString(0,18,"->"+String(ConfigManager::getInstance().getThingName()));
+  display->drawString(0,18,"->"+String(ConfigStore::getInstance().getThingName()));
   display->drawString(5,32,"to configure your Station");
   display->drawString(10,52,"IP:   192.168.4.1");
   display->display();
@@ -339,7 +339,7 @@ void displayShowStaMode(bool ap)
   display->clear();
   display->drawXbm(34, 0 , WiFi_Logo_width, WiFi_Logo_height, WiFi_Logo_bits);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64 , 35 , "Connecting " + String(ConfigManager::getInstance().getWiFiSSID()));
+  display->drawString(64 , 35 , "Connecting " + String(ConfigStore::getInstance().getWifiSSID()));
   if (ap)
     display->drawString(64 , 52 , "Config AP available");
   display->display();
@@ -353,7 +353,7 @@ void displayShowStaMode(bool ap)
 void displayUpdate()
 {
   // Get the current OLED brightness from configuration
-  uint8_t oledBright = ConfigManager::getInstance().getOledBright();
+  uint8_t oledBright = ConfigStore::getInstance().getOledBright();
 
   // Check if brightness has changed
   if (oldOledBright != oledBright) {

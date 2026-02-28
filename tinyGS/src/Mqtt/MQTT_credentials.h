@@ -4,7 +4,7 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 
-#include "../ConfigManager/ConfigManager.h"
+#include "../Network/ConfigStore.h"
 #include "../Status.h"
 
 class MQTTCredentials {

@@ -1,3 +1,5 @@
+#ifndef TINYGS_HTML_H
+#define TINYGS_HTML_H
 /*
   htmlOptions.h - Static html to print the options on the cofig form
   
@@ -84,3 +86,5 @@ const char ADVANCED_CONFIG_SCRIPT[] PROGMEM =
     "var current_id, current_ctrl=null; window.addEventListener('load', function() {setup_click('board_template'); setup_click('modem_startup');});";
 const char IOTWEBCONF_WORLDMAP_SCRIPT[] PROGMEM  ="var wmx=null,wmt;function wmf(p){var sp,mc,gs,lp;clearTimeout(wmt);wmx=new XMLHttpRequest();wmx.onreadystatechange=function() {if(wmx.readyState==4&&x.status==200){var wma=wmx.responseText;var wmp = wma.split(',');sp=document.getElementById('wmsatpos');sp.setAttribute('cx', wmp[0]);sp.setAttribute('cy', wmp[1]);mc=document.getElementById('modemconfig');for(let r=0;r<6;r++){mc.rows[r].cells[1].innerHTML=wmp[r+2]};if(wmp[2]=='LoRa'){mc.rows[3].cells[0].innerHTML='Spreading Factor ';mc.rows[4].cells[0].innerHTML='Coding Rate ';}else{mc.rows[3].cells[0].innerHTML='Bitrate ';mc.rows[4].cells[0].innerHTML='Frequency dev ';};gs=document.getElementById('gsstatus');for(let r=0;r<6;r++){gs.rows[r].cells[1].innerHTML=wmp[r+8];};sd=document.getElementById('satdata');for(let r=0;r<6;r++){sd.rows[r].cells[1].innerHTML=wmp[r+14];};lp=document.getElementById('lastpacket');for(let r=0;r<4;r++){lp.rows[r].cells[1].innerHTML=wmp[r+20];};lp.rows[4].cells[0].innerHTML=wmp[24];}};wmx.open('GET','wm',true);wmx.send();wmt=setTimeout(wmf,5000);return false;}window.addEventListener('load', wmf);";
 const char IOTWEBCONF_CONFIG_STYLE_INNER[] PROGMEM = " fieldset[id='Board config'] div:nth-of-type(3) ~ div { display:none}";
+
+#endif // TINYGS_HTML_H

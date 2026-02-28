@@ -63,10 +63,11 @@ void TinyGSImprov::set_error (improv::Error error) {
 }
 
 std::vector<std::string> TinyGSImprov::getLocalUrl () {
+    ConnectionManager& cm = ConnectionManager::getInstance();
     return {
       // URL where user can finish onboarding or use device
       // Recommended to use website hosted by device
-      String ("http://admin:12345678@" + WiFi.localIP ().toString () + "/").c_str ()
+      String ("http://admin:12345678@" + cm.getLocalIP().toString () + "/").c_str ()
     };
 }
 
@@ -94,26 +95,26 @@ bool TinyGSImprov::connectWifi (std::string ssid, std::string password) {
     std::vector<uint8_t> data = improv::build_rpc_response (improv::WIFI_SETTINGS, getLocalUrl (), false);
     send_response (data);
 
-    strncpy (globalConfigManager->getWifiSsidParameter ()->valueBuffer, ssid.c_str (), globalConfigManager->getWifiSsidParameter ()->getLength ());
-    strncpy (globalConfigManager->getWifiPasswordParameter ()->valueBuffer, password.c_str (), globalConfigManager->getWifiPasswordParameter ()->getLength ());
-    char* stationName = globalConfigManager->getThingNameParameter ()->valueBuffer;
-    int stationNameLength = globalConfigManager->getThingNameParameter ()->getLength ();
+    strncpy (globalConfigStore->wifiSSIDBuffer(), ssid.c_str (), globalConfigStore->wifiSSIDLen());
+    strncpy (globalConfigStore->wifiPassBuffer(), password.c_str (), globalConfigStore->wifiPassLen());
+    char* stationName = globalConfigStore->stationNameBuffer();
+    int stationNameLength = globalConfigStore->stationNameLen();
     Serial.printf("Station name: %s\n", stationName);
     if (strncmp (stationName, "", stationNameLength) == 0) {
         strncpy (stationName, "TinyGS_Improv", stationNameLength);
         Serial.println("Station name was empty");
     }
-    char* apPassword = globalConfigManager->getApPasswordParameter ()->valueBuffer;
-    int apPasswordLength = globalConfigManager->getApPasswordParameter ()->getLength ();
+    char* apPassword = globalConfigStore->apPasswordBuffer();
+    int apPasswordLength = globalConfigStore->apPasswordLen();
     Serial.printf("AP password: %s\n", apPassword);
     if (strncmp (apPassword, "", apPasswordLength) == 0) {
         strncpy (apPassword, "12345678", apPasswordLength);
         Serial.println("AP password was empty");
     }
-    globalConfigManager->saveConfig ();
+    globalConfigStore->save();
     delay (100);
     ESP.restart ();
-    //globalConfigManager->changeState (IOTWEBCONF_STATE_ONLINE);
+    // Connection state is now managed by ConnectionManager
     // if (onConnectedCb != NULL) {
     //     onConnectedCb ();
     // }

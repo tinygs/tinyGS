@@ -22,21 +22,13 @@
 #define RADIOLIB_EXCLUDE_HTTP
 
 #include <RadioLib.h>
-#include "../ConfigManager/ConfigManager.h"
+#include "../Network/ConfigStore.h"
 #include "../Status.h"
 #include "../Mqtt/MQTT_Client.h"
 #include "RadioHal.hpp"
 #include "../Power/Power.h"
 
 extern Status status;
-
-enum RadioModelNum {
-  RADIO_SX1278 = 1,
-  RADIO_SX1276 = 2,
-  RADIO_SX1268 = 5,
-  RADIO_SX1262 = 6,
-  RADIO_SX1280 = 8
-};
 
 class Radio {
 public:

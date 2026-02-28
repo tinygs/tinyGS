@@ -23,7 +23,7 @@
 #include "Arduino.h"
 #include <Wire.h>
 #include "../Status.h"
-#include "../ConfigManager/ConfigManager.h"
+#include "../Network/ConfigStore.h"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 // * * * * * * * A X P   C H I P   C O N F I G * * * * * * * * * *
