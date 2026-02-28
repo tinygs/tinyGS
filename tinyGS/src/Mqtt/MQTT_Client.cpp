@@ -44,6 +44,13 @@ MQTT_Client::MQTT_Client() {
 // ---- INetworkAware ----
 void MQTT_Client::onConnected(IPAddress ip, ActiveInterface iface) {
   _networkAvailable = true;
+  ConfigStore& cfg = ConfigStore::getInstance();
+  if (cfg.getMqttServer()[0] == '\0' ||
+      cfg.getMqttUser()[0]   == '\0' ||
+      cfg.getMqttPass()[0]   == '\0') {
+    Log::console(PSTR("MQTT: credentials not set, skipping connection"));
+    return;
+  }
   if (!_client) {
     begin();
   } else {
@@ -61,11 +68,10 @@ void MQTT_Client::onDisconnected() {
 }
 
 void MQTT_Client::onInterfaceChanged(ActiveInterface iface, IPAddress ip) {
+  if (!_client) return;
   // esp-mqtt handles reconnection internally
   Log::console(PSTR("MQTT: Network interface changed, reconnecting..."));
-  if (_client) {
-    esp_mqtt_client_reconnect(_client);
-  }
+  esp_mqtt_client_reconnect(_client);
 }
 
 // ---- esp-mqtt event handler (static) ----
@@ -195,6 +201,14 @@ void MQTT_Client::begin() {
 
 void MQTT_Client::loop() {
   if (!_networkAvailable) return;
+
+  // Skip all MQTT logic if credentials are not configured yet
+  {
+    ConfigStore& cfg = ConfigStore::getInstance();
+    if (cfg.getMqttServer()[0] == '\0' ||
+        cfg.getMqttUser()[0]   == '\0' ||
+        cfg.getMqttPass()[0]   == '\0') return;
+  }
 
   // Connection timeout handling
   if (!_mqttConnected) {
