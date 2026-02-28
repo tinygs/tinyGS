@@ -1,5 +1,0 @@
-BasedOnStyle: LLVM
-PointerAlignment: Left
-AllowShortFunctionsOnASingleLine: InlineOnly
-AlignAfterOpenBracket: AlwaysBreak
-BreakBeforeBraces: Allman
