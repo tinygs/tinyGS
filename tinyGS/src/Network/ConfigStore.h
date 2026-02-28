@@ -123,9 +123,12 @@ struct board_t {
   uint8_t TX_EN;
   String  BOARD;
 
+  uint8_t L_SPI   = 2;        // SPI bus for radio: 2=SPI2(HSPI), 3=SPI3(VSPI)
+
   // Ethernet fields (from board template JSON)
   bool    ethEN   = false;
   uint8_t ethPHY  = 0;       // 0=W5500, 1=DM9051, 2=KSZ8851SNL
+  uint8_t ethSPI  = 2;       // SPI bus for ethernet: 2=SPI2, 3=SPI3
   uint8_t ethCS   = UNUSED_PIN;
   uint8_t ethINT  = UNUSED_PIN;
   uint8_t ethRST  = UNUSED_PIN;
@@ -232,8 +235,10 @@ public:
   bool        getLowPower()          const { return _advConf.lowPower; }
   bool        getDisableOled()       const { return !strcmp(_disableOled, "selected"); }
   bool        getDisableRadio()      const { return !strcmp(_disableRadio, "selected"); }
+  bool        getAlwaysAP()          const { return !strcmp(_alwaysAP, "selected"); }
   void        setDisableOled(bool v);
   void        setDisableRadio(bool v);
+  void        setAlwaysAP(bool v);
 
   // ---- Network mode ----
   InterfaceMode getInterfaceMode()   const { return _ifaceMode; }
@@ -297,6 +302,7 @@ private:
   char _autoUpdate[12]                    = "selected";
   char _disableOled[12]                   = "";
   char _disableRadio[12]                  = "";
+  char _alwaysAP[12]                      = "";
   char _boardTemplate[TEMPLATE_LEN]       = "";
   char _modemStartup[MODEM_LEN]           = "";
   char _advancedConfig[ADVANCED_LEN]      = "";

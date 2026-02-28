@@ -173,7 +173,28 @@ void setup()
 
   if (!configStore.isFailSafeActive()) {
     if (!configStore.getDisableRadio()) {
-      radio.init();
+      // Run radio.init() in a separate task to guard against an indefinite
+      // SPI hang when no radio chip is physically present on the board.
+      static TaskHandle_t s_radioInitTask = nullptr;
+      xTaskCreate(
+        [](void*) {
+          radio.init();
+          vTaskDelete(nullptr);
+        },
+        "radioInit", 4096, nullptr, 1, &s_radioInitTask
+      );
+      const unsigned long RADIO_INIT_TIMEOUT_MS = 15000UL;
+      unsigned long t0 = millis();
+      while (!radio.isReady() && (millis() - t0 < RADIO_INIT_TIMEOUT_MS)) {
+        delay(50);
+      }
+      if (!radio.isReady()) {
+        Log::console(PSTR("[SX12xx] Init timeout after 15s - no radio chip detected"));
+        if (s_radioInitTask) {
+          vTaskDelete(s_radioInitTask);
+          s_radioInitTask = nullptr;
+        }
+      }
     } else {
       Log::console(PSTR("Radio disabled (dev mode). Skipping radio init."));
     }

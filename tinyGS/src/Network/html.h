@@ -139,6 +139,13 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "<td style='padding:3px 5px'>RX_EN&nbsp;(255=N/A)</td><td><input id='wq' type='number' value='255' min='0' max='255' style='width:68px'></td></tr>"
   "<tr><td style='padding:3px 5px'>TX_EN&nbsp;(255=N/A)</td><td><input id='wr' type='number' value='255' min='0' max='255' style='width:68px'></td>"
   "<td></td><td></td></tr>"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "<tr><td style='padding:3px 5px'>SPI Bus</td><td colspan='3'>"
+  "<select id='wlspi' style='padding:2px'>"
+  "<option value='2'>SPI2 (default)</option>"
+  "<option value='3'>SPI3</option>"
+  "</select></td></tr>"
+#endif
   "</tbody>"
   /* Ethernet */
   "<tbody><tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>Ethernet (optional)</th></tr>"
@@ -149,6 +156,13 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "<td id='wt-td' style='display:none'><select id='wt' style='width:100%;padding:2px'><option value='0'>W5500</option><option value='1'>DM9051</option><option value='2'>KSZ8851SNL</option></select></td>"
   "</tr></tbody>"
   "<tbody id='wi-eth' style='display:none'>"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "<tr><td style='padding:3px 5px'>SPI Bus</td><td colspan='3'>"
+  "<select id='wespi' style='padding:2px'>"
+  "<option value='2'>SPI2 (default)</option>"
+  "<option value='3'>SPI3</option>"
+  "</select></td></tr>"
+#endif
   "<tr><td style='padding:3px 5px'>CS</td><td><input id='wu' type='number' value='255' min='0' max='255' style='width:68px'></td>"
   "<td style='padding:3px 5px'>INT</td><td><input id='wv' type='number' value='255' min='0' max='255' style='width:68px'></td></tr>"
   "<tr><td style='padding:3px 5px'>RST</td><td><input id='ww' type='number' value='255' min='0' max='255' style='width:68px'></td>"
@@ -187,10 +201,18 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "var rv=gv('radio',1);sv('wg',rv);"
   "if(rv!==0){sv('wh',gv('lNSS',18));sv('wi',gv('lDIO0',26));sv('wj',gv('lDIO1',33));sv('wk',gv('lBUSSY',255));"
   "sv('wl',gv('lRST',14));sv('wm',gv('lMISO',19));sv('wn',gv('lMOSI',27));sv('wo',gv('lSCK',5));"
-  "sv('wp',gv('lTCXOV',0));sv('wq',gv('RXEN',255));sv('wr',gv('TXEN',255));}"
+  "sv('wp',gv('lTCXOV',0));sv('wq',gv('RXEN',255));sv('wr',gv('TXEN',255));"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "sv('wlspi',gv('lSPI',2));"
+#endif
+  "}"
   "var en=gv('ethEN',false);document.getElementById('ws').checked=en;"
   "if(en){sv('wt',gv('ethPHY',0));sv('wu',gv('ethCS',255));sv('wv',gv('ethINT',255));"
-  "sv('ww',gv('ethRST',255));sv('wx',gv('ethMISO',255));sv('wy',gv('ethMOSI',255));sv('wz',gv('ethSCK',255));}"
+  "sv('ww',gv('ethRST',255));sv('wx',gv('ethMISO',255));sv('wy',gv('ethMOSI',255));sv('wz',gv('ethSCK',255));"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "sv('wespi',gv('ethSPI',2));"
+#endif
+  "}"
   "}catch(e){}}"
   "btOledTog();btRadioTog();btEthTog();"
   "document.getElementById('bt-dlg').showModal();}"
@@ -209,10 +231,29 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "o.lBUSSY=ni(v('wk'));o.lRST=ni(v('wl'));o.lMISO=ni(v('wm'));o.lMOSI=ni(v('wn'));"
   "o.lSCK=ni(v('wo'));o.lTCXOV=fi(v('wp'));"
   "var rx=ni(v('wq'));if(rx!==255)o.RXEN=rx;"
-  "var tx=ni(v('wr'));if(tx!==255)o.TXEN=tx;}"
+  "var tx=ni(v('wr'));if(tx!==255)o.TXEN=tx;"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "o.lSPI=ni(v('wlspi'));"
+#endif
+  "}"
   "if(document.getElementById('ws').checked){"
   "o.ethEN=true;o.ethPHY=ni(v('wt'));o.ethCS=ni(v('wu'));"
-  "o.ethINT=ni(v('wv'));o.ethRST=ni(v('ww'));o.ethMISO=ni(v('wx'));o.ethMOSI=ni(v('wy'));o.ethSCK=ni(v('wz'));}"
+  "o.ethINT=ni(v('wv'));o.ethRST=ni(v('ww'));o.ethMISO=ni(v('wx'));o.ethMOSI=ni(v('wy'));o.ethSCK=ni(v('wz'));"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "o.ethSPI=ni(v('wespi'));"
+#endif
+  "}"
+  "if(!radioDis&&document.getElementById('ws').checked){"
+  "var lsE=document.getElementById('wlspi'),esE=document.getElementById('wespi');"
+  "var sharedBus=(!lsE||!esE||lsE.value===esE.value);"
+  "if(sharedBus){"
+  "if(o.lMISO!==o.ethMISO||o.lMOSI!==o.ethMOSI||o.lSCK!==o.ethSCK){"
+  "alert('Radio y Ethernet comparten el mismo bus SPI.\\nMISO, MOSI y SCK deben ser iguales en ambas secciones.');"
+  "return;}"
+  "if(o.lNSS===o.ethCS){"
+  "alert('Radio y Ethernet comparten el mismo bus SPI.\\nNSS (radio) y CS (ethernet) deben ser pines diferentes.');"
+  "return;}"
+  "}}"
   "document.getElementById('board_template').value=JSON.stringify(o);"
   "document.getElementById('bt-dlg').close();}"
   "</script>";

@@ -62,6 +62,13 @@ void Radio::init()
     return;
   }
 
+  // Select SPI bus from board template (2=SPI2/HSPI, 3=SPI3/VSPI)
+#if CONFIG_IDF_TARGET_ESP32S3
+  spi = (board.L_SPI == 3) ? SPIClass(3) : SPIClass(HSPI);
+#elif !defined(CONFIG_IDF_TARGET_ESP32C3)
+  spi = (board.L_SPI == 3) ? SPIClass(VSPI) : SPIClass(HSPI);
+#endif
+
   spi.begin(board.L_SCK, board.L_MISO, board.L_MOSI, board.L_NSS);
 
  switch (board.L_radio) {

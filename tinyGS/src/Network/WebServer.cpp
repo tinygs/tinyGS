@@ -640,6 +640,7 @@ String TinyGSWebServer::buildConfigPage() {
   addCheckbox("auto_update", "Automatic Firmware Update", cfg.getAutoUpdate());
   addCheckbox("disable_oled", "Disable OLED display", cfg.getDisableOled());
   addCheckbox("disable_radio", "Disable Radio (dev mode, no LoRa module)", cfg.getDisableRadio());
+  addCheckbox("always_ap", "Always keep WiFi AP active (same channel/BW as STA)", cfg.getAlwaysAP());
   s += F("</fieldset>");
 
   // ---- Network Interface ----
@@ -704,28 +705,45 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
   String body(buf);
   free(buf);
 
-  auto getFormVal = [&body](const char* key) -> String {
+  // Full percent-decode of an application/x-www-form-urlencoded value.
+  auto urlDecode = [](const String& src) -> String {
+    String out;
+    out.reserve(src.length());
+    for (int i = 0; i < (int)src.length(); i++) {
+      char c = src[i];
+      if (c == '+') {
+        out += ' ';
+      } else if (c == '%' && i + 2 < (int)src.length()) {
+        char hi = src[i + 1];
+        char lo = src[i + 2];
+        auto hexVal = [](char h) -> int {
+          if (h >= '0' && h <= '9') return h - '0';
+          if (h >= 'A' && h <= 'F') return h - 'A' + 10;
+          if (h >= 'a' && h <= 'f') return h - 'a' + 10;
+          return -1;
+        };
+        int h = hexVal(hi), l = hexVal(lo);
+        if (h >= 0 && l >= 0) {
+          out += (char)((h << 4) | l);
+          i += 2;
+        } else {
+          out += c;
+        }
+      } else {
+        out += c;
+      }
+    }
+    return out;
+  };
+
+  auto getFormVal = [&body, &urlDecode](const char* key) -> String {
     String search = String(key) + "=";
     int start = body.indexOf(search);
     if (start < 0) return "";
     start += search.length();
     int end = body.indexOf('&', start);
     if (end < 0) end = body.length();
-    String val = body.substring(start, end);
-    // URL decode
-    val.replace("+", " ");
-    val.replace("%20", " ");
-    val.replace("%2F", "/");
-    val.replace("%3A", ":");
-    val.replace("%40", "@");
-    val.replace("%2B", "+");
-    val.replace("%22", "\"");
-    val.replace("%7B", "{");
-    val.replace("%7D", "}");
-    val.replace("%2C", ",");
-    val.replace("%5B", "[");
-    val.replace("%5D", "]");
-    return val;
+    return urlDecode(body.substring(start, end));
   };
 
   ConfigStore& cfg = ConfigStore::getInstance();
@@ -737,8 +755,11 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
   }
 
   cfg.setApPassword(getFormVal("ap_pwd").c_str());
-  cfg.setWifiSSID(getFormVal("wifi_ssid").c_str());
-  cfg.setWifiPassword(getFormVal("wifi_pass").c_str());
+  String wifiSsid = getFormVal("wifi_ssid");
+  String wifiPass = getFormVal("wifi_pass");
+  Log::console(PSTR("[Config] Saving WiFi SSID: '%s'  password: '%s'"), wifiSsid.c_str(), wifiPass.c_str());
+  cfg.setWifiSSID(wifiSsid.c_str());
+  cfg.setWifiPassword(wifiPass.c_str());
 
   String lat = getFormVal("lat");
   if (lat.length()) cfg.setLat(lat.c_str());
@@ -760,6 +781,7 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
   cfg.setAllowTx(body.indexOf("tx=") >= 0);
   cfg.setDisableOled(body.indexOf("disable_oled=") >= 0);
   cfg.setDisableRadio(body.indexOf("disable_radio=") >= 0);
+  cfg.setAlwaysAP(body.indexOf("always_ap=") >= 0);
   // For the others, we need setters
   // (the ConfigStore already has raw buffer access, add simple setters if needed)
 
@@ -776,15 +798,17 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
 
   cfg.save();
 
-  // Notify callback
+  // Send the redirect response BEFORE triggering a restart, so the
+  // browser receives it and doesn't show a connection-reset error.
+  httpd_resp_set_status(req, "303 See Other");
+  httpd_resp_set_hdr(req, "Location", ROOT_URL);
+  httpd_resp_sendstr(req, "Configuration saved. Redirecting...");
+
+  // Notify callback (may call ESP.restart() after a short delay)
   if (self->_onConfigSaved) {
     self->_onConfigSaved();
   }
 
-  // Redirect to root
-  httpd_resp_set_status(req, "303 See Other");
-  httpd_resp_set_hdr(req, "Location", ROOT_URL);
-  httpd_resp_sendstr(req, "Configuration saved. Redirecting...");
   return ESP_OK;
 }
 

@@ -19,6 +19,7 @@
 
 #include "ConnectionManager.h"
 #include "../Logger/Logger.h"
+#include <esp_wifi.h>
 
 ConnectionManager::ConnectionManager() {}
 
@@ -29,6 +30,7 @@ void ConnectionManager::init() {
   if (strlen(cfg.getWifiSSID()) > 0) {
     setupEthWiFiManager();
     _state = ConnState::CONNECTING;
+    _connectStartTime = millis();
   } else {
     // No credentials → AP mode
     setupAP();
@@ -55,6 +57,8 @@ void ConnectionManager::setupEthWiFiManager() {
       case 2:  ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::KSZ8851SNL; break;
       default: ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::W5500; break;
     }
+    // SPI bus: 2=SPI2_HOST, 3=SPI3_HOST
+    ewmCfg.ethernet.spiHost = (board.ethSPI == 3) ? SPI3_HOST : SPI2_HOST;
     ewmCfg.ethernet.csPin  = (gpio_num_t)board.ethCS;
     ewmCfg.ethernet.intPin = (gpio_num_t)board.ethINT;
 
@@ -111,6 +115,7 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
       _activeInterface = ActiveInterface::WIFI;
       _localIP = ip;
       _state = ConnState::CONNECTED;
+      if (ConfigStore::getInstance().getAlwaysAP()) startAlwaysAP();
       notifyConnected(ip, ActiveInterface::WIFI);
       break;
 
@@ -132,10 +137,17 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
           // Don't notify disconnect yet - wait for grace period
         } else {
           _activeInterface = ActiveInterface::NONE;
-          _state = ConnState::DISCONNECTED;
+          _localIP = IPAddress();
+          // Re-enter CONNECTING so the 30s timeout can fall back to AP mode
+          // if EthWiFiManager's reconnect attempts keep failing.
+          _state = ConnState::CONNECTING;
+          _connectStartTime = millis();
           notifyDisconnected();
         }
       }
+      // If _activeInterface == NONE we are in the initial CONNECTING phase.
+      // Do NOT reset _connectStartTime here — let loop()'s 30s timeout run
+      // its course so we eventually fall back to AP if WiFi never connects.
       break;
 
     case EthWiFiManager::Event::EthLinkDown:
@@ -154,6 +166,12 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
 
     case EthWiFiManager::Event::InterfaceChanged:
       Log::console(PSTR("Interface changed, new IP: %s"), ip.toString().c_str());
+      if ((uint32_t)ip == 0) {
+        // IP 0.0.0.0 means connectivity was just lost (fired by EthWiFiManager
+        // on WiFi disconnect or Ethernet link-down while reconnecting).
+        // WiFiDisconnected / EthLinkDown already updated the state — ignore this.
+        break;
+      }
       {
         ActiveInterface newIface = _ewm.activeInterface() == EthWiFiManager::ActiveInterface::Ethernet
                                      ? ActiveInterface::ETHERNET
@@ -181,8 +199,22 @@ void ConnectionManager::loop() {
       Log::console(PSTR("AP timeout, attempting connection..."));
       WiFi.softAPdisconnect(true);
       _dnsServer.stop();
-      setupEthWiFiManager();
+      ConfigStore& cfg = ConfigStore::getInstance();
+      EthWiFiManager::WiFiConfig wifiCfg;
+      wifiCfg.ssid     = cfg.getWifiSSID();
+      wifiCfg.password = cfg.getWifiPassword();
+      _ewm.enableWiFi(wifiCfg);
       _state = ConnState::CONNECTING;
+      _connectStartTime = millis();
+    }
+  }
+
+  // Connection timeout: if WiFi hasn't connected, fall back to AP mode
+  if (_state == ConnState::CONNECTING) {
+    if (millis() - _connectStartTime > CONNECT_TIMEOUT_MS) {
+      Log::console(PSTR("WiFi connection timeout, starting AP mode..."));
+      _ewm.disableWiFi();   // stops EthWiFiManager's internal reconnect loop
+      setupAP();
     }
   }
 
@@ -267,4 +299,24 @@ void ConnectionManager::managedDelay(unsigned long ms) {
     loop();
     delay(1);
   }
+}
+
+void ConnectionManager::startAlwaysAP() {
+  ConfigStore& cfg = ConfigStore::getInstance();
+  String apName = String("TinyGS_") + cfg.getThingName();
+
+  // Read STA channel and bandwidth AFTER connecting
+  uint8_t channel = WiFi.channel();
+  wifi_bandwidth_t bw = WIFI_BW_HT20;
+  esp_wifi_get_bandwidth(WIFI_IF_STA, &bw);
+
+  // Ensure AP+STA mode then start the soft-AP on the same channel
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP(apName.c_str(), cfg.getApPassword(), channel);
+  esp_wifi_set_bandwidth(WIFI_IF_AP, bw);
+
+  Log::console(PSTR("Always-AP: %s  ch=%d bw=%s  IP=%s"),
+    apName.c_str(), channel,
+    bw == WIFI_BW_HT40 ? "HT40" : "HT20",
+    WiFi.softAPIP().toString().c_str());
 }

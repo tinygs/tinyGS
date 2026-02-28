@@ -69,6 +69,7 @@ private:
   ConnectionManager();
   void setupEthWiFiManager();
   void setupAP();
+  void startAlwaysAP();
   void onEthEvent(EthWiFiManager::Event event, IPAddress ip);
   void notifyConnected(IPAddress ip, ActiveInterface iface);
   void notifyDisconnected();
@@ -86,6 +87,10 @@ private:
   bool _apModeForced = false;
   unsigned long _apStartTime = 0;
   static constexpr unsigned long AP_TIMEOUT_MS = 300000; // 5 min
+
+  // Connection timeout: fall back to AP if WiFi doesn't connect in time
+  unsigned long _connectStartTime = 0;
+  static constexpr unsigned long CONNECT_TIMEOUT_MS = 30000; // 30 s
 
   // Interface switching grace period
   static constexpr unsigned long SWITCH_GRACE_MS = 5000;

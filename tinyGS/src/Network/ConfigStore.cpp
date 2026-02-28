@@ -93,6 +93,7 @@ void ConfigStore::loadFromNVS() {
   _prefs.getString("autoUpd",   _autoUpdate,    sizeof(_autoUpdate));
   _prefs.getString("disOled",   _disableOled,   sizeof(_disableOled));
   _prefs.getString("disRadio",  _disableRadio,  sizeof(_disableRadio));
+  _prefs.getString("alwaysAP",  _alwaysAP,      sizeof(_alwaysAP));
   _prefs.getString("brdTpl",    _boardTemplate,  sizeof(_boardTemplate));
   _prefs.getString("modemSt",   _modemStartup,   sizeof(_modemStartup));
   _prefs.getString("advCfg",    _advancedConfig, sizeof(_advancedConfig));
@@ -124,6 +125,7 @@ void ConfigStore::saveToNVS() {
   _prefs.putString("autoUpd",   _autoUpdate);
   _prefs.putString("disOled",   _disableOled);
   _prefs.putString("disRadio",  _disableRadio);
+  _prefs.putString("alwaysAP",  _alwaysAP);
   _prefs.putString("brdTpl",    _boardTemplate);
   _prefs.putString("modemSt",   _modemStartup);
   _prefs.putString("advCfg",    _advancedConfig);
@@ -290,6 +292,12 @@ void ConfigStore::setDisableRadio(bool v) {
   save();
 }
 
+void ConfigStore::setAlwaysAP(bool v) {
+  if (v) strcpy(_alwaysAP, "selected");
+  else _alwaysAP[0] = '\0';
+  save();
+}
+
 void ConfigStore::setModemStartup(const char* v) {
   strncpy(_modemStartup, v, sizeof(_modemStartup) - 1);
   save();
@@ -375,7 +383,7 @@ bool ConfigStore::getBoardConfig(board_t& board) {
 }
 
 bool ConfigStore::parseBoardTemplate(board_t& board) {
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<640> doc;
   DeserializationError error = deserializeJson(doc, (const char*)_boardTemplate);
 
   if (error.code() != DeserializationError::Ok || !doc.containsKey("radio")) {
@@ -401,10 +409,12 @@ bool ConfigStore::parseBoardTemplate(board_t& board) {
   board.L_TCXO_V = doc["lTCXOV"];
   board.RX_EN = doc.containsKey("RXEN") ? (uint8_t)doc["RXEN"] : UNUSED_PIN;
   board.TX_EN = doc.containsKey("TXEN") ? (uint8_t)doc["TXEN"] : UNUSED_PIN;
+  board.L_SPI = doc.containsKey("lSPI") ? (uint8_t)doc["lSPI"] : 2;
 
   // Ethernet extension keys
   board.ethEN   = doc.containsKey("ethEN")   ? doc["ethEN"].as<bool>() : false;
   board.ethPHY  = doc.containsKey("ethPHY")  ? (uint8_t)doc["ethPHY"]  : 0;
+  board.ethSPI  = doc.containsKey("ethSPI")  ? (uint8_t)doc["ethSPI"]  : 2;
   board.ethCS   = doc.containsKey("ethCS")   ? (uint8_t)doc["ethCS"]   : UNUSED_PIN;
   board.ethINT  = doc.containsKey("ethINT")  ? (uint8_t)doc["ethINT"]  : UNUSED_PIN;
   board.ethRST  = doc.containsKey("ethRST")  ? (uint8_t)doc["ethRST"]  : UNUSED_PIN;
