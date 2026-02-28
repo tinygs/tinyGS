@@ -22,6 +22,7 @@
 #include "../ConfigManager/ConfigManager.h"
 #include "../Mqtt/MQTT_credentials.h"
 #include "../Logger/Logger.h"
+#include "../Power/Battery.h"
 
 SSD1306* display;
 OLEDDisplayUi* ui = NULL;
@@ -231,6 +232,15 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
     display->drawString(128 + x,  23 + y, displayBuffer);
     snprintf(displayBuffer, sizeof(displayBuffer), "%.1fkbps", status.modeminfo.bitrate);
     display->drawString(128 + x,  34 + y, displayBuffer);
+  }
+  if (status.vbat != 0.0)
+  {
+      display->setTextAlignment(TEXT_ALIGN_LEFT);
+      if(getBatteryPercentage() > 100.0f) {
+        display->drawString(x, 45 + y, "Pow: USB " + String(status.vbat) + "V");
+      } else {
+        display->drawString(x, 45 + y, "Pow: Bat " + String(getBatteryPercentage(), 0) + "% " + String(status.vbat) + "V");
+      }
   }
 }
 

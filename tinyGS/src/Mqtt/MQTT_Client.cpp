@@ -108,7 +108,7 @@ void MQTT_Client::loop()
     else
     {
       StaticJsonDocument<192> doc;
-      doc["Vbat"] = voltage();
+      doc["Vbat"] = status.vbat;
       doc["Mem"] = ESP.getFreeHeap();
       doc["MinMem"] = ESP.getMinFreeHeap();    // Mínimo histórico
       doc["MaxBlk"] = ESP.getMaxAllocHeap();   // Bloque más grande disponible
@@ -249,7 +249,7 @@ void MQTT_Client::sendWelcome()
   doc["board"] = configManager.getBoard();
   doc["mac"] = clientId;
   doc["seconds"] = millis()/1000;
-  doc["Vbat"] = voltage();
+  doc["Vbat"] = status.vbat;
   doc["chip"] = ESP.getChipModel();
   doc["slot"] = esp_ota_get_running_partition ()->label;
   doc["pSize"] = esp_ota_get_running_partition ()->size;
@@ -1170,37 +1170,3 @@ void MQTT_Client::begin()
   setServer(configManager.getMqttServer(), configManager.getMqttPort());
   setCallback(manageMQTTDataCallback);
 }
-
-
-
-int MQTT_Client::voltage() {
-  int medianVoltage;
-  int length = 21;
-  int voltages[22];
-  
-  for (int i = 0; i < 21; i++)
-  {
-    voltages[i] = analogRead(36); 
-    }
-  
-  //    BubbleSortAsc   from https://www.luisllamas.es/arduino-bubble-sort/
-   int i, j, flag = 1;
-   int temp;
-   for (i = 1; (i <= length) && flag; i++)
-   {
-      flag = 0;
-      for (j = 0; j < (length - 1); j++)
-      {
-         if (voltages[j + 1] < voltages[j])
-         {
-            temp = voltages[j];
-            voltages[j] = voltages[j + 1];
-            voltages[j + 1] = temp;
-            flag = 1;
-         }
-      }
-   }
-  medianVoltage = voltages[10];
-  return medianVoltage;
-}
-

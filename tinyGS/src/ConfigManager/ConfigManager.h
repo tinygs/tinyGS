@@ -126,18 +126,21 @@ struct board_t
   uint8_t L_MISO;
   uint8_t L_MOSI;
   uint8_t L_SCK;
-  float L_TCXO_V;
+  float   L_TCXO_V;
   uint8_t RX_EN;
   uint8_t TX_EN;
-  String BOARD;
+  uint8_t ADC_CTL;     // GPIO pin to enable ADC reading
+  uint8_t VBAT_AIN;    // GPIO pin for VBAT monitoring
+  float   VBAT_SCALE;  // potential divider between battery and GPIO pin
+  String  BOARD;
 
   board_t() = default;
   board_t(uint8_t oled_addr, uint8_t oled_sda, uint8_t oled_scl, uint8_t oled_rst, uint8_t prog_btn, uint8_t board_led,
           uint8_t l_radio, uint8_t l_nss, uint8_t l_di00, uint8_t l_di01, uint8_t l_bussy, uint8_t l_rst, uint8_t l_miso, uint8_t l_mosi, uint8_t l_sck,
-          float l_tcxo_v, uint8_t rx_en, uint8_t tx_en, String board_name)
+          float l_tcxo_v, uint8_t rx_en, uint8_t tx_en, uint8_t adc_ctl, uint8_t vbat_ain, float vbat_scale, String board_name)
           : OLED__address(oled_addr), OLED__SDA(oled_sda), OLED__SCL(oled_scl), OLED__RST(oled_rst), PROG__BUTTON(prog_btn), BOARD_LED(board_led),
             L_radio(l_radio), L_NSS(l_nss), L_DI00(l_di00), L_DI01(l_di01), L_BUSSY(l_bussy), L_RST(l_rst), L_MISO(l_miso), L_MOSI(l_mosi), L_SCK(l_sck),
-            L_TCXO_V(l_tcxo_v), RX_EN(rx_en), TX_EN(tx_en), BOARD(board_name) {}
+            L_TCXO_V(l_tcxo_v), RX_EN(rx_en), TX_EN(tx_en), ADC_CTL(adc_ctl), VBAT_AIN(vbat_ain), VBAT_SCALE(vbat_scale), BOARD(board_name) {}
 };
 
 const uint8_t UNUSED = -1;
@@ -306,6 +309,7 @@ private:
   void parseAdvancedConf();
   void parseModemStartup();
   bool parseBoardTemplate(board_t &);
+  String boardTemplateToJSON(board_t &board);
 
   std::function<boolean(iotwebconf2::WebRequestWrapper *)> formValidatorStd;
   DNSServer dnsServer;
