@@ -54,7 +54,12 @@ void displayInit()
   board_t board;
    if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
-  
+
+  if (board.OLED__address == 0) {
+    Log::console(PSTR("OLED disabled (aADDR=0)."));
+    return;
+  }
+
   display = new SSD1306(board.OLED__address, board.OLED__SDA, board.OLED__SCL);
 
   ui = new OLEDDisplayUi(display);
@@ -300,6 +305,7 @@ void drawFrame8(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
 
 void displayShowConnected()
 {
+  if (!ui) return;
   display->clear();
   display->drawXbm(34, 0 , WiFi_Logo_width, WiFi_Logo_height, WiFi_Logo_bits);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
@@ -311,6 +317,7 @@ void displayShowConnected()
 
 void displayShowInitialCredits()
 {
+  if (!ui) return;
   display->setFont(ArialMT_Plain_16);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->drawString(0,5,"tinyGS");
@@ -324,6 +331,7 @@ void displayShowInitialCredits()
 
 void displayShowApMode()
 {
+  if (!ui) return;
   display->clear();
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
@@ -336,6 +344,7 @@ void displayShowApMode()
 
 void displayShowStaMode(bool ap)
 {
+  if (!ui) return;
   display->clear();
   display->drawXbm(34, 0 , WiFi_Logo_width, WiFi_Logo_height, WiFi_Logo_bits);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
@@ -352,6 +361,7 @@ void displayShowStaMode(bool ap)
  */
 void displayUpdate()
 {
+  if (!ui) return;
   // Get the current OLED brightness from configuration
   uint8_t oledBright = ConfigStore::getInstance().getOledBright();
 
@@ -376,6 +386,7 @@ void displayUpdate()
 
 void displayTurnOff()
 {
+  if (!ui) return;
   display->displayOff();
   oldOledBright = 0;
 }

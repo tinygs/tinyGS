@@ -193,7 +193,7 @@ esp_err_t TinyGSWebServer::handleDashboard(httpd_req_t* req) {
 }
 
 String TinyGSWebServer::buildWorldMapSVG() {
-  String svg = "<div style=\"margin-left:35px\"><svg width=\"100%\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
+  String svg = "<div style=\"max-width:700px;margin:0 auto\"><svg width=\"100%\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
   svg += "<rect x=\"1\" y=\"1\" width=\"262\" height=\"134\" stroke=\"gray\" fill=\"none\" stroke-width=\"2\" />";
 
   uint ix = 0;
@@ -638,6 +638,8 @@ String TinyGSWebServer::buildConfigPage() {
   addCheckbox("telemetry3rd", "Allow sending telemetry to third party", cfg.getTelemetry3rd());
   addCheckbox("test", "Test mode", cfg.getTestMode());
   addCheckbox("auto_update", "Automatic Firmware Update", cfg.getAutoUpdate());
+  addCheckbox("disable_oled", "Disable OLED display", cfg.getDisableOled());
+  addCheckbox("disable_radio", "Disable Radio (dev mode, no LoRa module)", cfg.getDisableRadio());
   s += F("</fieldset>");
 
   // ---- Network Interface ----
@@ -654,7 +656,10 @@ String TinyGSWebServer::buildConfigPage() {
   // ---- Advanced ----
   s += F("<fieldset><legend>Advanced Config (do not modify unless you know what you are doing)</legend>");
   s += F("<div><label for='board_template'>Board Template (requires manual restart)</label>");
-  s += "<input type='text' id='board_template' name='board_template' maxlength='255' placeholder='' value='" + String(cfg.getBoardTemplate()) + "'></div>";
+  s += F("<div style='display:flex;align-items:center;gap:6px'>");
+  s += "<input type='text' id='board_template' name='board_template' maxlength='255' placeholder='' value='" + String(cfg.getBoardTemplate()) + "' style='flex:1'>";
+  s += F("<button type='button' onclick='btWzOpen()' style='white-space:nowrap;padding:3px 10px;width:auto;background:#555;color:#fff;font-size:0.82em;border-radius:4px;border:none;cursor:pointer;flex-shrink:0'>&#128295; Wizard</button>");
+  s += F("</div></div>");
   s += F("<div><label for='modem_startup'>Modem startup</label>");
   s += "<input type='text' id='modem_startup' name='modem_startup' maxlength='255' placeholder='' value='" + String(cfg.getModemStartup()) + "'></div>";
   s += F("<div><label for='advanced_config'>Advanced parameters</label>");
@@ -663,6 +668,7 @@ String TinyGSWebServer::buildConfigPage() {
 
   s += F("<br/><button type='submit'>Save</button>");
   s += F("</form>");
+  s += FPSTR(BOARD_WIZARD_HTML);
   s += "<br /><button onclick=\"window.location.href='" + String(ROOT_URL) + "';\">Go Back</button><br /><br />";
   s += FPSTR(HTML_END);
   s.replace("{v}", FPSTR(TITLE_TEXT));
@@ -752,6 +758,8 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
 
   // Checkboxes: present in body = checked, absent = unchecked
   cfg.setAllowTx(body.indexOf("tx=") >= 0);
+  cfg.setDisableOled(body.indexOf("disable_oled=") >= 0);
+  cfg.setDisableRadio(body.indexOf("disable_radio=") >= 0);
   // For the others, we need setters
   // (the ConfigStore already has raw buffer access, add simple setters if needed)
 

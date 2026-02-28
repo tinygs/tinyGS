@@ -145,8 +145,10 @@ void setup()
   }
 
   // Initialize display
-  displayInit();
-  displayShowInitialCredits();
+  if (!configStore.getDisableOled()) {
+    displayInit();
+    displayShowInitialCredits();
+  }
 
   // Initialize ConnectionManager (EthWiFiManager + AP fallback)
   connMgr.init();
@@ -170,7 +172,11 @@ void setup()
   }
 
   if (!configStore.isFailSafeActive()) {
-    radio.init();
+    if (!configStore.getDisableRadio()) {
+      radio.init();
+    } else {
+      Log::console(PSTR("Radio disabled (dev mode). Skipping radio init."));
+    }
   } else {
     Log::console(PSTR("FATAL ERROR: Rescue mode. Connect to WiFi AP: %s, open 192.168.4.1"), configStore.getThingName());
   }
@@ -331,7 +337,7 @@ void loop() {
 
   // Update TLE
   unsigned long currentTime = millis();
-  if (currentTime - lastTleRefresh >= status.tle.refresh) {
+  if (radio.isReady() && currentTime - lastTleRefresh >= status.tle.refresh) {
     lastTleRefresh = currentTime;
     radio.tle();
   }

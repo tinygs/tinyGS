@@ -91,6 +91,8 @@ void ConfigStore::loadFromNVS() {
   _prefs.getString("tele3rd",   _telemetry3rd,  sizeof(_telemetry3rd));
   _prefs.getString("testMode",  _testMode,      sizeof(_testMode));
   _prefs.getString("autoUpd",   _autoUpdate,    sizeof(_autoUpdate));
+  _prefs.getString("disOled",   _disableOled,   sizeof(_disableOled));
+  _prefs.getString("disRadio",  _disableRadio,  sizeof(_disableRadio));
   _prefs.getString("brdTpl",    _boardTemplate,  sizeof(_boardTemplate));
   _prefs.getString("modemSt",   _modemStartup,   sizeof(_modemStartup));
   _prefs.getString("advCfg",    _advancedConfig, sizeof(_advancedConfig));
@@ -120,6 +122,8 @@ void ConfigStore::saveToNVS() {
   _prefs.putString("tele3rd",   _telemetry3rd);
   _prefs.putString("testMode",  _testMode);
   _prefs.putString("autoUpd",   _autoUpdate);
+  _prefs.putString("disOled",   _disableOled);
+  _prefs.putString("disRadio",  _disableRadio);
   _prefs.putString("brdTpl",    _boardTemplate);
   _prefs.putString("modemSt",   _modemStartup);
   _prefs.putString("advCfg",    _advancedConfig);
@@ -271,6 +275,18 @@ void ConfigStore::setOledBright(const char* v) { strncpy(_oledBright, v, sizeof(
 void ConfigStore::setAllowTx(bool v) {
   if (v) strcpy(_allowTx, "selected");
   else _allowTx[0] = '\0';
+  save();
+}
+
+void ConfigStore::setDisableOled(bool v) {
+  if (v) strcpy(_disableOled, "selected");
+  else _disableOled[0] = '\0';
+  save();
+}
+
+void ConfigStore::setDisableRadio(bool v) {
+  if (v) strcpy(_disableRadio, "selected");
+  else _disableRadio[0] = '\0';
   save();
 }
 

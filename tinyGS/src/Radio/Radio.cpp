@@ -57,6 +57,11 @@ void Radio::init()
   if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
 
+  if (board.L_radio == 0) {
+    Log::console(PSTR("[SX12xx] Radio disabled (radio=0). Skipping init."));
+    return;
+  }
+
   spi.begin(board.L_SCK, board.L_MISO, board.L_MOSI, board.L_NSS);
 
  switch (board.L_radio) {

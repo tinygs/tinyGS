@@ -230,6 +230,10 @@ public:
   bool        getFlipOled()          const { return _advConf.flipOled; }
   bool        getDayNightOled()      const { return _advConf.dnOled; }
   bool        getLowPower()          const { return _advConf.lowPower; }
+  bool        getDisableOled()       const { return !strcmp(_disableOled, "selected"); }
+  bool        getDisableRadio()      const { return !strcmp(_disableRadio, "selected"); }
+  void        setDisableOled(bool v);
+  void        setDisableRadio(bool v);
 
   // ---- Network mode ----
   InterfaceMode getInterfaceMode()   const { return _ifaceMode; }
@@ -291,6 +295,8 @@ private:
   char _telemetry3rd[12]                  = "selected";
   char _testMode[12]                      = "";
   char _autoUpdate[12]                    = "selected";
+  char _disableOled[12]                   = "";
+  char _disableRadio[12]                  = "";
   char _boardTemplate[TEMPLATE_LEN]       = "";
   char _modemStartup[MODEM_LEN]           = "";
   char _advancedConfig[ADVANCED_LEN]      = "";
