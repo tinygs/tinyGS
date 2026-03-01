@@ -58,21 +58,21 @@ void OTA::update()
   char url[255];
   sprintf_P(url, PSTR("%s?user=%s&name=%s&mac=%s&version=%d&rescue=%s"), OTA_URL, c.getMqttUser(), c.getThingName(), clientId, status.version, (c.isFailSafeActive()?"true":"false"));
 
-  Log::debug(PSTR("Checking for firmware Updates...  "));
+  LOG_DEBUG(PSTR("Checking for firmware Updates...  "));
   t_httpUpdate_return ret = httpUpdate.update(client, url, status.git_version);
 
   switch (ret) {
     case HTTP_UPDATE_FAILED:
       usingNewCert = !usingNewCert;
-      Log::info(PSTR("Update failed Error (%d): %s\n"), httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+      LOG_INFO(PSTR("Update failed Error (%d): %s\n"), httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
       break;
 
     case HTTP_UPDATE_NO_UPDATES: // server 304
-      Log::info(PSTR("No updates required"));
+      LOG_INFO(PSTR("No updates required"));
       break;
 
     case HTTP_UPDATE_OK:
-      Log::info(PSTR("Update ok but ESP has not restarted!!! (This should never be printed)"));
+      LOG_INFO(PSTR("Update ok but ESP has not restarted!!! (This should never be printed)"));
       break;
   }
 }

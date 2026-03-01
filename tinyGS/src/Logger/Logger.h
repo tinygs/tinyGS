@@ -69,4 +69,50 @@ private:
   static TaskHandle_t logTask;
   static bool asyncEnabled;
 };
+
+// ---------------------------------------------------------------------------
+// Compile-time log-level macros
+// ---------------------------------------------------------------------------
+// LOG_BUILD_LEVEL controls which log calls survive compilation.
+//   0 = ALL   (debug + info + error + console)
+//   1 = INFO  (info + error + console)          — default for production
+//   2 = ERROR (error + console only)
+//   3 = NONE  (console only — always present)
+//
+// Set via build flag: -DLOG_BUILD_LEVEL=0  (verbose dev builds)
+// Console/consoleAsync are ALWAYS compiled in.
+// ---------------------------------------------------------------------------
+#ifndef LOG_BUILD_LEVEL
+  #define LOG_BUILD_LEVEL 1
+#endif
+
+// --- Always available ---
+#define LOG_CONSOLE(...)        Log::console(__VA_ARGS__)
+#define LOG_CONSOLE_ASYNC(...)  Log::consoleAsync(__VA_ARGS__)
+
+// --- error / errorAsync: compiled when level <= 2 ---
+#if LOG_BUILD_LEVEL <= 2
+  #define LOG_ERROR(...)        Log::error(__VA_ARGS__)
+  #define LOG_ERROR_ASYNC(...)  Log::errorAsync(__VA_ARGS__)
+#else
+  #define LOG_ERROR(...)        ((void)0)
+  #define LOG_ERROR_ASYNC(...)  ((void)0)
+#endif
+
+// --- info: compiled when level <= 1 ---
+#if LOG_BUILD_LEVEL <= 1
+  #define LOG_INFO(...)         Log::info(__VA_ARGS__)
+#else
+  #define LOG_INFO(...)         ((void)0)
+#endif
+
+// --- debug / debugAsync: compiled when level == 0 ---
+#if LOG_BUILD_LEVEL <= 0
+  #define LOG_DEBUG(...)        Log::debug(__VA_ARGS__)
+  #define LOG_DEBUG_ASYNC(...)  Log::debugAsync(__VA_ARGS__)
+#else
+  #define LOG_DEBUG(...)        ((void)0)
+  #define LOG_DEBUG_ASYNC(...)  ((void)0)
+#endif
+
 #endif // LOGGER_H

@@ -30,26 +30,26 @@ void arduino_ota_setup () {
 				type = "filesystem";
 
 			  // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-			Log::console(PSTR("Start updating %s"), type.c_str());
+			LOG_CONSOLE(PSTR("Start updating %s"), type.c_str());
 		})
 		.onEnd ([]() {
-			Log::console(PSTR("End"));
+			LOG_CONSOLE(PSTR("End"));
 				})
 		.onProgress ([](unsigned int progress, unsigned int total) {
 			static uint8_t lastValue = 255;
 			uint8_t nextValue = progress / (total / 100);
 			if (lastValue != nextValue) {
-				Log::debug(PSTR("Progress: %u%%\r"), nextValue);
+				LOG_DEBUG(PSTR("Progress: %u%%\r"), nextValue);
 				lastValue = nextValue;
 			}
 		})
 		.onError ([](ota_error_t error) {
-			Log::debug(PSTR("Error[%u]: %u"), error);
-			if (error == OTA_AUTH_ERROR) Log::debug(PSTR("Auth Failed"));
-			else if (error == OTA_BEGIN_ERROR) Log::debug(PSTR("Begin Failed"));
-			else if (error == OTA_CONNECT_ERROR) Log::debug(PSTR("Connect Failed"));
-			else if (error == OTA_RECEIVE_ERROR) Log::debug(PSTR("Receive Failed"));
-			else if (error == OTA_END_ERROR) Log::debug(PSTR("End Failed"));
+			LOG_DEBUG(PSTR("Error[%u]: %u"), error);
+			if (error == OTA_AUTH_ERROR) LOG_DEBUG(PSTR("Auth Failed"));
+			else if (error == OTA_BEGIN_ERROR) LOG_DEBUG(PSTR("Begin Failed"));
+			else if (error == OTA_CONNECT_ERROR) LOG_DEBUG(PSTR("Connect Failed"));
+			else if (error == OTA_RECEIVE_ERROR) LOG_DEBUG(PSTR("Receive Failed"));
+			else if (error == OTA_END_ERROR) LOG_DEBUG(PSTR("End Failed"));
 		});
 
 	ArduinoOTA.setHostname ("TinyGS");

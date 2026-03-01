@@ -50,9 +50,9 @@ void TinyGSWebServer::begin() {
 
   if (httpd_start(&_server, &config) == ESP_OK) {
     registerHandlers();
-    Log::console(PSTR("Web server started on port %d"), config.server_port);
+    LOG_CONSOLE(PSTR("Web server started on port %d"), config.server_port);
   } else {
-    Log::error(PSTR("Failed to start web server"));
+    LOG_ERROR(PSTR("Failed to start web server"));
   }
 }
 
@@ -354,33 +354,33 @@ esp_err_t TinyGSWebServer::handleRefreshConsole(httpd_req_t* req) {
     svalue.replace("%20", " ");
     svalue.replace("%21", "!");
 
-    Log::consoleAsync(PSTR("COMMAND: %s"), svalue.c_str());
+    LOG_CONSOLE_ASYNC(PSTR("COMMAND: %s"), svalue.c_str());
 
     if (strcmp(svalue.c_str(), "!p") == 0) {
       ConfigStore& cfg = ConfigStore::getInstance();
       if (!cfg.getAllowTx()) {
-        Log::consoleAsync(PSTR("Radio transmission is not allowed by config! Check your config on the web panel and make sure transmission is allowed by local regulations"));
+        LOG_CONSOLE_ASYNC(PSTR("Radio transmission is not allowed by config! Check your config on the web panel and make sure transmission is allowed by local regulations"));
       } else {
         static long lastTestPacketTime = 0;
         if (millis() - lastTestPacketTime < 20 * 1000) {
-          Log::consoleAsync(PSTR("Please wait a few seconds to send another test packet."));
+          LOG_CONSOLE_ASYNC(PSTR("Please wait a few seconds to send another test packet."));
         } else {
           Radio& radio = Radio::getInstance();
           radio.sendTestPacket();
           lastTestPacketTime = millis();
-          Log::consoleAsync(PSTR("Sending test packet to nearby stations!"));
+          LOG_CONSOLE_ASYNC(PSTR("Sending test packet to nearby stations!"));
         }
       }
     } else if (strcmp(svalue.c_str(), "!w") == 0) {
-      Log::consoleAsync(PSTR("Getting weblogin"));
+      LOG_CONSOLE_ASYNC(PSTR("Getting weblogin"));
       self->_askForWeblogin = true;
     } else if (strcmp(svalue.c_str(), "!e") == 0) {
       ConfigStore::getInstance().resetAllConfig();
       ESP.restart();
     } else if (strcmp(svalue.c_str(), "!o") == 0) {
-      Log::consoleAsync("OTP Code: %s", mqttCredentials.getOTPCode());
+      LOG_CONSOLE_ASYNC("OTP Code: %s", mqttCredentials.getOTPCode());
     } else {
-      Log::consoleAsync(PSTR("Command still not supported in web serial console!"));
+      LOG_CONSOLE_ASYNC(PSTR("Command still not supported in web serial console!"));
     }
   }
 
@@ -761,7 +761,7 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
   cfg.setApPassword(getFormVal("ap_pwd").c_str());
   String wifiSsid = getFormVal("wifi_ssid");
   String wifiPass = getFormVal("wifi_pass");
-  Log::console(PSTR("[Config] Saving WiFi SSID: '%s'  password: '%s'"), wifiSsid.c_str(), wifiPass.c_str());
+  LOG_CONSOLE(PSTR("[Config] Saving WiFi SSID: '%s'  password: '%s'"), wifiSsid.c_str(), wifiPass.c_str());
   cfg.setWifiSSID(wifiSsid.c_str());
   cfg.setWifiPassword(wifiPass.c_str());
 

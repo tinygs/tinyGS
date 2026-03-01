@@ -61,7 +61,7 @@ void ConnectionManager::setupEthWiFiManager() {
     // If the board defines a hardware reset pin, pulse it now so the
     // chip is guaranteed to be out of reset before SPI probing starts.
     if (board.ethRST != UNUSED_PIN) {
-      Log::console(PSTR("[ETH] Resetting module on GPIO %d"), board.ethRST);
+      LOG_CONSOLE(PSTR("[ETH] Resetting module on GPIO %d"), board.ethRST);
       pinMode(board.ethRST, OUTPUT);
       digitalWrite(board.ethRST, LOW);
       delay(50);
@@ -93,13 +93,13 @@ void ConnectionManager::setupEthWiFiManager() {
       ewmCfg.ethernet.sckPin  = (gpio_num_t)board.L_SCK;
     }
 
-    Log::console(PSTR("[ETH] Config: PHY=%d CS=%d INT=%d RST=%d MISO=%d MOSI=%d SCK=%d SPI=%d"),
+    LOG_CONSOLE(PSTR("[ETH] Config: PHY=%d CS=%d INT=%d RST=%d MISO=%d MOSI=%d SCK=%d SPI=%d"),
       board.ethPHY, board.ethCS, board.ethINT, board.ethRST,
       ewmCfg.ethernet.misoPin, ewmCfg.ethernet.mosiPin, ewmCfg.ethernet.sckPin,
       board.ethSPI);
   } else {
     ewmCfg.ethernet.enabled = false;
-    Log::console(PSTR("[ETH] Disabled (ethEN=false in board template)"));
+    LOG_CONSOLE(PSTR("[ETH] Disabled (ethEN=false in board template)"));
   }
 
   // Register event handler
@@ -113,15 +113,15 @@ void ConnectionManager::setupEthWiFiManager() {
   switch (mode) {
     case InterfaceMode::WIFI_ONLY:
       _ewm.disableEthernet();
-      Log::console(PSTR("[NET] Interface Mode = WIFI_ONLY (Ethernet disabled)"));
+      LOG_CONSOLE(PSTR("[NET] Interface Mode = WIFI_ONLY (Ethernet disabled)"));
       break;
     case InterfaceMode::ETH_ONLY:
       _ewm.disableWiFi();
-      Log::console(PSTR("[NET] Interface Mode = ETH_ONLY (WiFi disabled)"));
+      LOG_CONSOLE(PSTR("[NET] Interface Mode = ETH_ONLY (WiFi disabled)"));
       break;
     case InterfaceMode::BOTH:
     default:
-      Log::console(PSTR("[NET] Interface Mode = BOTH (failover)"));
+      LOG_CONSOLE(PSTR("[NET] Interface Mode = BOTH (failover)"));
       break;
   }
 }
@@ -141,14 +141,14 @@ void ConnectionManager::setupAP() {
   // Start DNS server for captive portal — use library's apLocalIP() directly
   _dnsServer.start(53, "*", _ewm.apLocalIP());
 
-  Log::console(PSTR("AP mode started: %s (IP: %s)"),
+  LOG_CONSOLE(PSTR("AP mode started: %s (IP: %s)"),
                apName.c_str(), _ewm.apLocalIP().toString().c_str());
 }
 
 void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
   switch (event) {
     case EthWiFiManager::Event::WiFiGotIP:
-      Log::console(PSTR("WiFi connected, IP: %s"), ip.toString().c_str());
+      LOG_CONSOLE(PSTR("WiFi connected, IP: %s"), ip.toString().c_str());
       _activeInterface = ActiveInterface::WIFI;
       _localIP = ip;
       _state = ConnState::CONNECTED;
@@ -157,7 +157,7 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
       break;
 
     case EthWiFiManager::Event::EthGotIP:
-      Log::console(PSTR("Ethernet connected, IP: %s"), ip.toString().c_str());
+      LOG_CONSOLE(PSTR("Ethernet connected, IP: %s"), ip.toString().c_str());
       _activeInterface = ActiveInterface::ETHERNET;
       _localIP = ip;
       _state = ConnState::CONNECTED;
@@ -165,7 +165,7 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
       break;
 
     case EthWiFiManager::Event::WiFiDisconnected:
-      Log::console(PSTR("WiFi disconnected"));
+      LOG_CONSOLE(PSTR("WiFi disconnected"));
       if (_activeInterface == ActiveInterface::WIFI) {
         // Check if Ethernet is still up
         if ((uint32_t)_ewm.getEthernetIP() != 0) {
@@ -184,7 +184,7 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
       break;
 
     case EthWiFiManager::Event::EthLinkDown:
-      Log::console(PSTR("Ethernet link down"));
+      LOG_CONSOLE(PSTR("Ethernet link down"));
       if (_activeInterface == ActiveInterface::ETHERNET) {
         // In BOTH mode the library will attempt WiFi fallback automatically.
         // In ETH_ONLY the library won't reconnect WiFi (disableWiFi was called).
@@ -200,7 +200,7 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
       break;
 
     case EthWiFiManager::Event::InterfaceChanged:
-      Log::console(PSTR("Interface changed, new IP: %s"), ip.toString().c_str());
+      LOG_CONSOLE(PSTR("Interface changed, new IP: %s"), ip.toString().c_str());
       if ((uint32_t)ip == 0) {
         // IP 0.0.0.0 means connectivity was just lost — already handled above.
         break;
@@ -229,7 +229,7 @@ void ConnectionManager::loop() {
     _dnsServer.processNextRequest();
 
     if (millis() - _apStartTime > AP_TIMEOUT_MS) {
-      Log::console(PSTR("AP timeout, attempting connection..."));
+      LOG_CONSOLE(PSTR("AP timeout, attempting connection..."));
       _ewm.disableAP();
       _dnsServer.stop();
       ConfigStore& cfg = ConfigStore::getInstance();
@@ -245,7 +245,7 @@ void ConnectionManager::loop() {
   // Connection timeout: if WiFi hasn't connected, fall back to AP mode
   if (_state == ConnState::CONNECTING) {
     if (millis() - _connectStartTime > CONNECT_TIMEOUT_MS) {
-      Log::console(PSTR("WiFi connection timeout, starting AP mode..."));
+      LOG_CONSOLE(PSTR("WiFi connection timeout, starting AP mode..."));
       _ewm.disableWiFi();   // stops EthWiFiManager's internal reconnect loop
       setupAP();
     }
@@ -419,7 +419,7 @@ void ConnectionManager::startAlwaysAP() {
   // Channel and bandwidth are auto-matched to STA by the library
   _ewm.enableAP(apCfg);
 
-  Log::console(PSTR("Always-AP: %s  IP=%s"),
+  LOG_CONSOLE(PSTR("Always-AP: %s  IP=%s"),
     apName.c_str(),
     WiFi.softAPIP().toString().c_str());
 }

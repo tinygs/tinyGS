@@ -56,7 +56,7 @@ void displayInit()
     return;
 
   if (board.OLED__address == 0) {
-    Log::console(PSTR("OLED disabled (aADDR=0)."));
+    LOG_CONSOLE(PSTR("OLED disabled (aADDR=0)."));
     return;
   }
 
@@ -104,7 +104,7 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
   time_t currenttime = time (NULL);
   if(currenttime < 0)
   {
-    Log::error(PSTR("Failed to obtain time"));
+    LOG_ERROR(PSTR("Failed to obtain time"));
     return;
   }
   timeinfo = localtime (&currenttime);

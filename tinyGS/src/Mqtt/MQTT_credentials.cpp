@@ -30,7 +30,7 @@ String MQTTCredentials::fetchCredentials () {
     if (now > httpLastChecked + CHECKEVERY) {
         httpLastChecked = now;
         Log::debug ("Fetching URL: %s", url.c_str ());
-        Log::console("Trying to get MQTT credentials with %s", url.c_str ());
+        LOG_CONSOLE("Trying to get MQTT credentials with %s", url.c_str ());
 
         HTTPClient http;
         http.setTimeout (3000);
