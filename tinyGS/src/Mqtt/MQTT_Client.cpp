@@ -210,6 +210,12 @@ void MQTT_Client::loop() {
         cfg.getMqttPass()[0]   == '\0') return;
   }
 
+  // Credentials just became available (e.g. after OTP autoconfig) — start the client
+  if (!_client) {
+    begin();
+    return;
+  }
+
   // Connection timeout handling
   if (!_mqttConnected) {
     status.mqtt_connected = false;
