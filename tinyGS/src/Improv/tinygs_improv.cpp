@@ -142,13 +142,13 @@ bool TinyGSImprov::onCommandCallback (improv::ImprovCommand cmd) {
     switch (cmd.command) {
     case improv::Command::GET_CURRENT_STATE:
     {
-        // Use TinyGS ConfigStore credentials, not raw WiFi state.
-        // This ensures the web installer shows the WiFi form when TinyGS
-        // has no valid credentials, even if the chip auto-connected from its own NVS.
+        // Consider the device provisioned if the network is up (WiFi or Ethernet)
+        // and TinyGS has stored WiFi credentials (used as the "configured" signal).
         bool hasCredentials = (globalConfigStore->getWifiSSID() != nullptr &&
                                strlen(globalConfigStore->getWifiSSID()) > 0);
+        bool networkUp = ConnectionManager::getInstance().isConnected();
 
-        if (hasCredentials && (WiFi.status() == WL_CONNECTED)) {
+        if (hasCredentials && networkUp) {
             set_state (improv::State::STATE_PROVISIONED);
             std::vector<uint8_t> data = improv::build_rpc_response (improv::GET_CURRENT_STATE, getLocalUrl (), false);
             send_response (data);
