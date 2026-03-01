@@ -183,13 +183,13 @@ void setup()
         },
         "radioInit", 4096, nullptr, 1, &s_radioInitTask
       );
-      const unsigned long RADIO_INIT_TIMEOUT_MS = 15000UL;
+      const unsigned long RADIO_INIT_TIMEOUT_MS = 5000UL;
       unsigned long t0 = millis();
       while (!radio.isReady() && (millis() - t0 < RADIO_INIT_TIMEOUT_MS)) {
         delay(50);
       }
       if (!radio.isReady()) {
-        Log::console(PSTR("[SX12xx] Init timeout after 15s - no radio chip detected"));
+        Log::console(PSTR("[SX12xx] Init timeout after 5s - no radio chip detected"));
         if (s_radioInitTask) {
           vTaskDelete(s_radioInitTask);
           s_radioInitTask = nullptr;
