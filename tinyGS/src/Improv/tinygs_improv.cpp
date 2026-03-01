@@ -72,29 +72,14 @@ std::vector<std::string> TinyGSImprov::getLocalUrl () {
 }
 
 bool TinyGSImprov::connectWifi (std::string ssid, std::string password) {
-    uint8_t count = 0;
+    ConnectionManager& cm = ConnectionManager::getInstance();
 
-    WiFi.enableAP (false);
-    WiFi.mode (WIFI_STA);
-    WiFi.disconnect ();
-    WiFi.begin (ssid.c_str (), password.c_str ());
-
-    while (WiFi.status () != WL_CONNECTED) {
-        //blink_led (500, 1);
-        delay (250);
-
-        if (count > MAX_ATTEMPTS_WIFI_CONNECTION) {
-            Serial.printf("Wifi status: %d\n", WiFi.status ());
-            Serial.println("Failed to connect to wifi...");
-            WiFi.disconnect ();
-            return false;
-        }
-        count++;
-    }
-
-    // Wait for DHCP to assign a valid IP (up to 5 extra seconds)
-    for (int i = 0; i < 20 && WiFi.localIP() == IPAddress(0, 0, 0, 0); i++) {
-        delay (250);
+    // Use ConnectionManager to connect WiFi via EthWiFiManager
+    // Timeout = MAX_ATTEMPTS * 250ms = 5 seconds
+    unsigned long timeoutMs = (unsigned long)MAX_ATTEMPTS_WIFI_CONNECTION * 250;
+    if (!cm.connectWiFi(ssid.c_str(), password.c_str(), timeoutMs)) {
+        Serial.println("Failed to connect to wifi...");
+        return false;
     }
 
     set_state (improv::STATE_PROVISIONED);
@@ -129,11 +114,12 @@ bool TinyGSImprov::connectWifi (std::string ssid, std::string password) {
 }
 
 void TinyGSImprov::getAvailableWifiNetworks () {
-    int networkNum = WiFi.scanNetworks ();
+    ConnectionManager& cm = ConnectionManager::getInstance();
+    int networkNum = cm.scanNetworks ();
 
     for (int id = 0; id < networkNum; ++id) {
         std::vector<uint8_t> data = improv::build_rpc_response (
-            improv::GET_WIFI_NETWORKS, { WiFi.SSID (id), String (WiFi.RSSI (id)), (WiFi.encryptionType (id) == WIFI_AUTH_OPEN ? "NO" : "YES") }, false);
+            improv::GET_WIFI_NETWORKS, { cm.scannedSSID (id), String (cm.scannedRSSI (id)), (cm.scannedEncryptionType (id) == WIFI_AUTH_OPEN ? "NO" : "YES") }, false);
         send_response (data);
         delay (1);
     }
@@ -141,7 +127,7 @@ void TinyGSImprov::getAvailableWifiNetworks () {
     std::vector<uint8_t> data =
         improv::build_rpc_response (improv::GET_WIFI_NETWORKS, std::vector<std::string>{}, false);
     send_response (data);
-    WiFi.scanDelete ();
+    cm.scanDelete ();
 }
 
 bool TinyGSImprov::onCommandCallback (improv::ImprovCommand cmd) {

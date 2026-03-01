@@ -1,7 +1,6 @@
 #ifndef TINYGS_IMPROV_H
 #include <Arduino.h>
 #include <improv.h>
-#include <WiFi.h>
 #include "../Network/ConfigStore.h"
 #include "../Network/ConnectionManager.h"
 

@@ -22,7 +22,6 @@
 
 #include <Arduino.h>
 #include <EthWiFiManager.h>
-#include <WiFi.h>
 #include <DNSServer.h>
 #include "INetworkAware.h"
 #include "ConfigStore.h"
@@ -57,6 +56,22 @@ public:
 
   // ---- AP management ----
   void forceApMode(bool enable);
+  void stopAP();
+
+  // ---- WiFi connection (used by Improv) ----
+  bool connectWiFi(const char* ssid, const char* password, unsigned long timeoutMs = 10000);
+
+  // ---- WiFi scan (delegate to EthWiFiManager) ----
+  int16_t          scanNetworks(bool async = false, bool showHidden = false);
+  int16_t          scanComplete() const;
+  void             scanDelete();
+  String           scannedSSID(uint8_t i) const;
+  int32_t          scannedRSSI(uint8_t i) const;
+  wifi_auth_mode_t scannedEncryptionType(uint8_t i) const;
+
+  // ---- Credential management ----
+  /// Update stored WiFi credentials and trigger a reconnection if WiFi is enabled.
+  void updateWiFiCredentials(const char* ssid, const char* password);
 
   // ---- Observer registration ----
   void registerObserver(INetworkAware* obs);
