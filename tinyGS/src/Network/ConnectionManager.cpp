@@ -288,6 +288,13 @@ String ConnectionManager::getActiveInterfaceName() const {
   }
 }
 
+int32_t ConnectionManager::getNetworkRSSI() const {
+  if (_activeInterface == ActiveInterface::WIFI) {
+    return _ewm.RSSI();
+  }
+  return 0;
+}
+
 void ConnectionManager::forceApMode(bool enable) {
   _apModeForced = enable;
   if (enable) {

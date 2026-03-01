@@ -53,6 +53,7 @@ public:
   IPAddress getLocalIP()          const;
   ActiveInterface getActiveInterface() const { return _activeInterface; }
   String getActiveInterfaceName() const;
+  int32_t getNetworkRSSI() const;
 
   // ---- AP management ----
   void forceApMode(bool enable);

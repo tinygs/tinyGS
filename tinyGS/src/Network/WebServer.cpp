@@ -250,7 +250,11 @@ String TinyGSWebServer::buildDashboardPage() {
 
   ConnectionManager& cm = ConnectionManager::getInstance();
   if (cm.isConnected()) {
-    s += "<tr><td>Network </td><td><span class='G'>" + cm.getActiveInterfaceName() + "</span></td></tr>";
+    if (cm.getActiveInterface() == ActiveInterface::WIFI) {
+      s += "<tr><td>Network </td><td><span class='G'>" + cm.getActiveInterfaceName() + " (" + String(cm.getNetworkRSSI()) + " dBm)" + "</span></td></tr>";
+    } else {
+      s += "<tr><td>Network </td><td><span class='G'>" + cm.getActiveInterfaceName() + "</span></td></tr>";
+    }
   } else {
     s += "<tr><td>Network </td><td><span class='R'>NOT CONNECTED</span></td></tr>";
   }
@@ -451,12 +455,12 @@ esp_err_t TinyGSWebServer::handleRefreshWorldmap(httpd_req_t* req) {
 
   if (cm.isConnected()) {
     if (cm.getActiveInterface() == ActiveInterface::WIFI) {
-      data += String(WiFi.RSSI()) + ",";
+      data += "<span class='G'>" + cm.getActiveInterfaceName() + " (" + String(cm.getNetworkRSSI()) + " dBm)</span>,";
     } else {
-      data += String("<span class='G'>ETH</span>") + ",";
+      data += "<span class='G'>" + cm.getActiveInterfaceName() + "</span>,";
     }
   } else {
-    data += String("<span class='R'>NOT CONNECTED</span>") + ",";
+    data += "<span class='R'>NOT CONNECTED</span>,";
   }
 
   data += String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + ",";
