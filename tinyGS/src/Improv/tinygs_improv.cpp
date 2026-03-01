@@ -91,6 +91,12 @@ bool TinyGSImprov::connectWifi (std::string ssid, std::string password) {
         }
         count++;
     }
+
+    // Wait for DHCP to assign a valid IP (up to 5 extra seconds)
+    for (int i = 0; i < 20 && WiFi.localIP() == IPAddress(0, 0, 0, 0); i++) {
+        delay (250);
+    }
+
     set_state (improv::STATE_PROVISIONED);
     std::vector<uint8_t> data = improv::build_rpc_response (improv::WIFI_SETTINGS, getLocalUrl (), false);
     send_response (data);
