@@ -341,6 +341,7 @@ void Radio::startRx()
 
   void Radio::clearPacketReceivedAction()
   {
+    if (!radioHal) return;
     radioHal->clearPacketReceivedAction();
   }
 

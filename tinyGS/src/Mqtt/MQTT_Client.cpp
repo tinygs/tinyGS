@@ -670,6 +670,10 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
   }
 
   if (!strcmp(command, commandTx)) {
+    if (!radio.isReady()) {
+      Log::consoleAsync(PSTR("Radio not ready, ignoring TX command"));
+      return;
+    }
     if (xSemaphoreTake(radioConfigMutex, pdMS_TO_TICKS(5000)) != pdTRUE) {
       Log::consoleAsync(PSTR("ERROR: Could not acquire radio config mutex for TX"));
       return;
@@ -681,6 +685,12 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
 
   // Remote tune commands (station-specific only)
   if (global) return;
+
+  // All station-specific commands below require the radio to be initialized
+  if (!radio.isReady()) {
+    Log::consoleAsync(PSTR("Radio not ready, ignoring remote command: %s"), command);
+    return;
+  }
 
   if (!strcmp(command, commandBeginp)) {
     char buff[length + 1];

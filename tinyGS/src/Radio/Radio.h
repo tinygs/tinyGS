@@ -62,7 +62,7 @@ public:
 private:
   Radio();
   PhysicalLayer* lora; // TODO: Remove this
-  IRadioHal* radioHal;
+  IRadioHal* radioHal = nullptr;
   void readState(int state);
   static void setFlag();
   SPIClass spi;
