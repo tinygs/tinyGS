@@ -52,7 +52,9 @@ void MQTT_Client::onConnected(IPAddress ip, ActiveInterface iface) {
     return;
   }
   if (!_client) {
-    begin();
+    // Apply random jitter (10–20 s) so not all stations hit the server simultaneously
+    _pendingConnectAt = millis() + randomTime;
+    LOG_CONSOLE(PSTR("MQTT: connecting in %lu ms (jitter)"), randomTime);
   } else {
     esp_mqtt_client_start(_client);
   }
@@ -211,8 +213,14 @@ void MQTT_Client::loop() {
   }
 
   // Credentials just became available (e.g. after OTP autoconfig) — start the client
+  // or jitter timer has elapsed from onConnected()
   if (!_client) {
-    begin();
+    if (_pendingConnectAt == 0)
+      _pendingConnectAt = millis() + randomTime; // first time we see credentials, arm the timer
+    if (millis() >= _pendingConnectAt) {
+      _pendingConnectAt = 0;
+      begin();
+    }
     return;
   }
 

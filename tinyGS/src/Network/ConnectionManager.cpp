@@ -77,8 +77,12 @@ void ConnectionManager::setupEthWiFiManager() {
       case 2:  ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::KSZ8851SNL; break;
       default: ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::W5500; break;
     }
-    // SPI bus: 2=SPI2_HOST, 3=SPI3_HOST
+    // SPI bus: 2=SPI2_HOST, 3=SPI3_HOST (ESP32-C3 only has SPI2_HOST)
+#if defined(SPI3_HOST)
     ewmCfg.ethernet.spiHost = (board.ethSPI == 3) ? SPI3_HOST : SPI2_HOST;
+#else
+    ewmCfg.ethernet.spiHost = SPI2_HOST;
+#endif
     ewmCfg.ethernet.csPin  = (gpio_num_t)board.ethCS;
     ewmCfg.ethernet.intPin = (gpio_num_t)board.ethINT;
 

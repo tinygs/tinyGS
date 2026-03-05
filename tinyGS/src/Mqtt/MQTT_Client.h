@@ -122,6 +122,7 @@ private:
   const unsigned long randomTimeMin = 10 * 1000;
   const unsigned long randomTimeMax = 20 * 1000;
   unsigned long randomTime = 0;
+  unsigned long _pendingConnectAt = 0;  // millis() timestamp after which begin() should be called
   const uint16_t connectionTimeout = 6;
 
   const char* globalTopic PROGMEM = "tinygs/global/%cmnd%";
