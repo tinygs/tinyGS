@@ -282,7 +282,7 @@ int BitCode::nrz2ax25(uint8_t *entrada, size_t sizeEntrada, uint8_t *ax25bin, si
         BitCode::nrz2nrzi(nrz,sizeNrz,ax25hdlcbin,&sizeAx25hdlcbin);
       }
 
-      Log::console(PSTR("Decoded Packet"));
+      LOG_CONSOLE(PSTR("Decoded Packet"));
       Log::log_packet_hex(ax25hdlcbin,sizeAx25hdlcbin);
       bitstuff=BitCode::remove_bit_stuffing(ax25hdlcbin,sizeAx25hdlcbin,ax25invbin,&sizeAx25invbin);
       BitCode::invierte_bytes_de_un_array(ax25invbin,sizeAx25invbin,ax25bin,sizeAx25bin);	
@@ -290,7 +290,7 @@ int BitCode::nrz2ax25(uint8_t *entrada, size_t sizeEntrada, uint8_t *ax25bin, si
       result = (bitstuff==0) ? 0 : 1;
 
     }else{
-      Log::console(PSTR("Packet size less than 16 bytes"));
+      LOG_CONSOLE(PSTR("Packet size less than 16 bytes"));
       result = 1;
     }
  

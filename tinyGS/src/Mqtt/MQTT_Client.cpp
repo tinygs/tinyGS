@@ -37,7 +37,7 @@ MQTT_Client::MQTT_Client() {
   radioConfigMutex = xSemaphoreCreateMutex();
   rxQueue = xQueueCreate(RX_QUEUE_SIZE, sizeof(RxPacketMessage));
   if (rxQueue == NULL) {
-    Log::console(PSTR("ERROR: Failed to create RX packet queue"));
+    LOG_CONSOLE(PSTR("ERROR: Failed to create RX packet queue"));
   }
 }
 
@@ -48,7 +48,7 @@ void MQTT_Client::onConnected(IPAddress ip, ActiveInterface iface) {
   if (cfg.getMqttServer()[0] == '\0' ||
       cfg.getMqttUser()[0]   == '\0' ||
       cfg.getMqttPass()[0]   == '\0') {
-    Log::console(PSTR("MQTT: credentials not set, skipping connection"));
+    LOG_CONSOLE(PSTR("MQTT: credentials not set, skipping connection"));
     return;
   }
   if (!_client) {
@@ -70,7 +70,7 @@ void MQTT_Client::onDisconnected() {
 void MQTT_Client::onInterfaceChanged(ActiveInterface iface, IPAddress ip) {
   if (!_client) return;
   // esp-mqtt handles reconnection internally
-  Log::console(PSTR("MQTT: Network interface changed, reconnecting..."));
+  LOG_CONSOLE(PSTR("MQTT: Network interface changed, reconnecting..."));
   esp_mqtt_client_reconnect(_client);
 }
 
@@ -84,7 +84,7 @@ void MQTT_Client::mqttEventHandler(void* handler_args, esp_event_base_t base, in
 void MQTT_Client::handleMqttEvent(esp_mqtt_event_handle_t event) {
   switch (event->event_id) {
     case MQTT_EVENT_CONNECTED:
-      Log::console(PSTR("Connected to MQTT!"));
+      LOG_CONSOLE(PSTR("Connected to MQTT!"));
       _mqttConnected = true;
       status.mqtt_connected = true;
       connectionAttempts = 0;
@@ -93,7 +93,7 @@ void MQTT_Client::handleMqttEvent(esp_mqtt_event_handle_t event) {
       break;
 
     case MQTT_EVENT_DISCONNECTED:
-      Log::console(PSTR("MQTT disconnected"));
+      LOG_CONSOLE(PSTR("MQTT disconnected"));
       _mqttConnected = false;
       status.mqtt_connected = false;
       connectionAttempts++;
@@ -125,9 +125,9 @@ void MQTT_Client::handleMqttEvent(esp_mqtt_event_handle_t event) {
 
     case MQTT_EVENT_ERROR:
       if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        Log::error(PSTR("MQTT transport error"));
+        LOG_ERROR(PSTR("MQTT transport error"));
       } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
-        Log::console(PSTR("MQTT connection refused, code: %d"), event->error_handle->connect_return_code);
+        LOG_CONSOLE(PSTR("MQTT connection refused, code: %d"), event->error_handle->connect_return_code);
       }
       break;
 
@@ -190,13 +190,13 @@ void MQTT_Client::begin() {
 
   _client = esp_mqtt_client_init(&mqtt_cfg);
   if (!_client) {
-    Log::error(PSTR("Failed to init MQTT client"));
+    LOG_ERROR(PSTR("Failed to init MQTT client"));
     return;
   }
 
   esp_mqtt_client_register_event(_client, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, mqttEventHandler, this);
   esp_mqtt_client_start(_client);
-  Log::console(PSTR("MQTT client started, connecting to %s:%u..."), cfg.getMqttServer(), cfg.getMqttPort());
+  LOG_CONSOLE(PSTR("MQTT client started, connecting to %s:%u..."), cfg.getMqttServer(), cfg.getMqttPort());
 }
 
 void MQTT_Client::loop() {
@@ -220,12 +220,12 @@ void MQTT_Client::loop() {
   if (!_mqttConnected) {
     status.mqtt_connected = false;
     if (connectionAttempts > connectionTimeout) {
-      Log::console(PSTR("Unable to connect to MQTT Server after many attempts. Restarting..."));
+      LOG_CONSOLE(PSTR("Unable to connect to MQTT Server after many attempts. Restarting..."));
       ConfigStore& cfg = ConfigStore::getInstance();
       if (cfg.getLowPower()) {
         Radio& radio = Radio::getInstance();
         uint32_t sleep_seconds = 4 * 3600;
-        Log::debug(PSTR("deep_sleep_enter"));
+        LOG_DEBUG(PSTR("deep_sleep_enter"));
         esp_sleep_enable_timer_wakeup(1000000ULL * sleep_seconds);
         delay(100);
         Serial.flush();
@@ -267,7 +267,7 @@ void MQTT_Client::loop() {
 
       char buffer[256];
       serializeJson(doc, buffer);
-      Log::debug(PSTR("%s"), buffer);
+      LOG_DEBUG(PSTR("%s"), buffer);
       mqttPublish(buildTopic(teleTopic, topicPing).c_str(), buffer);
     }
   }
@@ -400,12 +400,12 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet) {
   size_t bufferSize = measureJson(doc) + 1;
   char* buffer = (char*)malloc(bufferSize);
   if (!buffer) {
-    Log::error(PSTR("sendRx: Failed to allocate buffer (%u bytes)"), bufferSize);
+    LOG_ERROR(PSTR("sendRx: Failed to allocate buffer (%u bytes)"), bufferSize);
     return;
   }
 
   serializeJson(doc, buffer, bufferSize);
-  Log::debugAsync(PSTR("%s"), buffer);
+  LOG_DEBUG_ASYNC(PSTR("%s"), buffer);
   mqttPublish(buildTopic(teleTopic, topicRx).c_str(), buffer, bufferSize - 1);
   free(buffer);
 }
@@ -455,12 +455,12 @@ void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg) {
   size_t bufferSize = measureJson(doc) + 1;
   char* buffer = (char*)malloc(bufferSize);
   if (!buffer) {
-    Log::error(PSTR("sendRxFromQueue: Failed to allocate buffer (%u bytes)"), bufferSize);
+    LOG_ERROR(PSTR("sendRxFromQueue: Failed to allocate buffer (%u bytes)"), bufferSize);
     return;
   }
 
   serializeJson(doc, buffer, bufferSize);
-  Log::debugAsync(PSTR("%s"), buffer);
+  LOG_DEBUG_ASYNC(PSTR("%s"), buffer);
   mqttPublish(buildTopic(teleTopic, topicRx).c_str(), buffer, bufferSize - 1);
   free(buffer);
 }
@@ -506,9 +506,9 @@ void MQTT_Client::queueRx(const String& packet, bool noisy, const String& raw_pa
     RxPacketMessage discarded;
     xQueueReceive(rxQueue, &discarded, 0);
     if (xQueueSend(rxQueue, &msg, 0) == pdTRUE) {
-      Log::debugAsync(PSTR("RX queue full, oldest packet discarded"));
+      LOG_DEBUG_ASYNC(PSTR("RX queue full, oldest packet discarded"));
     } else {
-      Log::debugAsync(PSTR("RX queue error, packet lost"));
+      LOG_DEBUG_ASYNC(PSTR("RX queue error, packet lost"));
     }
   }
 }
@@ -525,7 +525,7 @@ void MQTT_Client::processRxQueue() {
 
   UBaseType_t pending = uxQueueMessagesWaiting(rxQueue);
   if (pending > 0) {
-    Log::debugAsync(PSTR("RX queue: %u packets pending"), pending);
+    LOG_DEBUG_ASYNC(PSTR("RX queue: %u packets pending"), pending);
   }
 }
 
@@ -581,12 +581,12 @@ void MQTT_Client::sendAdvParameters() {
   doc["adv_prm"].set(cfg.getAdvancedConfig());
   char buffer[512];
   serializeJson(doc, buffer);
-  Log::debug(PSTR("%s"), buffer);
+  LOG_DEBUG(PSTR("%s"), buffer);
   mqttPublish(buildTopic(teleTopic, topicGet_adv_prm).c_str(), buffer);
 }
 
 void MQTT_Client::sendWeblogin() {
-  Log::debug(PSTR("Asking for weblogin link"));
+  LOG_DEBUG(PSTR("Asking for weblogin link"));
   mqttPublish(buildTopic(teleTopic, "get_weblogin").c_str(), "1");
 }
 
@@ -632,7 +632,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
   }
 
   if (!strcmp(command, commandWeblogin)) {
-    Log::consoleAsync(PSTR("Weblogin: %.*s"), length, payload);
+    LOG_CONSOLE_ASYNC(PSTR("Weblogin: %.*s"), length, payload);
     return;
   }
 
@@ -665,21 +665,21 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     char logStr[length + 1];
     memcpy(logStr, payload, length);
     logStr[length] = '\0';
-    Log::consoleAsync(PSTR("%s"), logStr);
+    LOG_CONSOLE_ASYNC(PSTR("%s"), logStr);
     return;
   }
 
   if (!strcmp(command, commandTx)) {
     if (!radio.isReady()) {
-      Log::consoleAsync(PSTR("Radio not ready, ignoring TX command"));
+      LOG_CONSOLE_ASYNC(PSTR("Radio not ready, ignoring TX command"));
       return;
     }
     if (xSemaphoreTake(radioConfigMutex, pdMS_TO_TICKS(5000)) != pdTRUE) {
-      Log::consoleAsync(PSTR("ERROR: Could not acquire radio config mutex for TX"));
+      LOG_CONSOLE_ASYNC(PSTR("ERROR: Could not acquire radio config mutex for TX"));
       return;
     }
     result = radio.sendTx(payload, length);
-    Log::consoleAsync(PSTR("Sending TX packet!"));
+    LOG_CONSOLE_ASYNC(PSTR("Sending TX packet!"));
     xSemaphoreGive(radioConfigMutex);
   }
 
@@ -688,7 +688,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
 
   // All station-specific commands below require the radio to be initialized
   if (!radio.isReady()) {
-    Log::consoleAsync(PSTR("Radio not ready, ignoring remote command: %s"), command);
+    LOG_CONSOLE_ASYNC(PSTR("Radio not ready, ignoring remote command: %s"), command);
     return;
   }
 
@@ -700,7 +700,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     StaticJsonDocument<768> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
     if (error.code() != DeserializationError::Ok || !doc.containsKey("mode")) {
-      Log::consoleAsync(PSTR("ERROR: Your modem config is invalid. Resetting to default"));
+      LOG_CONSOLE_ASYNC(PSTR("ERROR: Your modem config is invalid. Resetting to default"));
       return;
     }
 
@@ -708,7 +708,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     if (!ConfigStore::getInstance().getBoardConfig(board)) return;
 
     if (!isValidFrequency(board.L_radio, doc["freq"])) {
-      Log::consoleAsync(PSTR("ERROR: Invalid frequency. Ignoring."));
+      LOG_CONSOLE_ASYNC(PSTR("ERROR: Invalid frequency. Ignoring."));
       return;
     }
     ModemInfo& m = status.modeminfo;
@@ -721,7 +721,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     StaticJsonDocument<768> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
     if (error.code() != DeserializationError::Ok || !doc.containsKey("mode")) {
-      Log::consoleAsync(PSTR("ERROR: The received modem configuration is invalid. Ignoring."));
+      LOG_CONSOLE_ASYNC(PSTR("ERROR: The received modem configuration is invalid. Ignoring."));
       return;
     }
 
@@ -729,12 +729,12 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     if (!ConfigStore::getInstance().getBoardConfig(board)) return;
 
     if (!isValidFrequency(board.L_radio, doc["freq"])) {
-      Log::consoleAsync(PSTR("ERROR: Invalid frequency. Ignoring."));
+      LOG_CONSOLE_ASYNC(PSTR("ERROR: Invalid frequency. Ignoring."));
       return;
     }
 
     if (xSemaphoreTake(radioConfigMutex, pdMS_TO_TICKS(1000)) != pdTRUE) {
-      Log::consoleAsync(PSTR("ERROR: Could not acquire radio config mutex"));
+      LOG_CONSOLE_ASYNC(PSTR("ERROR: Could not acquire radio config mutex"));
       return;
     }
 
@@ -907,7 +907,7 @@ void MQTT_Client::manageSetName(char* payload, size_t payload_len) {
       sprintf(clientId, "%04X%08X", (uint16_t)(chipId >> 32), (uint32_t)chipId);
 
       if (strcmp(received_mac_temp, clientId) == 0) {
-        Log::debug(PSTR("Renaming to %s"), new_name_temp);
+        LOG_DEBUG(PSTR("Renaming to %s"), new_name_temp);
         ConfigStore::getInstance().setThingName(new_name_temp);
       }
     }
@@ -927,7 +927,7 @@ void MQTT_Client::remoteSatCmnd(char* payload, size_t payload_len) {
   strcpy(status.modeminfo.satellite, doc[0]);
   uint32_t NORAD = doc[1];
   status.modeminfo.NORAD = NORAD;
-  Log::debug(PSTR("Listening Satellite: %s NORAD: %u"), status.modeminfo.satellite, NORAD);
+  LOG_DEBUG(PSTR("Listening Satellite: %s NORAD: %u"), status.modeminfo.satellite, NORAD);
 }
 
 void MQTT_Client::remoteSatFilter(char* payload, size_t payload_len) {
@@ -938,7 +938,7 @@ void MQTT_Client::remoteSatFilter(char* payload, size_t payload_len) {
   for (uint8_t i = 0; i < 8 && i < filter_size; i++) {
     status.modeminfo.filter[i] = doc[i];
   }
-  Log::debug(PSTR("Sat packets Filter enabled"));
+  LOG_DEBUG(PSTR("Sat packets Filter enabled"));
 }
 
 void MQTT_Client::remoteGoToSleep(char* payload, size_t payload_len) {
@@ -947,7 +947,7 @@ void MQTT_Client::remoteGoToSleep(char* payload, size_t payload_len) {
   deserializeJson(doc, payload, payload_len);
 
   uint32_t sleep_seconds = doc[0];
-  Log::debug(PSTR("deep_sleep_enter"));
+  LOG_DEBUG(PSTR("deep_sleep_enter"));
   esp_sleep_enable_timer_wakeup(1000000ULL * sleep_seconds);
   delay(100);
   Serial.flush();
@@ -963,7 +963,7 @@ void MQTT_Client::remoteGoToSiesta(char* payload, size_t payload_len) {
   deserializeJson(doc, payload, payload_len);
 
   uint32_t sleep_seconds = doc[0];
-  Log::debug(PSTR("light_sleep_enter"));
+  LOG_DEBUG(PSTR("light_sleep_enter"));
   esp_sleep_enable_timer_wakeup(1000000ULL * sleep_seconds);
   delay(100);
   Serial.flush();
@@ -971,17 +971,17 @@ void MQTT_Client::remoteGoToSiesta(char* payload, size_t payload_len) {
   delay(100);
   int ret = esp_light_sleep_start();
   WiFi.disconnect(false);
-  Log::debug(PSTR("light_sleep: %d\n"), ret);
+  LOG_DEBUG(PSTR("light_sleep: %d\n"), ret);
   delay(500);
 
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
   switch (wakeup_reason) {
-    case ESP_SLEEP_WAKEUP_EXT0:    Log::debug(PSTR("Wakeup: RTC_IO")); break;
-    case ESP_SLEEP_WAKEUP_EXT1:    Log::debug(PSTR("Wakeup: RTC_CNTL")); break;
-    case ESP_SLEEP_WAKEUP_TIMER:   Log::debug(PSTR("Wakeup: timer")); break;
-    case ESP_SLEEP_WAKEUP_TOUCHPAD: Log::debug(PSTR("Wakeup: touchpad")); break;
-    case ESP_SLEEP_WAKEUP_ULP:     Log::debug(PSTR("Wakeup: ULP")); break;
-    default: Log::debug(PSTR("Wakeup: unknown %d"), wakeup_reason); break;
+    case ESP_SLEEP_WAKEUP_EXT0:    LOG_DEBUG(PSTR("Wakeup: RTC_IO")); break;
+    case ESP_SLEEP_WAKEUP_EXT1:    LOG_DEBUG(PSTR("Wakeup: RTC_CNTL")); break;
+    case ESP_SLEEP_WAKEUP_TIMER:   LOG_DEBUG(PSTR("Wakeup: timer")); break;
+    case ESP_SLEEP_WAKEUP_TOUCHPAD: LOG_DEBUG(PSTR("Wakeup: touchpad")); break;
+    case ESP_SLEEP_WAKEUP_ULP:     LOG_DEBUG(PSTR("Wakeup: ULP")); break;
+    default: LOG_DEBUG(PSTR("Wakeup: unknown %d"), wakeup_reason); break;
   }
 }
 

@@ -202,7 +202,7 @@ bool ConfigStore::migrateFromEEPROM() {
     return false;
   }
 
-  Log::console(PSTR("Migrating config from IotWebConf2 EEPROM to NVS..."));
+  LOG_CONSOLE(PSTR("Migrating config from IotWebConf2 EEPROM to NVS..."));
 
   // Read old values - IotWebConf2 stores them with specific keys
   oldPrefs.getString("ThingName",      _stationName,  sizeof(_stationName));
@@ -243,7 +243,7 @@ bool ConfigStore::migrateFromEEPROM() {
   cleanup.clear();
   cleanup.end();
 
-  Log::console(PSTR("Migration complete. Old EEPROM config cleared."));
+  LOG_CONSOLE(PSTR("Migration complete. Old EEPROM config cleared."));
   return true;
 }
 
@@ -387,7 +387,7 @@ bool ConfigStore::parseBoardTemplate(board_t& board) {
   DeserializationError error = deserializeJson(doc, (const char*)_boardTemplate);
 
   if (error.code() != DeserializationError::Ok || !doc.containsKey("radio")) {
-    Log::console(PSTR("Error: Your Board template is not valid. Unable to finish setup."));
+    LOG_CONSOLE(PSTR("Error: Your Board template is not valid. Unable to finish setup."));
     return false;
   }
 
@@ -426,7 +426,7 @@ bool ConfigStore::parseBoardTemplate(board_t& board) {
 }
 
 void ConfigStore::boardDetection() {
-  Log::error(PSTR("Automatic board detection running... "));
+  LOG_ERROR(PSTR("Automatic board detection running... "));
 
 #if CONFIG_IDF_TARGET_ESP32S3
   // not implemented yet for S3
@@ -435,7 +435,7 @@ void ConfigStore::boardDetection() {
 #else
   if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") != 0) {
     for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
-      Log::error(PSTR("%s"), _boards[ite].BOARD.c_str());
+      LOG_ERROR(PSTR("%s"), _boards[ite].BOARD.c_str());
       if (_boards[ite].OLED__RST != UNUSED_PIN) {
         pinMode(_boards[ite].OLED__RST, OUTPUT);
         digitalWrite(_boards[ite].OLED__RST, LOW);
@@ -445,11 +445,11 @@ void ConfigStore::boardDetection() {
       Wire.begin(_boards[ite].OLED__SDA, _boards[ite].OLED__SCL);
       Wire.beginTransmission(_boards[ite].OLED__address);
       if (!Wire.endTransmission()) {
-        Log::error(PSTR("Compatible OLED FOUND"));
+        LOG_ERROR(PSTR("Compatible OLED FOUND"));
         itoa(ite, _board, 10);
         return;
       } else {
-        Log::error(PSTR("Not Compatible board found, please select it manually on the web config panel"));
+        LOG_ERROR(PSTR("Not Compatible board found, please select it manually on the web config panel"));
       }
     }
   }
@@ -483,7 +483,7 @@ void ConfigStore::parseModemStartup() {
   DeserializationError error = deserializeJson(doc, (const char*)_modemStartup);
 
   if (error.code() != DeserializationError::Ok || !doc.containsKey("mode")) {
-    Log::console(PSTR("ERROR: Your modem config is invalid. Resetting to default"));
+    LOG_CONSOLE(PSTR("ERROR: Your modem config is invalid. Resetting to default"));
     _modemStartup[0] = '\0';
     save();
     return;
@@ -545,11 +545,11 @@ void ConfigStore::parseModemStartup() {
 // ============================================================
 
 void ConfigStore::printConfig() {
-  Log::debug(PSTR("MQTT Port: %u\nMQTT Server: %s\nMQTT User: %s\nLatitude: %f\nLongitude: %f"),
+  LOG_DEBUG(PSTR("MQTT Port: %u\nMQTT Server: %s\nMQTT User: %s\nLatitude: %f\nLongitude: %f"),
              getMqttPort(), getMqttServer(), getMqttUser(), getLatitude(), getLongitude());
-  Log::debug(PSTR("tz: %s\nOLED Bright: %u\nTX %s"), getTZ(), getOledBright(), getAllowTx() ? "Enable" : "Disable");
+  LOG_DEBUG(PSTR("tz: %s\nOLED Bright: %u\nTX %s"), getTZ(), getOledBright(), getAllowTx() ? "Enable" : "Disable");
   if (_boardTemplate[0] != '\0')
-    Log::debug(PSTR("board_template: %s"), _boardTemplate);
+    LOG_DEBUG(PSTR("board_template: %s"), _boardTemplate);
   else
-    Log::debug(PSTR("board: %u --> %s"), getBoard(), _boards[getBoard()].BOARD.c_str());
+    LOG_DEBUG(PSTR("board: %u --> %s"), getBoard(), _boards[getBoard()].BOARD.c_str());
 }

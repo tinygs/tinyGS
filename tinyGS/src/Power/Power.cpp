@@ -69,14 +69,14 @@ void Power::checkAXP()
    board_t board;
    if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
-  Log::console(PSTR("AXPxxx chip?"));   
+  LOG_CONSOLE(PSTR("AXPxxx chip?"));   
   byte regV = 0;
   Wire.begin(board.OLED__SDA, board.OLED__SCL);                     // I2C_SDA, I2C_SCL on all new boards
   byte ChipID = I2CreadByte(0x34, 0x03);                            // read byte from xxx_IC_TYPE register
   // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
   if (ChipID == XPOWERS_AXP192_CHIP_ID) { // 0x03
     AXPchip = 1;
-    Log::console(PSTR("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
+    LOG_CONSOLE(PSTR("AXP192 found"));   // T-Beam V1.1 with AXP192 power controller
     I2CwriteByte(0x34, 0x28, 0xFF);       // Set LDO2 (LoRa) & LDO3 (GPS) to 3.3V , (1.8-3.3V, 100mV/step)
     regV = I2CreadByte(0x34, 0x12);       // Power Output Control
     regV = regV | 0x0C;                   // set bit 2 (LDO2) and bit 3 (LDO3)
@@ -91,13 +91,13 @@ void Power::checkAXP()
     I2CwriteByte(0x34, 0x32, 0x46);       // CHGLED controlled by the charging function
     pmustat1 = I2CreadByte(0x34, 0x00); pmustat2 = I2CreadByte(0x34, 0x01);
     irqstat0 = I2CreadByte(0x34, 0x44); irqstat1 = I2CreadByte(0x34, 0x45); irqstat2 = I2CreadByte(0x34, 0x46);
-    Log::console(PSTR("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
-    Log::console(PSTR("IRQ status 1,2,3    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
+    LOG_CONSOLE(PSTR("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
+    LOG_CONSOLE(PSTR("IRQ status 1,2,3    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
   }
   // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
   if (ChipID == XPOWERS_AXP2101_CHIP_ID) {// 0x4A
     AXPchip = 2;
-    Log::console(PSTR("AXP2101 found"));  // T-Beam V1.2 with AXP2101 power controller
+    LOG_CONSOLE(PSTR("AXP2101 found"));  // T-Beam V1.2 with AXP2101 power controller
     I2CwriteByte(0x34, 0x93, 0x1C);       // set ALDO2 voltage to 3.3V ( LoRa VCC )
     I2CwriteByte(0x34, 0x94, 0x1C);       // set ALDO3 voltage to 3.3V ( GPS VDD )
     I2CwriteByte(0x34, 0x6A, 0x04);       // set Button battery voltage to 3.0V ( backup battery )
@@ -121,9 +121,9 @@ void Power::checkAXP()
     pmustat1 = I2CreadByte(0x34, 0x00); pmustat2 = I2CreadByte(0x34, 0x01);
     pwronsta = I2CreadByte(0x34, 0x20); pwrofsta = I2CreadByte(0x34, 0x21);
     irqstat0 = I2CreadByte(0x34, 0x48); irqstat1 = I2CreadByte(0x34, 0x49); irqstat2 = I2CreadByte(0x34, 0x4A);
-    Log::console(PSTR("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
-    Log::console(PSTR("PWRON,PWROFF status : %02X,%02X"), pwronsta, pwrofsta);
-    Log::console(PSTR("IRQ status 0,1,2    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
+    LOG_CONSOLE(PSTR("PMU status1,status2 : %02X,%02X"), pmustat1, pmustat2);
+    LOG_CONSOLE(PSTR("PWRON,PWROFF status : %02X,%02X"), pwronsta, pwrofsta);
+    LOG_CONSOLE(PSTR("IRQ status 0,1,2    : %02X,%02X,%02X"), irqstat0, irqstat1, irqstat2);
   }
   // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
   Wire.end();

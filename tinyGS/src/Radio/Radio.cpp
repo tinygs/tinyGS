@@ -29,7 +29,7 @@
 //04/08/2023
 #include "../BitCode/BitCode.h"
 
-#define CHECK_ERROR(errCode) if (errCode != RADIOLIB_ERR_NONE) { Log::console(PSTR("Radio failed, code %d\n Check that the configuration is valid for your board"), errCode);status.radio_error=errCode; return errCode; }
+#define CHECK_ERROR(errCode) if (errCode != RADIOLIB_ERR_NONE) { LOG_CONSOLE(PSTR("Radio failed, code %d\n Check that the configuration is valid for your board"), errCode);status.radio_error=errCode; return errCode; }
 
 bool received = false;
 bool eInterrupt = true;
@@ -52,13 +52,13 @@ void Radio::init()
 {
   Power& power = Power::getInstance();
   power.checkAXP();                                       // check and setup AXP192 and AXP2101 power controller
-  Log::console(PSTR("[SX12xx] Initializing ... "));
+  LOG_CONSOLE(PSTR("[SX12xx] Initializing ... "));
   board_t board;
   if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
 
   if (board.L_radio == 0) {
-    Log::console(PSTR("[SX12xx] Radio disabled (radio=0). Skipping init."));
+    LOG_CONSOLE(PSTR("[SX12xx] Radio disabled (radio=0). Skipping init."));
     return;
   }
 
@@ -79,7 +79,7 @@ void Radio::init()
     case RADIO_SX1276:
       #if CONFIG_IDF_TARGET_ESP32                                    // Heltec Lora 32 V3 patch to enable TCXO
         if (ConfigStore::getInstance().getBoard()== LILYGO_T3_V1_6_1_HF_TCXO ) { 
-          Log::console(PSTR("[SX1276] Enable TCXO 33... "));
+          LOG_CONSOLE(PSTR("[SX1276] Enable TCXO 33... "));
           pinMode (33, OUTPUT); 
           digitalWrite(33, HIGH);
           delay(50);
@@ -107,7 +107,7 @@ void Radio::init()
   if (board.RX_EN != UNUSED && board.TX_EN != UNUSED)
   {
     radioHal->setRfSwitchPins(board.RX_EN, board.TX_EN);
-    Log::debug(PSTR("setRfSwitchPins(RxEn->GPIO-%d, TxEn->GPIO-%d)"), board.RX_EN, board.TX_EN);
+    LOG_DEBUG(PSTR("setRfSwitchPins(RxEn->GPIO-%d, TxEn->GPIO-%d)"), board.RX_EN, board.TX_EN);
   }
 
   begin();
@@ -158,7 +158,7 @@ int16_t Radio::begin()
       { 
         CHECK_ERROR(radioHal->setWhitening(true,m.whitening_seed));
       }else{
-        Log::console(PSTR("The whitening seed could not be configured for your board"));
+        LOG_CONSOLE(PSTR("The whitening seed could not be configured for your board"));
       }
     }      
   }
@@ -168,8 +168,8 @@ int16_t Radio::begin()
   // attach the ISR to radio interrupt
   radioHal->setPacketReceivedAction(setFlag);
   // start listening for LoRa packets
-  //Log::console(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
-  Log::console(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
+  //LOG_CONSOLE(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
+  LOG_CONSOLE(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
   CHECK_ERROR(radioHal->startReceive());
   status.modeminfo.currentRssi = radioHal->getRSSI(false,true);
 
@@ -248,8 +248,8 @@ if (status.modeminfo.tle[0] != 0)
 
   // latlon2xy(ixQTH, iyQTH, dMyLAT, dMyLON, MAP_MAXX, MAP_MAXY);      // Get x/y for the pixel map 
   //Serial.printf("\r\nPrediction for %s at %s (MAP %dx%d: x = %d,y = %d):\r\n\r\n", MySAT.c_ccSatName, MyQTH.c_ccObsName, MAP_MAXX, MAP_MAXY, ixQTH, iyQTH);
-  //Log::debug(PSTR( "Prediction for %s at %s"), MySAT.c_ccSatName, MyQTH.c_ccObsName);
-  //Log::debug(PSTR("Prediction for (Lat = %.2f%c, Lon = %.2f%c), Alt = %.1f m ASL):"), dMyLAT, (char)39, dMyLON, (char)39, dMyALT);
+  //LOG_DEBUG(PSTR( "Prediction for %s at %s"), MySAT.c_ccSatName, MyQTH.c_ccObsName);
+  //LOG_DEBUG(PSTR("Prediction for (Lat = %.2f%c, Lon = %.2f%c), Alt = %.1f m ASL):"), dMyLAT, (char)39, dMyLON, (char)39, dMyALT);
   MyTime.ascii(acBuffer);             // Get time for prediction as ASCII string
   MySAT.predict(MyTime);              // Predict ISS for specific time
   MySAT.latlon(status.tle.dSatLAT, status.tle.dSatLON);     // Get the rectangular coordinates
@@ -259,17 +259,17 @@ if (status.modeminfo.tle[0] != 0)
   status.satPos[0]= ixSAT;
   status.satPos[1]= iySAT;
   
-  //Log::debug(PSTR("%s -> Lat: %.4f Lon: %.4f (MAP %dx%d: x = %d,y = %d) Az: %.2f El: %.2f\r\n\r\n"), acBuffer, status.tle.dSatLAT, status.tle.dSatLON, MAP_MAXX, MAP_MAXY, ixSAT, iySAT, status.tle.dSatAZ, status.tle.dSatEL);
-  //Log::debug(PSTR( "%s UTC"), acBuffer);
-  //Log::debug(PSTR( "Lat: %.2f%c Lon: %.2f%c Az: %.2f%c El: %.2f%c"), status.tle.dSatLAT, (char)39, status.tle.dSatLON, (char)39, status.tle.dSatAZ, (char)39, status.tle.dSatEL, (char)39);
-  //Log::debug(PSTR("RX: %.6f MHz, TX: %.6f MHz\r\n\r\n"), MySAT.doppler(dfreqRX, P13_FRX), MySAT.doppler(dfreqTX, P13_FTX));
-  //Log::debug(PSTR( "RX: %.5f MHz"), MySAT.doppler(dfreqRX, P13_FRX));
+  //LOG_DEBUG(PSTR("%s -> Lat: %.4f Lon: %.4f (MAP %dx%d: x = %d,y = %d) Az: %.2f El: %.2f\r\n\r\n"), acBuffer, status.tle.dSatLAT, status.tle.dSatLON, MAP_MAXX, MAP_MAXY, ixSAT, iySAT, status.tle.dSatAZ, status.tle.dSatEL);
+  //LOG_DEBUG(PSTR( "%s UTC"), acBuffer);
+  //LOG_DEBUG(PSTR( "Lat: %.2f%c Lon: %.2f%c Az: %.2f%c El: %.2f%c"), status.tle.dSatLAT, (char)39, status.tle.dSatLON, (char)39, status.tle.dSatAZ, (char)39, status.tle.dSatEL, (char)39);
+  //LOG_DEBUG(PSTR("RX: %.6f MHz, TX: %.6f MHz\r\n\r\n"), MySAT.doppler(dfreqRX, P13_FRX), MySAT.doppler(dfreqTX, P13_FTX));
+  //LOG_DEBUG(PSTR( "RX: %.5f MHz"), MySAT.doppler(dfreqRX, P13_FRX));
 
 
   status.tle.new_freqDoppler = (MySAT.doppler(dfreqRX, P13_FRX)- dfreqRX )*1000000 ;
   
   
-  //Log::console(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
+  //LOG_CONSOLE(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
 
 
   //Serial.println( status.tle.freqDoppler );
@@ -290,7 +290,7 @@ if (status.modeminfo.tle[0] != 0)
 
   //Serial.printf("\r\nSun -> Lat: %.4f Lon: %.4f (MAP %dx%d: x = %d,y = %d) Az: %.2f El: %.2f\r\n\r\n", dSunLAT, dSunLON, MAP_MAXX, MAP_MAXY, ixSUN, iySUN, dSunAZ, dSunEL);
 
-  Log::debugAsync(PSTR("Doppler -> New: %.2f Hz Old: %.2f Hz  Dif: %.2f Hz"),  status.tle.new_freqDoppler, status.tle.freqDoppler, abs( status.tle.new_freqDoppler- status.tle.freqDoppler) );
+  LOG_DEBUG_ASYNC(PSTR("Doppler -> New: %.2f Hz Old: %.2f Hz  Dif: %.2f Hz"),  status.tle.new_freqDoppler, status.tle.freqDoppler, abs( status.tle.new_freqDoppler- status.tle.freqDoppler) );
   if(status.tle.dSatEL > 0) // oe6isp
   {
 	if (abs( status.tle.new_freqDoppler- status.tle.freqDoppler) >  status.tle.freqTol) {
@@ -355,10 +355,10 @@ void Radio::startRx()
 void Radio::setFrequency()
 {
   // get current RSSI
-  Log::debugAsync(PSTR("Base: %.4f Mhz Offset: %.1f Hz Doppler: %.1f Hz "),status.modeminfo.frequency, status.modeminfo.freqOffset,status.tle.freqDoppler);
+  LOG_DEBUG_ASYNC(PSTR("Base: %.4f Mhz Offset: %.1f Hz Doppler: %.1f Hz "),status.modeminfo.frequency, status.modeminfo.freqOffset,status.tle.freqDoppler);
   begin();
   //radioHal->setFrequency( (status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
-  //Log::debug(PSTR("Base: %.4f Mhz Offset: %.1f Hz Doppler: %.1f Hz --> Modem: %.4f Mhz"),status.modeminfo.frequency, status.modeminfo.freqOffset,status.tle.freqDoppler,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
+  //LOG_DEBUG(PSTR("Base: %.4f Mhz Offset: %.1f Hz Doppler: %.1f Hz --> Modem: %.4f Mhz"),status.modeminfo.frequency, status.modeminfo.freqOffset,status.tle.freqDoppler,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
   //Serial.print("base: ;
   //Serial.println( status.modeminfo.frequency ,4 );
   //Serial.print("offset: ");
@@ -380,7 +380,7 @@ int16_t Radio::sendTx(uint8_t *data, size_t length)
 {
   if (!ConfigStore::getInstance().getAllowTx())
   {
-    Log::error(PSTR("TX disabled by config"));
+    LOG_ERROR(PSTR("TX disabled by config"));
     return -1;
   }
   disableInterrupt();
@@ -445,7 +445,7 @@ uint8_t Radio::listen()
       newPacketInfo.snr == status.lastPacketInfo.snr &&
       newPacketInfo.frequencyerror == status.lastPacketInfo.frequencyerror)
   {
-    Log::consoleAsync(PSTR("Interrupt triggered but no new data available. Check wiring and electrical interferences."));
+    LOG_CONSOLE_ASYNC(PSTR("Interrupt triggered but no new data available. Check wiring and electrical interferences."));
     delete[] respFrame;
     delete[] respFrame_raw;
     startRx();
@@ -459,7 +459,7 @@ uint8_t Radio::listen()
   time_t currenttime = time(NULL);
   if (currenttime < 0)
   {
-    Log::error(PSTR("Failed to obtain time"));
+    LOG_ERROR(PSTR("Failed to obtain time"));
     status.lastPacketInfo.time[0] = '\0';
   }
   else
@@ -478,7 +478,7 @@ uint8_t Radio::listen()
   status.lastPacketInfo.frequencyerror = newPacketInfo.frequencyerror;
 
   // print RSSI (Received Signal Strength Indicator) - use async to avoid blocking
-  Log::consoleAsync(PSTR("[%s] RSSI:\t\t%f dBm\n[%s] SNR:\t\t%f dB\n[%s] Frequency error:\t%f Hz"),
+  LOG_CONSOLE_ASYNC(PSTR("[%s] RSSI:\t\t%f dBm\n[%s] SNR:\t\t%f dB\n[%s] Frequency error:\t%f Hz"),
    moduleNameString, status.lastPacketInfo.rssi, 
    moduleNameString, status.lastPacketInfo.snr, 
    moduleNameString, status.lastPacketInfo.frequencyerror);
@@ -486,7 +486,7 @@ uint8_t Radio::listen()
   if (state == RADIOLIB_ERR_NONE && respLen > 0)
   {
     // read optional data - use async logging to avoid blocking
-    Log::consoleAsync(PSTR("Packet (%u bytes):"), respLen);
+    LOG_CONSOLE_ASYNC(PSTR("Packet (%u bytes):"), respLen);
     // uint16_t buffSize = respLen * 2 + 1;
     // if (buffSize > 255)
     //   buffSize = 255;
@@ -495,7 +495,7 @@ uint8_t Radio::listen()
     // {
     //   sprintf(byteStr + i * 2 % (buffSize - 1), "%02x", respFrame[i]);
     //   if (i * 2 % buffSize == buffSize - 3 || i == respLen - 1)
-    //     Log::consoleAsync(PSTR("%s"), byteStr); // async logging for hex dump
+    //     LOG_CONSOLE_ASYNC(PSTR("%s"), byteStr); // async logging for hex dump
     // }
     // delete[] byteStr;
 
@@ -509,7 +509,7 @@ uint8_t Radio::listen()
        || status.modeminfo.framing==3  //framing=3 -> Scrambled(x17x12) -> NRZS -> AX.25                       
          ) 
         {
-        Log::consoleAsync(PSTR("Processing AX.25 frame..."));
+        LOG_CONSOLE_ASYNC(PSTR("Processing AX.25 frame..."));
         // Add Synch Frame Word to the received data 
         for (int i=0;i<sizeof(status.modeminfo.fsw);i++){
           if (status.modeminfo.fsw[i]!=0){bytes_sincro++;}
@@ -532,10 +532,10 @@ uint8_t Radio::listen()
           if (sizeAx25bin>=1){
             Log::log_packet(ax25bin,sizeAx25bin);
           }else{
-            Log::consoleAsync(PSTR("No data found in packet."));
+            LOG_CONSOLE_ASYNC(PSTR("No data found in packet."));
           }
           packet_logged=true;
-          Log::consoleAsync(PSTR("Frame error!"));
+          LOG_CONSOLE_ASYNC(PSTR("Frame error!"));
           sizeAx25bin=12;
           const char texto[] = "Frame error!";
           for (int i=0;i<(sizeAx25bin);i++){
@@ -585,7 +585,7 @@ uint8_t Radio::listen()
         }else{
           crcfield=msb*256+lsb;
         }
-        Log::consoleAsync(PSTR("Received CRC: %X Calculated CRC: %X"),crcfield,fcs);
+        LOG_CONSOLE_ASYNC(PSTR("Received CRC: %X Calculated CRC: %X"),crcfield,fcs);
         if ((  status.modeminfo.framing==1  //framing=1 -> NRZS -> AX.25 Frame
             || status.modeminfo.framing==3  //framing=3 -> Scrambled(x17x12) -> NRZS -> AX.25  
             ) && respLen>=16
@@ -599,14 +599,14 @@ uint8_t Radio::listen()
         packet_logged=true;
         if (fcs!=crcfield){
             status.lastPacketInfo.crc_error = true;
-            Log::consoleAsync(PSTR("Error_CRC"));
+            LOG_CONSOLE_ASYNC(PSTR("Error_CRC"));
             const char cad[] = "Error_CRC";
             respLen=9;
             for (int i=0;i<9;i++){
               respFrame[i]=(uint8_t)cad[i];
             }
           }          
-        }else{Log::consoleAsync(PSTR("CRC Check not performed"));}
+        }else{LOG_CONSOLE_ASYNC(PSTR("CRC Check not performed"));}
       }
     }
 
@@ -631,7 +631,7 @@ uint8_t Radio::listen()
 
       if (filter_flag)
       {
-        Log::consoleAsync(PSTR("Filter enabled, doesn't looks like the expected satellite packet"));
+        LOG_CONSOLE_ASYNC(PSTR("Filter enabled, doesn't looks like the expected satellite packet"));
         delete[] respFrame;
         delete[] respFrame_raw;
         startRx();
@@ -654,7 +654,7 @@ uint8_t Radio::listen()
     }
     else
     {
-      Log::consoleAsync(PSTR("Filter enabled, Error CRC filtered"));
+      LOG_CONSOLE_ASYNC(PSTR("Filter enabled, Error CRC filtered"));
       delete[] respFrame;
       delete[] respFrame_raw;
       startRx();
@@ -681,19 +681,19 @@ uint8_t Radio::listen()
   else if (state == RADIOLIB_ERR_CRC_MISMATCH)
   {
     // packet was received, but is malformed
-    Log::consoleAsync(PSTR("[%s] CRC error! Data cannot be retrieved"), moduleNameString);
+    LOG_CONSOLE_ASYNC(PSTR("[%s] CRC error! Data cannot be retrieved"), moduleNameString);
     return 2;
   }
   else if (state == RADIOLIB_ERR_LORA_HEADER_DAMAGED)
   {
     // packet was received, but is malformed
-    Log::consoleAsync(PSTR("[%S] Damaged header! Data cannot be retrieved"), moduleNameString);
+    LOG_CONSOLE_ASYNC(PSTR("[%S] Damaged header! Data cannot be retrieved"), moduleNameString);
     return 2;
   }
   else
   {
     // some other error occurred
-    Log::consoleAsync(PSTR("[%s] Failed, code %d"), moduleNameString, state);
+    LOG_CONSOLE_ASYNC(PSTR("[%s] Failed, code %d"), moduleNameString, state);
     return 3;
   }
 }
@@ -702,11 +702,11 @@ void Radio::readState(int state)
 {
   if (state == RADIOLIB_ERR_NONE)
   {
-    Log::error(PSTR("success!"));
+    LOG_ERROR(PSTR("success!"));
   }
   else
   {
-    Log::error(PSTR("failed, code %d"), state);
+    LOG_ERROR(PSTR("failed, code %d"), state);
     return;
   }
 }
@@ -715,7 +715,7 @@ void Radio::readState(int state)
 int16_t Radio::remote_freq(char *payload, size_t payload_len)
 {
   float frequency = _atof(payload, payload_len);
-  Log::console(PSTR("Set Frequency: %.3f MHz"), frequency);
+  LOG_CONSOLE(PSTR("Set Frequency: %.3f MHz"), frequency);
 
   int16_t state = 0;
   board_t board;
@@ -748,7 +748,7 @@ int16_t Radio::remoteSetFreqOffset(char *payload, size_t payload_len)
 
   if (doc.size()==1) {
     float frequency_offset = doc[0];
-    Log::console(PSTR("Set Frequency OffSet to %.3f Hz"), frequency_offset);
+    LOG_CONSOLE(PSTR("Set Frequency OffSet to %.3f Hz"), frequency_offset);
     status.modeminfo.freqOffset = frequency_offset ;
     return 0;
   }
@@ -756,7 +756,7 @@ int16_t Radio::remoteSetFreqOffset(char *payload, size_t payload_len)
 
   if (doc.size()==0) {
      float frequency_offset = _atof(payload, payload_len);
-    Log::console(PSTR("Set Frequency OffSet to %.3f Hz"), frequency_offset);
+    LOG_CONSOLE(PSTR("Set Frequency OffSet to %.3f Hz"), frequency_offset);
     status.modeminfo.freqOffset = frequency_offset ;
     return 0;
   } 
@@ -766,7 +766,7 @@ int16_t Radio::remoteSetFreqOffset(char *payload, size_t payload_len)
     float frequency_offset = doc[0];
     status.tle.freqTol =  doc[1];
     status.tle.refresh =  doc[2];
-    Log::console(PSTR("Set Frequency OffSet to %.3f Hz  Tol: %d Hz Refresh: %d ms"), frequency_offset,status.tle.freqTol,status.tle.refresh);
+    LOG_CONSOLE(PSTR("Set Frequency OffSet to %.3f Hz  Tol: %d Hz Refresh: %d ms"), frequency_offset,status.tle.freqTol,status.tle.refresh);
     status.modeminfo.freqOffset = frequency_offset ;
     return 0;
   }
@@ -776,7 +776,7 @@ int16_t Radio::remoteSetFreqOffset(char *payload, size_t payload_len)
 
 /*
   float frequency_offset = _atof(payload, payload_len);
-  Log::console(PSTR("Set Frequency OffSet to %.3f Hz"), frequency_offset);
+  LOG_CONSOLE(PSTR("Set Frequency OffSet to %.3f Hz"), frequency_offset);
   status.modeminfo.freqOffset = frequency_offset ;
   */
   
@@ -818,8 +818,8 @@ int16_t Radio::remote_begin_lora(char *payload, size_t payload_len)
   char sw68StrHex[3];
   sprintf(sw78StrHex, "%1x", syncWord78);
   sprintf(sw68StrHex, "%2x", syncWord68);
-  Log::console(PSTR("Set Frequency: %.3f MHz\nSet bandwidth: %.3f MHz\nSet spreading factor: %u\nSet coding rate: %u\nSet sync Word 127x: 0x%s\nSet sync Word 126x: 0x%s"), freq, bw, sf, cr, sw78StrHex, sw68StrHex);
-  Log::console(PSTR("Set Power: %d\nSet C limit: %u\nSet Preamble: %u\nSet Gain: %u"), power, current_limit, preambleLength, gain);
+  LOG_CONSOLE(PSTR("Set Frequency: %.3f MHz\nSet bandwidth: %.3f MHz\nSet spreading factor: %u\nSet coding rate: %u\nSet sync Word 127x: 0x%s\nSet sync Word 126x: 0x%s"), freq, bw, sf, cr, sw78StrHex, sw68StrHex);
+  LOG_CONSOLE(PSTR("Set Power: %d\nSet C limit: %u\nSet Preamble: %u\nSet Gain: %u"), power, current_limit, preambleLength, gain);
 
   int16_t state = 0;
   board_t board;
@@ -871,8 +871,8 @@ int16_t Radio::remote_begin_fsk(char *payload, size_t payload_len)
   uint8_t len = doc[7]; // ook and datashape
   
 
-  Log::console(PSTR("Set Frequency: %.3f MHz\nSet bit rate: %.3f\nSet Frequency deviation: %.3f kHz\nSet receiver bandwidth: %.3f kHz\nSet Power: %d"), freq, br, freqDev, rxBw, power);
-  Log::console(PSTR("Set Preamble Length: %u\nOOK Modulation %s\nSet datashaping %u"), preambleLength, (ook == 255) ? F("ON") : F("OFF"), ook);
+  LOG_CONSOLE(PSTR("Set Frequency: %.3f MHz\nSet bit rate: %.3f\nSet Frequency deviation: %.3f kHz\nSet receiver bandwidth: %.3f kHz\nSet Power: %d"), freq, br, freqDev, rxBw, power);
+  LOG_CONSOLE(PSTR("Set Preamble Length: %u\nOOK Modulation %s\nSet datashaping %u"), preambleLength, (ook == 255) ? F("ON") : F("OFF"), ook);
 
   int16_t state = 0;
   board_t board;
