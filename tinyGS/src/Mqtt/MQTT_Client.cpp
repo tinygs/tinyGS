@@ -802,8 +802,18 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
         status.modeminfo.filter[i] = 0;
     }
      // sat tle
-    if (doc.containsKey("tle") && doc["tle"].is<const char*>()) {
-    const char* base64Tle = doc["tle"].as<const char*>();
+    if ((doc.containsKey("tle") && doc["tle"].is<const char*>()) || (doc.containsKey("tlx") && doc["tlx"].is<const char*>())) {
+    
+    const char* base64Tle = nullptr;
+    
+    if (doc.containsKey("tle")) { 
+        base64Tle = doc["tle"].as<const char*>();
+        status.tle.freqComp = true;
+    } else {
+        base64Tle = doc["tlx"].as<const char*>();
+        status.tle.freqComp = false;
+     }
+
     size_t inputLen = strlen(base64Tle);
     size_t outputLen = 0;
     size_t maxTleSize = 64;
@@ -845,6 +855,7 @@ void MQTT_Client::manageMQTTData(char *topic, uint8_t *payload, unsigned int len
    // Serial.println("Error: 'tle' key not found or not a string.");
     m.tle[0]= 0;
     status.tle.freqDoppler = 0;
+    status.tle.freqComp = false; 
   }
 
   radio.begin();
