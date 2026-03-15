@@ -127,7 +127,7 @@ struct board_t {
 
   // Ethernet fields (from board template JSON)
   bool    ethEN   = false;
-  uint8_t ethPHY  = 0;       // 0=W5500, 1=DM9051, 2=KSZ8851SNL
+  uint8_t ethPHY  = 0;       // 0=W5500, 1=DM9051, 2=KSZ8851SNL (SPI); 0xFF=InternalEmac
   uint8_t ethSPI  = 2;       // SPI bus for ethernet: 2=SPI2, 3=SPI3
   uint8_t ethCS   = UNUSED_PIN;
   uint8_t ethINT  = UNUSED_PIN;
@@ -135,6 +135,15 @@ struct board_t {
   uint8_t ethMISO = UNUSED_PIN;
   uint8_t ethMOSI = UNUSED_PIN;
   uint8_t ethSCK  = UNUSED_PIN;
+  // Internal EMAC fields (ESP32 classic RMII) — only used when ethPHY=0xFF
+  uint8_t ethMDC     = UNUSED_PIN;  // MDC pin  (typically GPIO23)
+  uint8_t ethMDIO    = UNUSED_PIN;  // MDIO pin (typically GPIO18)
+  int8_t  ethPhyAddr = 1;           // SMI PHY address (1=typical for LAN8720)
+  uint8_t ethPhyType = 0;           // 0=LAN8720,1=IP101,2=RTL8201,3=DP83848,4=KSZ8041,5=KSZ8081
+  uint8_t ethRefClk  = 0;           // REF_CLK pin (typically GPIO0)
+  bool    ethClkExt  = true;        // true = PHY drives REF_CLK (ext input), false = ESP32 outputs it
+  uint8_t ethPhyRST  = UNUSED_PIN;  // PHY active-low hardware reset pin (library pulses it LOW-HIGH during phy->init)
+  uint8_t ethOscEN   = UNUSED_PIN;  // Oscillator enable pin (active-high, e.g. ESP32-ETH01 GPIO16) — driven HIGH before EMAC init, never touched by library
 
   board_t() = default;
   board_t(uint8_t oled_addr, uint8_t oled_sda, uint8_t oled_scl, uint8_t oled_rst,

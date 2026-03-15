@@ -421,6 +421,15 @@ bool ConfigStore::parseBoardTemplate(board_t& board) {
   board.ethMISO = doc.containsKey("ethMISO") ? (uint8_t)doc["ethMISO"] : UNUSED_PIN;
   board.ethMOSI = doc.containsKey("ethMOSI") ? (uint8_t)doc["ethMOSI"] : UNUSED_PIN;
   board.ethSCK  = doc.containsKey("ethSCK")  ? (uint8_t)doc["ethSCK"]  : UNUSED_PIN;
+  // Internal EMAC fields (only used when ethPHY=0xFF / InternalEmac mode)
+  board.ethMDC     = doc.containsKey("ethMDC")     ? (uint8_t)doc["ethMDC"]           : UNUSED_PIN;
+  board.ethMDIO    = doc.containsKey("ethMDIO")    ? (uint8_t)doc["ethMDIO"]          : UNUSED_PIN;
+  board.ethPhyAddr = doc.containsKey("ethPhyAddr") ? (int8_t)doc["ethPhyAddr"]        : 1;
+  board.ethPhyType = doc.containsKey("ethPhyType") ? (uint8_t)doc["ethPhyType"]       : 0;
+  board.ethRefClk  = doc.containsKey("ethRefClk")  ? (uint8_t)doc["ethRefClk"]        : 0;
+  board.ethClkExt  = doc.containsKey("ethClkExt")  ? doc["ethClkExt"].as<bool>()      : true;
+  board.ethPhyRST  = doc.containsKey("ethPhyRST")  ? (uint8_t)doc["ethPhyRST"]        : UNUSED_PIN;
+  board.ethOscEN   = doc.containsKey("ethOscEN")   ? (uint8_t)doc["ethOscEN"]         : UNUSED_PIN;
 
   return true;
 }

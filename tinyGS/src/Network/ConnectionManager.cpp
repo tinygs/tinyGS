@@ -25,10 +25,13 @@ ConnectionManager::ConnectionManager() {}
 
 void ConnectionManager::init() {
   ConfigStore& cfg = ConfigStore::getInstance();
+  // Always initialise EthWiFiManager first — this runs esp_netif_init() /
+  // esp_event_loop_create_default() which are prerequisites for ANY network
+  // operation (WiFi, Ethernet, DNS, httpd sockets …).
+  setupEthWiFiManager();
 
   // If WiFi credentials are available, proceed with connection
   if (strlen(cfg.getWifiSSID()) > 0) {
-    setupEthWiFiManager();
     _state = ConnState::CONNECTING;
     _connectStartTime = millis();
   } else {
@@ -47,60 +50,139 @@ void ConnectionManager::setupEthWiFiManager() {
   // can use them later, but we disable WiFi after begin() if ETH_ONLY.
   ewmCfg.wifi.ssid     = cfg.getWifiSSID();
   ewmCfg.wifi.password = cfg.getWifiPassword();
-  // Disable WiFi at the config level for ETH_ONLY: this must be set BEFORE
-  // begin() so the library sees m_wifiEnabled=false during initEthernet().
-  // The disableWiFi() call after begin() remains as a safety net for any
-  // dynamic mode changes.
-  ewmCfg.wifi.enabled  = (mode != InterfaceMode::ETH_ONLY);
+  // Only enable WiFi if there are actual credentials AND the mode allows it.
+  // Passing wifi.enabled=true with an empty SSID causes EthWiFiManager to call
+  // WiFi.begin("","") which triggers an immediate STA_DISCONNECTED event; the
+  // auto-reconnect handler then calls esp_wifi_connect() in a tight loop,
+  // keeping the radio busy and preventing WiFi scans (used by Improv) from
+  // completing. With wifi.enabled=false the radio stays in STA mode (set by
+  // initWiFi) so scanning still works, but no connection is attempted until
+  // Improv (or the web UI after a restart) supplies real credentials via
+  // enableWiFi().
+  const bool hasWifiCredentials = (strlen(cfg.getWifiSSID()) > 0);
+  ewmCfg.wifi.enabled  = hasWifiCredentials && (mode != InterfaceMode::ETH_ONLY);
 
   // Configure Ethernet if the board template enables it.
   board_t board;
   bool ethHardwareAvailable = cfg.getBoardConfig(board) && board.ethEN;
 
   if (ethHardwareAvailable) {
-    // If the board defines a hardware reset pin, pulse it now so the
-    // chip is guaranteed to be out of reset before SPI probing starts.
-    if (board.ethRST != UNUSED_PIN) {
-      LOG_CONSOLE(PSTR("[ETH] Resetting module on GPIO %d"), board.ethRST);
-      pinMode(board.ethRST, OUTPUT);
-      digitalWrite(board.ethRST, LOW);
-      delay(50);
-      digitalWrite(board.ethRST, HIGH);
-      delay(50);
-    }
-
     ewmCfg.ethernet.enabled = true;
 
-    // Map board ethPHY to SpiModule enum: 0=W5500, 1=DM9051, 2=KSZ8851SNL
-    switch (board.ethPHY) {
-      case 1:  ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::DM9051; break;
-      case 2:  ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::KSZ8851SNL; break;
-      default: ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::W5500; break;
-    }
-    // SPI bus: 2=SPI2_HOST, 3=SPI3_HOST (ESP32-C3 only has SPI2_HOST)
-#if defined(SPI3_HOST)
-    ewmCfg.ethernet.spiHost = (board.ethSPI == 3) ? SPI3_HOST : SPI2_HOST;
+    if (board.ethPHY == 0xFF) {
+      // ── Internal EMAC mode (ESP32 classic RMII) ───────────────────────
+#if ETHWIFI_INTERNAL_EMAC
+      ewmCfg.ethernet.mode         = EthWiFiManager::EthernetMode::InternalEmac;
+
+      // Map board template PHY type (html.h numbering) to EthWiFiManager enum.
+      // html.h: 0=LAN8720, 1=IP101, 2=RTL8201, 3=DP83848, 4=KSZ8041, 5=KSZ8081
+      // EthWiFiManager::EmacPhyChip: IP101=0, RTL8201=1, LAN8720=2, DP83848=3, KSZ8041=4, KSZ8081=5
+      static constexpr EthWiFiManager::EmacPhyChip phyMap[] = {
+        EthWiFiManager::EmacPhyChip::LAN8720,   // html 0
+        EthWiFiManager::EmacPhyChip::IP101,      // html 1
+        EthWiFiManager::EmacPhyChip::RTL8201,    // html 2
+        EthWiFiManager::EmacPhyChip::DP83848,    // html 3
+        EthWiFiManager::EmacPhyChip::KSZ8041,    // html 4
+        EthWiFiManager::EmacPhyChip::KSZ8081,    // html 5
+      };
+      ewmCfg.ethernet.emacPhyChip  = (board.ethPhyType < sizeof(phyMap)/sizeof(phyMap[0]))
+                                     ? phyMap[board.ethPhyType]
+                                     : EthWiFiManager::EmacPhyChip::LAN8720;
+      ewmCfg.ethernet.emacPhyAddr  = board.ethPhyAddr;
+      ewmCfg.ethernet.emacMdcPin   = (gpio_num_t)board.ethMDC;
+      ewmCfg.ethernet.emacMdioPin  = (gpio_num_t)board.ethMDIO;
+      ewmCfg.ethernet.emacRmiiRefClkPin      = (gpio_num_t)board.ethRefClk;
+      ewmCfg.ethernet.emacRmiiClockExtInput  = board.ethClkExt;
+      if (board.ethPhyRST != UNUSED_PIN)
+        ewmCfg.ethernet.emacPhyResetPin = (gpio_num_t)board.ethPhyRST;
+      LOG_CONSOLE(PSTR("[ETH] Config: InternalEmac PHYtype=%d addr=%d MDC=%d MDIO=%d RefClk=%d ClkExt=%d RST=%d"),
+        board.ethPhyType, board.ethPhyAddr, board.ethMDC, board.ethMDIO,
+        board.ethRefClk, (int)board.ethClkExt, board.ethPhyRST);
+
+      // On boards like ESP32-ETH01, GPIO16 enables an external 50 MHz oscillator
+      // (active-high, with 10 K pull-down → OFF at boot).  The oscillator must be
+      // running BEFORE esp_eth_mac_new_esp32() / mac->init() is called — if it
+      // isn't, the EMAC DMA soft-reset never completes → "reset timeout".
+      // drive HIGH here, well before begin().
+      if (board.ethOscEN != UNUSED_PIN) {
+        LOG_CONSOLE(PSTR("[ETH] Enabling oscillator on GPIO %d"), board.ethOscEN);
+        pinMode(board.ethOscEN, OUTPUT);
+        digitalWrite(board.ethOscEN, HIGH);
+        delay(5); // oscillator startup time (typ < 2 ms)
+      }
+
+      // Active-low PHY hardware reset: pulse LOW→HIGH so the PHY is fully out
+      // of reset before begin().  The library will also reset it during
+      // phy->init(), but doing it here ensures the oscillator (if driven by the
+      // PHY's REFCLKO) is stable before the MAC init runs.
+      if (board.ethPhyRST != UNUSED_PIN) {
+        LOG_CONSOLE(PSTR("[ETH] PHY hard-reset on GPIO %d"), board.ethPhyRST);
+        pinMode(board.ethPhyRST, OUTPUT);
+        digitalWrite(board.ethPhyRST, LOW);
+        delay(10);
+        digitalWrite(board.ethPhyRST, HIGH);
+        delay(150); // PHY PLL lock time
+      }
+
+      // When using external clock input (EMAC_CLK_EXT_IN), configure the
+      // REF_CLK pin as a plain input and give the oscillator time to stabilise.
+      if (board.ethClkExt) {
+        pinMode(board.ethRefClk, INPUT);
+        delay(50);
+      }
 #else
-    ewmCfg.ethernet.spiHost = SPI2_HOST;
+      LOG_CONSOLE(PSTR("[ETH] InternalEmac requested but not supported on this chip — Ethernet disabled"));
+      ewmCfg.ethernet.enabled = false;
 #endif
-    ewmCfg.ethernet.csPin  = (gpio_num_t)board.ethCS;
-    ewmCfg.ethernet.intPin = (gpio_num_t)board.ethINT;
-
-    // Determine SPI pins for Ethernet
-    if (board.ethMISO != UNUSED_PIN && board.ethMOSI != UNUSED_PIN && board.ethSCK != UNUSED_PIN) {
-      ewmCfg.ethernet.misoPin = (gpio_num_t)board.ethMISO;
-      ewmCfg.ethernet.mosiPin = (gpio_num_t)board.ethMOSI;
-      ewmCfg.ethernet.sckPin  = (gpio_num_t)board.ethSCK;
     } else {
-      ewmCfg.ethernet.misoPin = (gpio_num_t)board.L_MISO;
-      ewmCfg.ethernet.mosiPin = (gpio_num_t)board.L_MOSI;
-      ewmCfg.ethernet.sckPin  = (gpio_num_t)board.L_SCK;
-    }
+      // ── SPI Ethernet module ────────────────────────────────────────────
+      // If the board defines a hardware reset pin, pulse it now so the
+      // chip is guaranteed to be out of reset before SPI probing starts.
+      if (board.ethRST != UNUSED_PIN) {
+        LOG_CONSOLE(PSTR("[ETH] Resetting module on GPIO %d"), board.ethRST);
+        pinMode(board.ethRST, OUTPUT);
+        digitalWrite(board.ethRST, LOW);
+        delay(50);
+        digitalWrite(board.ethRST, HIGH);
+        delay(50);
+      }
 
-    LOG_CONSOLE(PSTR("[ETH] Config: PHY=%d CS=%d INT=%d RST=%d MISO=%d MOSI=%d SCK=%d SPI=%d"),
-      board.ethPHY, board.ethCS, board.ethINT, board.ethRST,
-      ewmCfg.ethernet.misoPin, ewmCfg.ethernet.mosiPin, ewmCfg.ethernet.sckPin,
-      board.ethSPI);
+      // Explicitly set SPI mode to override the InternalEmac default on ESP32 classic.
+#if ETHWIFI_INTERNAL_EMAC
+      ewmCfg.ethernet.mode = EthWiFiManager::EthernetMode::Spi;
+#endif
+
+      // Map board ethPHY to SpiModule enum: 0=W5500, 1=DM9051, 2=KSZ8851SNL
+      switch (board.ethPHY) {
+        case 1:  ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::DM9051; break;
+        case 2:  ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::KSZ8851SNL; break;
+        default: ewmCfg.ethernet.spiModule = EthWiFiManager::SpiModule::W5500; break;
+      }
+      // SPI bus: 2=SPI2_HOST, 3=SPI3_HOST (ESP32-C3 only has SPI2_HOST)
+#if defined(SPI3_HOST)
+      ewmCfg.ethernet.spiHost = (board.ethSPI == 3) ? SPI3_HOST : SPI2_HOST;
+#else
+      ewmCfg.ethernet.spiHost = SPI2_HOST;
+#endif
+      ewmCfg.ethernet.csPin  = (gpio_num_t)board.ethCS;
+      ewmCfg.ethernet.intPin = (gpio_num_t)board.ethINT;
+
+      // SPI data pins: use dedicated ethernet pins if defined, else share with radio
+      if (board.ethMISO != UNUSED_PIN && board.ethMOSI != UNUSED_PIN && board.ethSCK != UNUSED_PIN) {
+        ewmCfg.ethernet.misoPin = (gpio_num_t)board.ethMISO;
+        ewmCfg.ethernet.mosiPin = (gpio_num_t)board.ethMOSI;
+        ewmCfg.ethernet.sckPin  = (gpio_num_t)board.ethSCK;
+      } else {
+        ewmCfg.ethernet.misoPin = (gpio_num_t)board.L_MISO;
+        ewmCfg.ethernet.mosiPin = (gpio_num_t)board.L_MOSI;
+        ewmCfg.ethernet.sckPin  = (gpio_num_t)board.L_SCK;
+      }
+
+      LOG_CONSOLE(PSTR("[ETH] Config: SPI PHY=%d CS=%d INT=%d RST=%d MISO=%d MOSI=%d SCK=%d bus=%d"),
+        board.ethPHY, board.ethCS, board.ethINT, board.ethRST,
+        ewmCfg.ethernet.misoPin, ewmCfg.ethernet.mosiPin, ewmCfg.ethernet.sckPin,
+        board.ethSPI);
+    }
   } else {
     ewmCfg.ethernet.enabled = false;
     LOG_CONSOLE(PSTR("[ETH] Disabled (ethEN=false in board template)"));
@@ -111,7 +193,9 @@ void ConnectionManager::setupEthWiFiManager() {
     onEthEvent(ev, ip);
   });
 
-  _ewm.begin(ewmCfg);
+  if (!_ewm.begin(ewmCfg)) {
+    LOG_CONSOLE(PSTR("[NET] EthWiFiManager begin() failed — network may be limited"));
+  }
 
   // ── Enforce InterfaceMode via the library's enable/disable API ──
   switch (mode) {

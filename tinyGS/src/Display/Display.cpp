@@ -22,6 +22,7 @@
 #include "../Network/ConfigStore.h"
 #include "../Mqtt/MQTT_credentials.h"
 #include "../Logger/Logger.h"
+#include <Wire.h>
 
 SSD1306* display;
 OLEDDisplayUi* ui = NULL;
@@ -56,8 +57,19 @@ void displayInit()
     return;
 
   if (board.OLED__address == 0) {
-    LOG_CONSOLE(PSTR("OLED disabled (aADDR=0)."));
+    LOG_CONSOLE(PSTR("OLED disabled (ADDR=0)."));
     return;
+  }
+
+  // Probe I2C before creating display objects — prevents hanging if no
+  // physical display is connected despite a non-zero address in the template.
+  Wire.begin(board.OLED__SDA, board.OLED__SCL);
+  Wire.setTimeOut(50); // 50 ms max per transaction
+  Wire.beginTransmission(board.OLED__address);
+  if (Wire.endTransmission() != 0) {
+    LOG_CONSOLE(PSTR("OLED not found at 0x%02X (SDA=%d SCL=%d), display disabled."),
+                board.OLED__address, board.OLED__SDA, board.OLED__SCL);
+    return; // ui stays NULL → all displayXxx() calls gracefully skip
   }
 
   display = new SSD1306(board.OLED__address, board.OLED__SDA, board.OLED__SCL);

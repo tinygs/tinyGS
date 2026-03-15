@@ -293,6 +293,10 @@ unsigned long lastTleRefresh = millis();
 void loop() {
   connMgr.loop();
 
+  // Always process serial input (Improv provisioning + debug console)
+  // regardless of connection state or failsafe mode.
+  handleSerial();
+
   if (configStore.isFailSafeActive()) {
     static bool updateAttempted = false;
     if (!updateAttempted && connMgr.isConnected()) {
@@ -305,7 +309,6 @@ void loop() {
   }
 
   ArduinoOTA.handle();
-  handleSerial();
 
   // AP mode - show AP screen
   if (connMgr.isApMode()) {
@@ -364,7 +367,6 @@ void loop() {
   }
 }
 
-
 void setupNTP()
 {
   configTime(0, 0, ntpServer);
@@ -379,7 +381,7 @@ void checkButton()
   static unsigned long buttPressedStart = 0;
   board_t board;
   
-  if (configStore.getBoardConfig(board) && !digitalRead(board.PROG__BUTTON))
+  if (configStore.getBoardConfig(board) && board.PROG__BUTTON != UNUSED_PIN && !digitalRead(board.PROG__BUTTON))
   {
     if (!buttPressedStart)
     {
@@ -472,11 +474,19 @@ void handleRawSerial()
 // function to print controls
 void printControls()
 {
+  Serial.flush(); // drain TX buffer before the burst
   Log::console (PSTR ("------------- Controls -------------"));
+  Serial.flush();
   Log::console (PSTR ("!e - erase board config and reset"));
+  Serial.flush();
   Log::console (PSTR ("!b - reboot the board"));
+  Serial.flush();
   Log::console (PSTR ("!p - send test packet to nearby stations (to check transmission)"));
+  Serial.flush();
   Log::console (PSTR ("!w - ask for weblogin link"));
+  Serial.flush();
   Log::console (PSTR ("!o - get OTP code"));
+  Serial.flush();
   Log::console (PSTR ("------------------------------------"));
+  Serial.flush(); // ensure everything is sent before loop() starts
 }

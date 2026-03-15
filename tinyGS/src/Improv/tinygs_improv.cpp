@@ -1,4 +1,5 @@
 #include "tinygs_improv.h"
+#include "../Logger/Logger.h"
 #include <functional>
 
 using namespace std;
@@ -134,13 +135,13 @@ bool TinyGSImprov::onCommandCallback (improv::ImprovCommand cmd) {
     switch (cmd.command) {
     case improv::Command::GET_CURRENT_STATE:
     {
-        // Consider the device provisioned if the network is up (WiFi or Ethernet)
-        // and TinyGS has stored WiFi credentials (used as the "configured" signal).
-        bool hasCredentials = (globalConfigStore->getWifiSSID() != nullptr &&
-                               strlen(globalConfigStore->getWifiSSID()) > 0);
-        bool networkUp = ConnectionManager::getInstance().isConnected();
+        ConnectionManager& cm = ConnectionManager::getInstance();
+        bool hasWifi    = (globalConfigStore->getWifiSSID() != nullptr &&
+                           strlen(globalConfigStore->getWifiSSID()) > 0);
+        bool onEth      = (cm.getActiveInterface() == ActiveInterface::ETHERNET);
+        bool networkUp  = cm.isConnected();
 
-        if (hasCredentials && networkUp) {
+        if (networkUp && (hasWifi || onEth)) {
             set_state (improv::State::STATE_PROVISIONED);
             std::vector<uint8_t> data = improv::build_rpc_response (improv::GET_CURRENT_STATE, getLocalUrl (), false);
             send_response (data);
@@ -207,7 +208,9 @@ bool TinyGSImprov::onCommandCallback (improv::ImprovCommand cmd) {
     return true;
 }
 
-void TinyGSImprov::onErrorCallback (improv::Error err) {}
+void TinyGSImprov::onErrorCallback (improv::Error err) {
+    Log::console(PSTR("[Improv] Error 0x%02X"), (uint8_t)err);
+}
 
 void TinyGSImprov::handleImprovPacket () {
     while (Serial.available () > 0) {
