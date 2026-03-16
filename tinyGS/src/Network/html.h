@@ -186,7 +186,7 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "<td style='padding:3px 5px'>REF_CLK pin</td><td><input id='werefclk' type='number' value='0' min='0' max='39' style='width:68px'></td></tr>"
   "<tr><td style='padding:3px 5px'>PHY drives CLK</td><td><input id='weclkext' type='checkbox' checked></td>"
   "<td style='padding:3px 5px'>PHY RST&nbsp;(255=N/A)</td><td><input id='wephyrst' type='number' value='255' min='0' max='39' style='width:68px'></td></tr>"
-  "<tr><td style='padding:3px 5px'>OSC EN&nbsp;(255=N/A)</td><td><input id='weoscen' type='number' value='255' min='0' max='39' style='width:68px'></td></tr>"
+"<td style='padding:3px 5px'>OSC EN&nbsp;(255=N/A)</td><td><input id='weoscen' type='number' value='16' min='0' max='39' style='width:68px'></td></tr>"
   "</tbody>"
 #endif
   "</table></div>"
