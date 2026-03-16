@@ -756,49 +756,93 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     strcpy(m.satellite, doc["sat"].as<const char*>());
     m.NORAD = doc["NORAD"];
 
-    if (strcmp(mode, "LoRa") == 0) {
-      m.frequency = doc["freq"]; m.bw = doc["bw"]; m.sf = doc["sf"]; m.cr = doc["cr"];
-      m.sw = doc["sw"]; m.power = doc["pwr"]; m.preambleLength = doc["pl"];
-      m.gain = doc["gain"]; m.crc = doc["crc"]; m.fldro = doc["fldro"];
+    if (strcmp(mode, "LoRa") == 0)
+    {
+      m.frequency = doc["freq"];
+      m.bw = doc["bw"];
+      m.sf = doc["sf"];
+      m.cr = doc["cr"];
+      m.sw = doc["sw"];
+      m.power = doc["pwr"];
+      m.preambleLength = doc["pl"];
+      m.gain = doc["gain"];
+      m.crc = doc["crc"];
+      m.fldro = doc["fldro"];
       m.iIQ = doc["iIQ"] ? doc["iIQ"].as<bool>() : false;
       m.len = doc["len"] ? doc["len"].as<int>() : 0;
-    } else {
-      m.frequency = doc["freq"]; m.bw = doc["bw"]; m.bitrate = doc["br"];
-      m.freqDev = doc["fd"]; m.power = doc["pwr"]; m.preambleLength = doc["pl"];
-      m.OOK = doc["ook"]; m.len = doc["len"];
+    }
+    else
+    {
+      m.frequency = doc["freq"];
+      m.bw = doc["bw"];
+      m.bitrate = doc["br"];
+      m.freqDev = doc["fd"];
+      m.power = doc["pwr"];
+      m.preambleLength = doc["pl"];
+      m.OOK = doc["ook"];
+      m.len = doc["len"];
       m.swSize = doc["fsw"].size();
-      for (int i = 0; i < 8; i++) {
-        m.fsw[i] = (i < m.swSize) ? (uint8_t)doc["fsw"][i] : 0;
+      for (int i = 0; i < 8; i++)
+      {
+        if (i < m.swSize)
+          m.fsw[i] = doc["fsw"][i];
+        else
+          m.fsw[i] = 0;
       }
       m.enc = doc["enc"];
-      m.whitening_seed = doc["ws"]; m.framing = doc["fr"];
-      m.crc_by_sw = doc["cSw"]; m.crc_nbytes = doc["cB"];
-      m.crc_init = doc["cI"]; m.crc_poly = doc["cP"];
-      m.crc_finalxor = doc["cF"]; m.crc_refIn = doc["cRI"]; m.crc_refOut = doc["cRO"];
+      m.whitening_seed = doc["ws"];
+      m.framing = doc["fr"];
+      m.crc_by_sw = doc["cSw"];
+      m.crc_nbytes = doc["cB"];
+      m.crc_init = doc["cI"];
+      m.crc_poly = doc["cP"];
+      m.crc_finalxor = doc["cF"];
+      m.crc_refIn = doc["cRI"];
+      m.crc_refOut = doc["cRO"];
     }
 
+    // packets Filter
     uint8_t filterSize = doc["filter"].size();
-    for (int i = 0; i < 8; i++) {
-      status.modeminfo.filter[i] = (i < filterSize) ? (uint8_t)doc["filter"][i] : 0;
+    for (int i = 0; i < 8; i++)
+    {
+      if (i < filterSize)
+        status.modeminfo.filter[i] = doc["filter"][i];
+      else
+        status.modeminfo.filter[i] = 0;
     }
 
-    if (doc.containsKey("tle") && doc["tle"].is<const char*>()) {
-      const char* base64Tle = doc["tle"].as<const char*>();
+    // sat tle
+    if ((doc.containsKey("tle") && doc["tle"].is<const char*>()) || (doc.containsKey("tlx") && doc["tlx"].is<const char*>())) {
+
+      const char* base64Tle = nullptr;
+
+      status.tle.freqDoppler = 0;
+      if (doc.containsKey("tle")) {
+        base64Tle = doc["tle"].as<const char*>();
+        status.tle.freqComp = true;
+      } else {
+        base64Tle = doc["tlx"].as<const char*>();
+        status.tle.freqComp = false;
+      }
+
       size_t inputLen = strlen(base64Tle);
       size_t outputLen = 0;
       size_t maxTleSize = 64;
       size_t maxDecodedLength = (inputLen * 3 + 3) / 4;
 
-      if (maxDecodedLength <= maxTleSize) {
-        int ret = mbedtls_base64_decode(m.tle, maxTleSize, &outputLen,
-                                        (const unsigned char*)base64Tle, inputLen);
-        if (ret == 0) {
-          radio.tle();
-        }
+      if (maxDecodedLength > maxTleSize) {
+        return;
+      }
+
+      int ret = mbedtls_base64_decode(m.tle, maxTleSize, &outputLen, (const unsigned char*)base64Tle, inputLen);
+
+      if (ret == 0) {
+        radio.tle();
       }
     } else {
       m.tle[0] = 0;
       status.tle.freqDoppler = 0;
+      status.tle.freqComp = false;
     }
 
     radio.begin();

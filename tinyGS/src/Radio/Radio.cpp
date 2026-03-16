@@ -184,127 +184,86 @@ int16_t Radio::begin()
 void Radio::tle()
 {
 
-if (status.modeminfo.tle[0] != 0) 
-{
+  if (status.modeminfo.tle[0] != 0) {
 
   #define MAP_MAXX    128
   #define MAP_MAXY     64
-  
-  #define MAP_YOFFSET 20
+  #define MAP_YOFFSET  20
+
   int i;
   char tmpstring[100];
   //const char *tleName = "ISS (ZARYA)";
   //const char *tlel1   = "1 25544U 98067A   20300.83097691  .00001534  00000-0  35580-4 0  9996";
   //const char *tlel2   = "2 25544  51.6453  57.0843 0001671  64.9808  73.0513 15.49338189252428";
-  //const uint8_t tiny_tle[34] =  { 0x15, 0x01, 0x62, 0x05, 0x4D, 0xB5, 0xED, 0x00, 0x00, 0x04, 0xBB, 0x0E, 0xE8, 0xD3, 0x2C, 0x7D, 0x47, 0x00, 0x00, 0x48, 0x5A, 0x18, 0xE0, 0xEE, 0x1E, 0x14, 0xCD, 0x59, 0xA4, 0x45, 0x1C, 0x00, 0x1A, 0x4F };
-  
+
   const char  *pcMyName = "tinyGS";    // Observer name
-  double       dMyLAT   = ConfigStore::getInstance().getLatitude();  // Latitude (Breitengrad): N -> +, S -> -
-  double       dMyLON   = ConfigStore::getInstance().getLongitude(); ;  // Longitude (Längengrad): E -> +, W -> -
+  double       dMyLAT   = ConfigStore::getInstance().getLatitude();   // Latitude (Breitengrad): N -> +, S -> -
+  double       dMyLON   = ConfigStore::getInstance().getLongitude();   // Longitude (Längengrad): E -> +, W -> -
   double       dMyALT   = status.tle.tgsALT;      // Altitude ASL (m)
-  
-  double       dfreqRX  = status.modeminfo.frequency;     // Nominal downlink frequency
-  double       dfreqTX  = status.modeminfo.frequency;     // Nominal uplink frequency
-  
+
+  double       dfreqRX  = status.modeminfo.frequency;  // Nominal downlink frequency
+  double       dfreqTX  = status.modeminfo.frequency;  // Nominal uplink frequency
+
   struct tm *timeinfo;
-  time_t currenttime = time(NULL);  // oe6isp  time(NULL) +(status.tle.refresh/2000);       // calculate the TLE for now + the half of the refresh time.
+  time_t currenttime = time(NULL);  // calculate the TLE for now + half the refresh time
   timeinfo = gmtime(&currenttime);
 
+  int iYear   = 1900 + timeinfo->tm_year;  // Set start year
+  int iMonth  = 1 + timeinfo->tm_mon;      // Set start month
+  int iDay    = timeinfo->tm_mday;         // Set start day
+  int iHour   = timeinfo->tm_hour;         // Set start hour
+  int iMinute = timeinfo->tm_min;          // Set start minute
+  int iSecond = timeinfo->tm_sec;          // Set start second
 
-  int          iYear    = 1900 + timeinfo->tm_year;   // Set start year
-  int          iMonth   = 1+ timeinfo->tm_mon;        // Set start month
-  int          iDay     = timeinfo->tm_mday;          // Set start day
-  int          iHour    = timeinfo->tm_hour;          // Set start hour
-  int          iMinute  = timeinfo->tm_min;           // Set start minute
-  int          iSecond  = timeinfo->tm_sec;           // Set start second
-  
-  // Expecting the ISS to be at 289,61° elevation and 20,12° azimuth (Gpredict)
-  // Result will be 289,74° elevation and 20,44° azimuth...
-  // Expecting the sun to be at -60.79° elevation and 0.86° azimuth (https://www.sunearthtools.com/dp/tools/pos_sun.php)
-  // Result will be -60.79° elevation and 0.89° azimuth...
-  
-  
-  double       dSunLAT  = 0;           // Sun latitude
-  double       dSunLON  = 0;           // Sun longitude
-  double       dSunAZ   = 0;           // Sun azimuth
-  double       dSunEL   = 0;           // Sun elevation
-  
-  //int          ixQTH    = 0;           // Map pixel coordinate x of QTH
-  //int          iyQTH    = 0;           // Map pixel coordinate y of QTH
-  int          ixSAT    = 0;           // Map pixel coordinate x of satellite
-  int          iySAT    = 0;           // Map pixel coordinate y of satellite
-  //int          ixSUN    = 0;           // Map pixel coordinate x of sun
-  //int          iySUN    = 0;           // Map pixel coordinate y of sun
-  
-  char         acBuffer[20];            // Buffer for ASCII time
-  
-  int          aiSatFP[90][2];          // Array for storing the satellite footprint map coordinates
-  int          aiSunFP[180][2];         // Array for storing the sunlight footprint map coordinates
-  P13Sun Sun;                                                       // Create object for the sun
-  P13DateTime MyTime(iYear, iMonth, iDay, iHour, iMinute, iSecond); // Set start time for the prediction
-  P13Observer MyQTH(pcMyName, dMyLAT, dMyLON, dMyALT);              // Set observer coordinates
-  P13Satellite_tGS MySAT(status.modeminfo.tle);             // Create ISS data from TLE
+  double dSunLAT = 0;  // Sun latitude
+  double dSunLON = 0;  // Sun longitude
+  double dSunAZ  = 0;  // Sun azimuth
+  double dSunEL  = 0;  // Sun elevation
 
+  //int ixQTH = 0;  // Map pixel coordinate x of QTH
+  //int iyQTH = 0;  // Map pixel coordinate y of QTH
+  int ixSAT = 0;  // Map pixel coordinate x of satellite
+  int iySAT = 0;  // Map pixel coordinate y of satellite
+  //int ixSUN = 0;  // Map pixel coordinate x of sun
+  //int iySUN = 0;  // Map pixel coordinate y of sun
 
-  // latlon2xy(ixQTH, iyQTH, dMyLAT, dMyLON, MAP_MAXX, MAP_MAXY);      // Get x/y for the pixel map 
-  //Serial.printf("\r\nPrediction for %s at %s (MAP %dx%d: x = %d,y = %d):\r\n\r\n", MySAT.c_ccSatName, MyQTH.c_ccObsName, MAP_MAXX, MAP_MAXY, ixQTH, iyQTH);
-  //LOG_DEBUG(PSTR( "Prediction for %s at %s"), MySAT.c_ccSatName, MyQTH.c_ccObsName);
-  //LOG_DEBUG(PSTR("Prediction for (Lat = %.2f%c, Lon = %.2f%c), Alt = %.1f m ASL):"), dMyLAT, (char)39, dMyLON, (char)39, dMyALT);
-  MyTime.ascii(acBuffer);             // Get time for prediction as ASCII string
-  MySAT.predict(MyTime);              // Predict ISS for specific time
+  char acBuffer[20];   // Buffer for ASCII time
+
+  int aiSatFP[90][2];   // Array for storing the satellite footprint map coordinates
+  int aiSunFP[180][2];  // Array for storing the sunlight footprint map coordinates
+  P13Sun Sun;           // Create object for the sun
+  P13DateTime MyTime(iYear, iMonth, iDay, iHour, iMinute, iSecond);  // Set start time for the prediction
+  P13Observer MyQTH(pcMyName, dMyLAT, dMyLON, dMyALT);               // Set observer coordinates
+  P13Satellite_tGS MySAT(status.modeminfo.tle);                        // Create satellite data from TLE
+
+  MyTime.ascii(acBuffer);                                     // Get time for prediction as ASCII string
+  MySAT.predict(MyTime);                                      // Predict satellite for specific time
   MySAT.latlon(status.tle.dSatLAT, status.tle.dSatLON);     // Get the rectangular coordinates
-  MySAT.elaz(MyQTH, status.tle.dSatEL, status.tle.dSatAZ);  // Get azimut and elevation for MyQTH
+  MySAT.elaz(MyQTH, status.tle.dSatEL, status.tle.dSatAZ);  // Get azimuth and elevation for MyQTH
 
   latlon2xy(ixSAT, iySAT, status.tle.dSatLAT, status.tle.dSatLON, MAP_MAXX, MAP_MAXY);  // Get x/y for the pixel map
-  status.satPos[0]= ixSAT;
-  status.satPos[1]= iySAT;
-  
-  //LOG_DEBUG(PSTR("%s -> Lat: %.4f Lon: %.4f (MAP %dx%d: x = %d,y = %d) Az: %.2f El: %.2f\r\n\r\n"), acBuffer, status.tle.dSatLAT, status.tle.dSatLON, MAP_MAXX, MAP_MAXY, ixSAT, iySAT, status.tle.dSatAZ, status.tle.dSatEL);
-  //LOG_DEBUG(PSTR( "%s UTC"), acBuffer);
-  //LOG_DEBUG(PSTR( "Lat: %.2f%c Lon: %.2f%c Az: %.2f%c El: %.2f%c"), status.tle.dSatLAT, (char)39, status.tle.dSatLON, (char)39, status.tle.dSatAZ, (char)39, status.tle.dSatEL, (char)39);
-  //LOG_DEBUG(PSTR("RX: %.6f MHz, TX: %.6f MHz\r\n\r\n"), MySAT.doppler(dfreqRX, P13_FRX), MySAT.doppler(dfreqTX, P13_FTX));
-  //LOG_DEBUG(PSTR( "RX: %.5f MHz"), MySAT.doppler(dfreqRX, P13_FRX));
+  status.satPos[0] = ixSAT;
+  status.satPos[1] = iySAT;
 
+  if (status.tle.freqComp) {
+    status.tle.new_freqDoppler = (MySAT.doppler(dfreqRX, P13_FRX) - dfreqRX) * 1000000;
 
-  status.tle.new_freqDoppler = (MySAT.doppler(dfreqRX, P13_FRX)- dfreqRX )*1000000 ;
-  
-  
-  //LOG_CONSOLE(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
+    LOG_DEBUG_ASYNC(PSTR("Doppler -> New: %.2f Hz Old: %.2f Hz  Dif: %.2f Hz"),
+                    status.tle.new_freqDoppler, status.tle.freqDoppler,
+                    abs(status.tle.new_freqDoppler - status.tle.freqDoppler));
 
-
-  //Serial.println( status.tle.freqDoppler );
-  //sprintf(tmpstring, "TX: %.5f MHz", MySAT.doppler(dfreqTX, P13_FTX));
-
-  
-  // Calcualte ISS footprint
-  //Serial.printf("Satellite footprint map coordinates:\n\r");
-  
-   // MySAT.footprint(aiSatFP, (sizeof(aiSatFP)/sizeof(int)/2), MAP_MAXX, MAP_MAXY, status.tle.dSatLAT, status.tle.dSatLON);
-
-  // Predict sun
-  //Sun.predict(MyTime);                // Predict ISS for specific time
-  //Sun.latlon(dSunLAT, dSunLON);       // Get the rectangular coordinates
-  //Sun.elaz(MyQTH, dSunEL, dSunAZ);    // Get azimut and elevation for MyQTH
-
-  //latlon2xy(ixSUN, iySUN, dSunLAT, dSunLON, MAP_MAXX, MAP_MAXY);
-
-  //Serial.printf("\r\nSun -> Lat: %.4f Lon: %.4f (MAP %dx%d: x = %d,y = %d) Az: %.2f El: %.2f\r\n\r\n", dSunLAT, dSunLON, MAP_MAXX, MAP_MAXY, ixSUN, iySUN, dSunAZ, dSunEL);
-
-  LOG_DEBUG_ASYNC(PSTR("Doppler -> New: %.2f Hz Old: %.2f Hz  Dif: %.2f Hz"),  status.tle.new_freqDoppler, status.tle.freqDoppler, abs( status.tle.new_freqDoppler- status.tle.freqDoppler) );
-  if(status.tle.dSatEL > 0) // oe6isp
-  {
-	if (abs( status.tle.new_freqDoppler- status.tle.freqDoppler) >  status.tle.freqTol) {
-    //  status.tle.freqDoppler = status.tle.new_freqDoppler;
-      status.tle.freqDoppler = status.tle.new_freqDoppler - status.tle.freqTol; // OE6ISP 
-     setFrequency();
-	 }
+    if (status.tle.dSatEL > 0) // oe6isp
+    {
+      if (abs(status.tle.new_freqDoppler - status.tle.freqDoppler) > status.tle.freqTol) {
+        //  status.tle.freqDoppler = status.tle.new_freqDoppler;
+        status.tle.freqDoppler = status.tle.new_freqDoppler - status.tle.freqTol;  // OE6ISP
+        setFrequency();
+      }
+    }
+  } else {
+    status.tle.freqDoppler = 0;
   }
-} else {
-
-  status.tle.freqDoppler = 0;
-
-}
-
+  }
 }
 
 
