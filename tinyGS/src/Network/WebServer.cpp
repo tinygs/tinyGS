@@ -648,15 +648,24 @@ String TinyGSWebServer::buildConfigPage() {
   s += F("</fieldset>");
 
   // ---- Network Interface ----
-  s += F("<fieldset><legend>Network Interface</legend>");
-  s += F("<div><label for='iface_mode'>Interface Mode</label>");
-  s += F("<select id='iface_mode' name='iface_mode'>");
-  InterfaceMode curMode = cfg.getInterfaceMode();
-  s += String("<option value='0'") + (curMode == InterfaceMode::WIFI_ONLY ? " selected" : "") + ">WiFi Only</option>";
-  s += String("<option value='1'") + (curMode == InterfaceMode::ETH_ONLY ? " selected" : "") + ">Ethernet Only</option>";
-  s += String("<option value='2'") + (curMode == InterfaceMode::BOTH ? " selected" : "") + ">Both (failover)</option>";
-  s += F("</select></div>");
-  s += F("</fieldset>");
+  {
+    board_t brd;
+    cfg.getBoardConfig(brd);
+    if (brd.ethEN) {
+      s += F("<fieldset><legend>Network Interface</legend>");
+      s += F("<div><label for='iface_mode'>Interface Mode</label>");
+      s += F("<select id='iface_mode' name='iface_mode'>");
+      InterfaceMode curMode = cfg.getInterfaceMode();
+      s += String("<option value='0'") + (curMode == InterfaceMode::WIFI_ONLY ? " selected" : "") + ">WiFi Only</option>";
+      s += String("<option value='1'") + (curMode == InterfaceMode::ETH_ONLY ? " selected" : "") + ">Ethernet Only</option>";
+      s += String("<option value='2'") + (curMode == InterfaceMode::BOTH ? " selected" : "") + ">Both (failover)</option>";
+      s += F("</select></div>");
+      s += F("</fieldset>");
+    } else {
+      // No Ethernet in board template — force WiFi Only silently
+      s += F("<input type='hidden' name='iface_mode' value='0'>");
+    }
+  }
 
   // ---- Advanced ----
   s += F("<fieldset><legend>Advanced Config (do not modify unless you know what you are doing)</legend>");
