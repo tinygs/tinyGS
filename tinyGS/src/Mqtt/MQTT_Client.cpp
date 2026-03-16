@@ -90,6 +90,7 @@ void MQTT_Client::handleMqttEvent(esp_mqtt_event_handle_t event) {
       _mqttConnected = true;
       status.mqtt_connected = true;
       connectionAttempts = 0;
+      lastPing = millis(); // reset ping timer so loop() won't fire a ping before welcome
       subscribeToAll();
       sendWelcome();
       break;
