@@ -49,6 +49,8 @@ public:
   bool isConnected()  const { return _state == ConnState::CONNECTED; }
   bool isApMode()     const { return _state == ConnState::AP_MODE; }
   ConnState getState() const { return _state; }
+  /// Returns true if Ethernet hardware failed to initialise at boot.
+  bool isEthFailed()   const { return _runtimeEthFailed; }
 
   IPAddress getLocalIP()          const;
   ActiveInterface getActiveInterface() const { return _activeInterface; }
@@ -116,6 +118,10 @@ private:
   // ETH-only connection timeout: start AP rescue if Ethernet never comes up
   unsigned long _ethConnectStartTime = 0;
   static constexpr unsigned long ETH_CONNECT_TIMEOUT_MS = 60000; // 1 min
+
+  // Set to true if Ethernet hardware failed to initialise at startup.
+  // Used to force WIFI_ONLY regardless of the configured InterfaceMode.
+  bool _runtimeEthFailed = false;
 
   // Interface switching grace period
   static constexpr unsigned long SWITCH_GRACE_MS = 5000;

@@ -30,7 +30,13 @@ void ConnectionManager::init() {
   // operation (WiFi, Ethernet, DNS, httpd sockets …).
   setupEthWiFiManager();
 
+  // Determine effective mode. Ethernet is unavailable if the board template
+  // has it disabled OR if the hardware failed to initialise at runtime.
+  board_t board;
+  bool ethAvail = !_runtimeEthFailed && cfg.getBoardConfig(board) && board.ethEN;
   InterfaceMode mode = cfg.getInterfaceMode();
+  if (!ethAvail && mode != InterfaceMode::WIFI_ONLY)
+    mode = InterfaceMode::WIFI_ONLY;
 
   if (mode == InterfaceMode::ETH_ONLY) {
     // Ethernet-only: wait for ETH. If it never connects within the timeout,
@@ -52,6 +58,18 @@ void ConnectionManager::setupEthWiFiManager() {
 
   EthWiFiManager::Config ewmCfg;
 
+  // Determine Ethernet hardware availability FIRST so we can override mode
+  // before it influences any other decision.
+  board_t board;
+  bool ethHardwareAvailable = cfg.getBoardConfig(board) && board.ethEN;
+
+  // If no Ethernet hardware is present, refuse to honour ETH_ONLY / BOTH —
+  // silently downgrade to WIFI_ONLY so the device still connects.
+  if (!ethHardwareAvailable && mode != InterfaceMode::WIFI_ONLY) {
+    LOG_CONSOLE(PSTR("[NET] No Ethernet hardware — forcing Interface Mode to WIFI_ONLY"));
+    mode = InterfaceMode::WIFI_ONLY;
+  }
+
   // WiFi credentials — always passed to the config struct so enableWiFi()
   // can use them later, but we disable WiFi after begin() if ETH_ONLY.
   ewmCfg.wifi.ssid     = cfg.getWifiSSID();
@@ -67,10 +85,6 @@ void ConnectionManager::setupEthWiFiManager() {
   // enableWiFi().
   const bool hasWifiCredentials = (strlen(cfg.getWifiSSID()) > 0);
   ewmCfg.wifi.enabled  = hasWifiCredentials && (mode != InterfaceMode::ETH_ONLY);
-
-  // Configure Ethernet if the board template enables it.
-  board_t board;
-  bool ethHardwareAvailable = cfg.getBoardConfig(board) && board.ethEN;
 
   if (ethHardwareAvailable) {
     ewmCfg.ethernet.enabled = true;
@@ -203,6 +217,19 @@ void ConnectionManager::setupEthWiFiManager() {
     LOG_CONSOLE(PSTR("[NET] EthWiFiManager begin() failed — network may be limited"));
   }
 
+  // If Ethernet hardware failed during begin() (EthernetDisabled event fired
+  // synchronously), override mode to WIFI_ONLY now, before the switch below,
+  // and re-enable WiFi which may have been disabled in ewmCfg.
+  if (_runtimeEthFailed && mode != InterfaceMode::WIFI_ONLY) {
+    LOG_CONSOLE(PSTR("[NET] Ethernet init failed — forcing Interface Mode to WIFI_ONLY"));
+    mode = InterfaceMode::WIFI_ONLY;
+    EthWiFiManager::WiFiConfig wCfg;
+    wCfg.ssid          = cfg.getWifiSSID();
+    wCfg.password      = cfg.getWifiPassword();
+    wCfg.autoReconnect = true;
+    _ewm.enableWiFi(wCfg);
+  }
+
   // ── Enforce InterfaceMode via the library's enable/disable API ──
   switch (mode) {
     case InterfaceMode::WIFI_ONLY:
@@ -303,6 +330,13 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
           notifyDisconnected();
         }
       }
+      break;
+
+    case EthWiFiManager::Event::EthernetDisabled:
+      // Ethernet hardware failed to initialise. Set the flag so that
+      // setupEthWiFiManager() — which is still on the call stack — can
+      // override the InterfaceMode and re-enable WiFi after begin() returns.
+      _runtimeEthFailed = true;
       break;
 
     case EthWiFiManager::Event::InterfaceChanged:

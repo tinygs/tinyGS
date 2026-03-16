@@ -529,11 +529,31 @@ esp_err_t TinyGSWebServer::handleRestart(httpd_req_t* req) {
 String TinyGSWebServer::buildRestartPage() {
   String s = String(FPSTR(HTML_HEAD));
   s += "<style>" + String(FPSTR(HTML_STYLE_INNER)) + "</style>";
-  s += "<meta http-equiv=\"refresh\" content=\"8; url=/\">";
   s += FPSTR(HTML_HEAD_END);
   s += FPSTR(HTML_BODY_INNER);
   s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
-  s += "Ground Station is restarting...<br /><br/>";
+  s += "<strong>Configuration saved.</strong><br/><br/>";
+  s += "Ground Station is restarting&hellip;<br/><br/>";
+  s += "<span id='msg'>Waiting for the board to come back online&hellip;</span><br/><br/>";
+  s += "<small id='cnt'></small>";
+  s += "<script>"
+       "var t=12;"
+       "function tick(){"
+       "if(t>0){"
+       "document.getElementById('cnt').textContent='Reloading in '+t+' s...';"
+       "t--;setTimeout(tick,1000);"
+       "}else{"
+       "fetch('/').then(function(r){"
+       "if(r.ok)window.location.replace('/');"
+       "else retry();"
+       "}).catch(retry);"
+       "}}"
+       "function retry(){"
+       "document.getElementById('cnt').textContent='Not ready yet, retrying...';"
+       "setTimeout(function(){fetch('/').then(function(r){if(r.ok)window.location.replace('/');else retry();}).catch(retry);},2000);"
+       "}"
+       "setTimeout(tick,1000);"
+       "</script>";
   s += FPSTR(HTML_END);
   s.replace("{v}", FPSTR(TITLE_TEXT));
   return s;
@@ -651,9 +671,26 @@ String TinyGSWebServer::buildConfigPage() {
   {
     board_t brd;
     cfg.getBoardConfig(brd);
-    if (brd.ethEN) {
+    ConnectionManager& cm2 = ConnectionManager::getInstance();
+    bool ethEffective = brd.ethEN && !cm2.isEthFailed();
+    if (ethEffective) {
+      // Ethernet hardware present and working: show the selector.
       s += F("<fieldset><legend>Network Interface</legend>");
       s += F("<div><label for='iface_mode'>Interface Mode</label>");
+      s += F("<select id='iface_mode' name='iface_mode'>");
+      InterfaceMode curMode = cfg.getInterfaceMode();
+      s += String("<option value='0'") + (curMode == InterfaceMode::WIFI_ONLY ? " selected" : "") + ">WiFi Only</option>";
+      s += String("<option value='1'") + (curMode == InterfaceMode::ETH_ONLY ? " selected" : "") + ">Ethernet Only</option>";
+      s += String("<option value='2'") + (curMode == InterfaceMode::BOTH ? " selected" : "") + ">Both (failover)</option>";
+      s += F("</select></div>");
+      s += F("</fieldset>");
+    } else if (brd.ethEN && cm2.isEthFailed()) {
+      // Board template enables Ethernet but hardware init failed at runtime.
+      // Show the selector so the user can change the setting, but pre-select
+      // WiFi Only to reflect the forced runtime behaviour.
+      s += F("<fieldset><legend>Network Interface</legend>");
+      s += F("<div style='color:#c0392b;font-size:0.88em;margin-bottom:6px'>&#9888; Ethernet hardware init failed &mdash; running as WiFi Only.</div>");
+      s += F("<div><label for='iface_mode'>Interface Mode (saved for next boot)</label>");
       s += F("<select id='iface_mode' name='iface_mode'>");
       InterfaceMode curMode = cfg.getInterfaceMode();
       s += String("<option value='0'") + (curMode == InterfaceMode::WIFI_ONLY ? " selected" : "") + ">WiFi Only</option>";
@@ -811,13 +848,17 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
 
   cfg.save();
 
-  // Send the redirect response BEFORE triggering a restart, so the
-  // browser receives it and doesn't show a connection-reset error.
-  httpd_resp_set_status(req, "303 See Other");
-  httpd_resp_set_hdr(req, "Location", ROOT_URL);
-  httpd_resp_sendstr(req, "Configuration saved. Redirecting...");
+  // Respond with the "restarting" page (200 OK) rather than a 303 redirect.
+  // A redirect would cause the browser to immediately open a new connection
+  // to GET /, which races with ESP.restart() and results in a hanging request.
+  // The restart page shows a message and auto-reloads after 10 s — enough
+  // time for the board to restart and be ready to serve again.
+  String restartHtml = buildRestartPage();
+  httpd_resp_set_type(req, "text/html");
+  httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+  httpd_resp_sendstr(req, restartHtml.c_str());
 
-  // Notify callback (may call ESP.restart() after a short delay)
+  // Notify callback (calls ESP.restart() after a short delay)
   if (self->_onConfigSaved) {
     self->_onConfigSaved();
   }

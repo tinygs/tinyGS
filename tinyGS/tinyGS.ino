@@ -113,7 +113,7 @@ void handleRawSerial();
 // WebServer config-saved callback
 void onConfigSaved() {
   Log::console(PSTR("Configuration saved, restarting..."));
-  delay(500);
+  delay(2000); // allow the HTTP response to be fully flushed before restart
   ESP.restart();
 }
 
