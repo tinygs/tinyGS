@@ -289,6 +289,7 @@ bool mqttAutoconf() {
   return true;
 }
 unsigned long lastTleRefresh = millis();
+bool ntpConfigured = false; // reset on disconnect so NTP is retried on every reconnect
 
 void loop() {
   connMgr.loop();
@@ -316,14 +317,6 @@ void loop() {
     return;
   }
 
-  // MQTT credentials missing - auto-configure
-  if ((configStore.getMqttServer()[0] == '\0') ||
-      (configStore.getMqttUser()[0] == '\0') ||
-      (configStore.getMqttPass()[0] == '\0')) {
-    mqttAutoconf();
-    return;
-  }
-
   // Check button
   checkButton();
 
@@ -335,23 +328,40 @@ void loop() {
     status.radio_ready = false;
   }
 
-  // Not connected yet
+  // Not connected yet — reset NTP flag so it runs again on the next reconnect
   if (!connMgr.isConnected()) {
+    ntpConfigured = false;
     displayShowStaMode(connMgr.isApMode());
     return;
   }
 
-  // Setup NTP on first connection
-  static bool ntpConfigured = false;
-  if (!ntpConfigured && connMgr.isConnected()) {
-    ntpConfigured = true;
-    setupNTP();
+  // One-time setup on the very first successful connection
+  static bool firstConnectDone = false;
+  if (!firstConnectDone) {
+    firstConnectDone = true;
     displayShowConnected();
     arduino_ota_setup();
     if (configStore.getLowPower()) {
       Log::debug(PSTR("Set low power CPU=80Mhz"));
       setCpuFrequencyMhz(80);
     }
+  }
+
+  // NTP: call on every (re)connect until the clock is synced.
+  // configTime() is idempotent — calling it again after a reconnect triggers
+  // a fresh SNTP request instead of waiting up to 15 min for the internal retry.
+  if (!ntpConfigured) {
+    ntpConfigured = true;
+    LOG_CONSOLE(PSTR("[NTP] Configuring SNTP with server: %s"), ntpServer);
+    setupNTP();
+  }
+
+  // MQTT credentials missing - auto-configure
+  if ((configStore.getMqttServer()[0] == '\0') ||
+      (configStore.getMqttUser()[0] == '\0') ||
+      (configStore.getMqttPass()[0] == '\0')) {
+    mqttAutoconf();
+    return;
   }
 
   // Connected - run MQTT and OTA

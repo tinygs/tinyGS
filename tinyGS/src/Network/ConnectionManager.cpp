@@ -30,12 +30,18 @@ void ConnectionManager::init() {
   // operation (WiFi, Ethernet, DNS, httpd sockets …).
   setupEthWiFiManager();
 
-  // If WiFi credentials are available, proceed with connection
-  if (strlen(cfg.getWifiSSID()) > 0) {
+  InterfaceMode mode = cfg.getInterfaceMode();
+
+  if (mode == InterfaceMode::ETH_ONLY) {
+    // Ethernet-only: wait for ETH. If it never connects within the timeout,
+    // start AP rescue mode so the user can reconfigure.
+    _state = ConnState::CONNECTING;
+    _ethConnectStartTime = millis();
+  } else if (strlen(cfg.getWifiSSID()) > 0) {
     _state = ConnState::CONNECTING;
     _connectStartTime = millis();
   } else {
-    // No credentials → AP mode
+    // No credentials, WiFi-capable mode → AP for provisioning
     setupAP();
   }
 }
@@ -240,15 +246,23 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
       _activeInterface = ActiveInterface::WIFI;
       _localIP = ip;
       _state = ConnState::CONNECTED;
+      // Schedule AP close after a grace period so any connected client can finish.
+      if (_ewm.isAPActive() && !_apModeForced && _apCloseAfterConnectTime == 0)
+        _apCloseAfterConnectTime = millis();
       if (ConfigStore::getInstance().getAlwaysAP()) startAlwaysAP();
       notifyConnected(ip, ActiveInterface::WIFI);
       break;
 
     case EthWiFiManager::Event::EthGotIP:
       LOG_CONSOLE(PSTR("Ethernet connected, IP: %s"), ip.toString().c_str());
+      // Schedule AP close after a grace period so any connected client can finish.
+      if (_ewm.isAPActive() && !_apModeForced && _apCloseAfterConnectTime == 0)
+        _apCloseAfterConnectTime = millis();
+      _ethConnectStartTime = 0; // cancel the ETH-only AP rescue timeout
       _activeInterface = ActiveInterface::ETHERNET;
       _localIP = ip;
       _state = ConnState::CONNECTED;
+      if (ConfigStore::getInstance().getAlwaysAP()) startAlwaysAP();
       notifyConnected(ip, ActiveInterface::ETHERNET);
       break;
 
@@ -281,7 +295,11 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
           _switchStartTime = millis();
         } else {
           _activeInterface = ActiveInterface::NONE;
-          _state = ConnState::DISCONNECTED;
+          _localIP = IPAddress();
+          // Go back to CONNECTING and restart the AP rescue timer so that if
+          // the cable stays unplugged for ETH_CONNECT_TIMEOUT_MS the AP fires.
+          _state = ConnState::CONNECTING;
+          _ethConnectStartTime = millis();
           notifyDisconnected();
         }
       }
@@ -312,10 +330,13 @@ void ConnectionManager::onEthEvent(EthWiFiManager::Event event, IPAddress ip) {
 void ConnectionManager::loop() {
   // EthWiFiManager is event-driven via ESP-IDF event loop - no loop() call needed
 
-  // AP mode timeout
-  if (_state == ConnState::AP_MODE && !_apModeForced) {
+  // Keep DNS running while AP is active (covers both AP_MODE and the grace
+  // period after connectivity is restored).
+  if (_ewm.isAPActive())
     _dnsServer.processNextRequest();
 
+  // AP mode timeout (no connectivity yet — try reconnecting WiFi)
+  if (_state == ConnState::AP_MODE && !_apModeForced) {
     if (millis() - _apStartTime > AP_TIMEOUT_MS) {
       LOG_CONSOLE(PSTR("AP timeout, attempting connection..."));
       _ewm.disableAP();
@@ -330,11 +351,35 @@ void ConnectionManager::loop() {
     }
   }
 
-  // Connection timeout: if WiFi hasn't connected, fall back to AP mode
-  if (_state == ConnState::CONNECTING) {
+  // Delayed AP close: connectivity was restored; keep AP up for AP_CLOSE_DELAY_MS
+  // so any client already connected can finish configuring, then close it.
+  if (_apCloseAfterConnectTime != 0 &&
+      millis() - _apCloseAfterConnectTime > AP_CLOSE_DELAY_MS) {
+    if (_ewm.isAPActive() && !_apModeForced) {
+      LOG_CONSOLE(PSTR("Closing fallback AP (grace period elapsed)"));
+      _ewm.disableAP();
+      _dnsServer.stop();
+    }
+    _apCloseAfterConnectTime = 0;
+  }
+
+  // Connection timeout: if WiFi hasn't connected, fall back to AP mode.
+  // Skip in ETH_ONLY mode — Ethernet has its own (longer) timeout below.
+  if (_state == ConnState::CONNECTING && _ewm.isWiFiEnabled()) {
     if (millis() - _connectStartTime > CONNECT_TIMEOUT_MS) {
       LOG_CONSOLE(PSTR("WiFi connection timeout, starting AP mode..."));
       _ewm.disableWiFi();   // stops EthWiFiManager's internal reconnect loop
+      setupAP();
+    }
+  }
+
+  // ETH-only timeout: if Ethernet never came up, start AP rescue so the user
+  // can reconfigure (e.g. wrong PHY settings).  _ethConnectStartTime is only
+  // set when mode == ETH_ONLY, so this never fires in WiFi/BOTH modes.
+  if (_state == ConnState::CONNECTING && _ethConnectStartTime != 0) {
+    if (millis() - _ethConnectStartTime > ETH_CONNECT_TIMEOUT_MS) {
+      LOG_CONSOLE(PSTR("Ethernet connection timeout, starting AP rescue mode..."));
+      _ethConnectStartTime = 0;
       setupAP();
     }
   }

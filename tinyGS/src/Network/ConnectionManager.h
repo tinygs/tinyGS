@@ -104,9 +104,18 @@ private:
   unsigned long _apStartTime = 0;
   static constexpr unsigned long AP_TIMEOUT_MS = 300000; // 5 min
 
-  // Connection timeout: fall back to AP if WiFi doesn't connect in time
+  // When connectivity is restored while the AP is active, keep it up for this
+  // long so any client already connected can finish configuring the device.
+  unsigned long _apCloseAfterConnectTime = 0;          // 0 = not scheduled
+  static constexpr unsigned long AP_CLOSE_DELAY_MS = 120000; // 2 min
+
+  // Connection timeout: fall back to AP if no interface connects in time
   unsigned long _connectStartTime = 0;
-  static constexpr unsigned long CONNECT_TIMEOUT_MS = 30000; // 30 s
+  static constexpr unsigned long CONNECT_TIMEOUT_MS = 60000; // 1 min
+
+  // ETH-only connection timeout: start AP rescue if Ethernet never comes up
+  unsigned long _ethConnectStartTime = 0;
+  static constexpr unsigned long ETH_CONNECT_TIMEOUT_MS = 60000; // 1 min
 
   // Interface switching grace period
   static constexpr unsigned long SWITCH_GRACE_MS = 5000;
