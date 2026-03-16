@@ -47,7 +47,13 @@ void ConnectionManager::init() {
     _state = ConnState::CONNECTING;
     _connectStartTime = millis();
   } else {
-    // No credentials, WiFi-capable mode → AP for provisioning
+    // No credentials, WiFi-capable mode → AP for provisioning.
+    // Small delay to let the NetworkEvents task finish processing the
+    // WIFI_EVENT_STA_START that WiFi.mode(WIFI_STA) just fired.  On dual-core
+    // chips the event task runs on a different core and its range-for over
+    // _cbEventList would race with the emplace_front that the upcoming
+    // WiFi.mode(WIFI_AP_STA) triggers inside WiFi.AP.onEnable().
+    delay(100);
     setupAP();
   }
 }
