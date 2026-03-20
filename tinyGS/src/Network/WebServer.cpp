@@ -193,7 +193,7 @@ esp_err_t TinyGSWebServer::handleDashboard(httpd_req_t* req) {
 }
 
 String TinyGSWebServer::buildWorldMapSVG() {
-  String svg = "<div style=\"max-width:700px;margin:0 auto\"><svg width=\"100%\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
+  String svg = "<div style=\"display:inline-block\"><svg width=\"524\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
   svg += "<rect x=\"1\" y=\"1\" width=\"262\" height=\"134\" stroke=\"gray\" fill=\"none\" stroke-width=\"2\" />";
 
   uint ix = 0;
