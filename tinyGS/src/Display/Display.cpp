@@ -61,8 +61,25 @@ void displayInit()
     return;
   }
 
-  // Probe I2C before creating display objects — prevents hanging if no
-  // physical display is connected despite a non-zero address in the template.
+  #if CONFIG_IDF_TARGET_ESP32S3  // Heltec Lora 32 V3: enable Vext that powers the OLED
+  if (ConfigStore::getInstance().getBoard() == HELTEC_LORA32_V3) {
+    pinMode(36, OUTPUT);
+    digitalWrite(36, LOW);
+  }
+  #endif
+
+  // Pulse RST before probing — many boards (e.g. Heltec V1/V2) won't respond
+  // on I2C until after the reset sequence.
+  if (board.OLED__RST != UNUSED) {
+    if (!((strcmp(ESP.getChipModel(), "ESP32-PICO-D4") == 0) && (board.OLED__RST == 16))) {
+      pinMode(board.OLED__RST, OUTPUT);
+      digitalWrite(board.OLED__RST, LOW);
+      delay(50);
+      digitalWrite(board.OLED__RST, HIGH);
+    }
+  }
+
+  // Probe I2C — prevents hanging if no physical display is connected.
   Wire.begin(board.OLED__SDA, board.OLED__SCL);
   Wire.setTimeOut(50); // 50 ms max per transaction
   Wire.beginTransmission(board.OLED__address);
@@ -71,6 +88,9 @@ void displayInit()
                 board.OLED__address, board.OLED__SDA, board.OLED__SCL);
     return; // ui stays NULL → all displayXxx() calls gracefully skip
   }
+
+  LOG_CONSOLE(PSTR("OLED detected at 0x%02X (SDA=%d SCL=%d RST=%d), initializing..."),
+              board.OLED__address, board.OLED__SDA, board.OLED__SCL, board.OLED__RST);
 
   display = new SSD1306(board.OLED__address, board.OLED__SDA, board.OLED__SCL);
 
@@ -84,23 +104,7 @@ void displayInit()
   ui->setFrames(frames, frameCount);
   ui->setOverlays(overlays, overlaysCount);
 
-  #if CONFIG_IDF_TARGET_ESP32S3                                      // Heltec Lora 32 V3 patch to enable Vext that power OLED
-  if (ConfigStore::getInstance().getBoard()== HELTEC_LORA32_V3 ) { 
-      pinMode (36, OUTPUT); 
-      digitalWrite(36, LOW);
-      }
-  #endif
-
-  if (board.OLED__RST != UNUSED) {
-    if (!((strcmp(ESP.getChipModel(), "ESP32-PICO-D4") == 0) && (board.OLED__RST == 16)))  {
-        pinMode(board.OLED__RST, OUTPUT);
-        digitalWrite(board.OLED__RST, LOW);
-        delay(50);
-        digitalWrite(board.OLED__RST, HIGH);
-      }
-  }
-
-  /* ui init() also initialises the underlying display */
+  /* ui->init() also initialises the underlying display */
   ui->init();
 
   if (ConfigStore::getInstance().getFlipOled())
