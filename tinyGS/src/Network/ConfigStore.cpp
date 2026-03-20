@@ -165,6 +165,12 @@ bool ConfigStore::init() {
     }
   } else {
     loadFromNVS();
+    // If WiFi SSID is empty after loading, the previous config was likely written
+    // by the old (broken) migration that used the wrong namespace and left defaults.
+    // If the original EEPROM blob is still present, re-run migration now.
+    if (_wifiSSID[0] == '\0') {
+      migrateFromEEPROM();  // no-op if no EEPROM blob; saves on success
+    }
     validConfig = true;
   }
 
