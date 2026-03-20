@@ -20,6 +20,7 @@
 #include "ConfigStore.h"
 #include "../Logger/Logger.h"
 #include <Wire.h>
+#include <EEPROM.h>
 
 // ============================================================
 //  Board table - exact same data from old ConfigManager
@@ -184,52 +185,115 @@ bool ConfigStore::init() {
 //  Migration from old EEPROM (IotWebConf2) format
 // ============================================================
 
+// Helper: copy a field from the EEPROM blob into a destination buffer,
+// ensuring null-termination.  Copies min(fieldLen, destSize-1) bytes.
+static void readEepromField(const uint8_t* blob, int offset, int fieldLen,
+                            char* dest, size_t destSize) {
+  size_t n = ((size_t)fieldLen < destSize) ? (size_t)fieldLen : destSize - 1;
+  memcpy(dest, blob + offset, n);
+  dest[n] = '\0';
+}
+
 bool ConfigStore::migrateFromEEPROM() {
-  // IotWebConf2 stores data in EEPROM (Preferences namespace "iotwebconf")
-  // We attempt to read from that namespace and migrate to ours
+  // IotWebConf2 on ESP32 uses Arduino EEPROM.h which is emulated via NVS:
+  //   namespace = "eeprom", key = "eeprom", stored as a single binary blob.
+  // The blob layout is sequential fields written by ParameterGroup::storeValue().
+  // We read the raw blob and extract each field at its known byte offset.
+
   Preferences oldPrefs;
-  
-  // IotWebConf2 uses a namespace based composite key system in EEPROM
-  // Since EEPROM on ESP32 is emulated via NVS, check for its namespace
-  if (!oldPrefs.begin("iotwebconf", true)) {
+  if (!oldPrefs.begin("eeprom", true)) {  // read-only
     return false;
   }
 
-  // Check if old config exists
-  String oldVer = oldPrefs.getString("ConfigVersion", "");
-  if (oldVer.length() == 0) {
+  size_t blobLen = oldPrefs.getBytesLength("eeprom");
+  if (blobLen == 0) {
     oldPrefs.end();
+    return false;
+  }
+
+  uint8_t* blob = (uint8_t*)malloc(blobLen);
+  if (!blob) {
+    oldPrefs.end();
+    return false;
+  }
+  oldPrefs.getBytes("eeprom", blob, blobLen);
+  oldPrefs.end();
+
+  // Beta's configVersion is "0.05" (4 chars at offset 0)
+  const char oldConfigVersion[] = "0.05";
+  if (blobLen < 4 || memcmp(blob, oldConfigVersion, 4) != 0) {
+    free(blob);
     return false;
   }
 
   LOG_CONSOLE(PSTR("Migrating config from IotWebConf2 EEPROM to NVS..."));
 
-  // Read old values - IotWebConf2 stores them with specific keys
-  oldPrefs.getString("ThingName",      _stationName,  sizeof(_stationName));
-  oldPrefs.getString("APPassword",     _apPassword,   sizeof(_apPassword));
-  oldPrefs.getString("WiFiSsid",       _wifiSSID,     sizeof(_wifiSSID));
-  oldPrefs.getString("WiFiPassword",   _wifiPass,     sizeof(_wifiPass));
-  oldPrefs.getString("lat",            _latitude,     sizeof(_latitude));
-  oldPrefs.getString("lng",            _longitude,    sizeof(_longitude));
-  oldPrefs.getString("tz",             _tz,           sizeof(_tz));
-  oldPrefs.getString("mqtt_server",    _mqttServer,   sizeof(_mqttServer));
-  oldPrefs.getString("mqtt_port",      _mqttPort,     sizeof(_mqttPort));
-  oldPrefs.getString("mqtt_user",      _mqttUser,     sizeof(_mqttUser));
-  oldPrefs.getString("mqtt_pass",      _mqttPass,     sizeof(_mqttPass));
-  oldPrefs.getString("board",          _board,        sizeof(_board));
-  oldPrefs.getString("oled_bright",    _oledBright,   sizeof(_oledBright));
-  oldPrefs.getString("tx",             _allowTx,      sizeof(_allowTx));
-  oldPrefs.getString("remote_tune",    _remoteTune,   sizeof(_remoteTune));
-  oldPrefs.getString("telemetry3rd",   _telemetry3rd, sizeof(_telemetry3rd));
-  oldPrefs.getString("test",           _testMode,     sizeof(_testMode));
-  oldPrefs.getString("auto_update",    _autoUpdate,   sizeof(_autoUpdate));
-  oldPrefs.getString("board_template", _boardTemplate, sizeof(_boardTemplate));
-  oldPrefs.getString("modem_startup",  _modemStartup,  sizeof(_modemStartup));
-  oldPrefs.getString("advanced_config",_advancedConfig,sizeof(_advancedConfig));
+  // ---- EEPROM blob layout (IotWebConf2 serialization order) ----
+  // Offset  Field                   Size (bytes)
+  //   0     configVersion             4
+  //   4     thingName                33   (IOTWEBCONF_WORD_LEN)
+  //  37     apPassword               33   (IOTWEBCONF_PASSWORD_LEN)
+  //  70     wifiSsid                 33   (IOTWEBCONF_WORD_LEN)
+  // 103     wifiPassword             65   (IOTWEBCONF_WIFI_PASSWORD_LEN)
+  // 168     apTimeout                33   (IOTWEBCONF_WORD_LEN)  -- not used in new config
+  // 201     latitude                 10   (COORDINATE_LENGTH)
+  // 211     longitude                10   (COORDINATE_LENGTH)
+  // 221     tz                       49   (TZ_LENGTH)
+  // 270     mqttServer               31   (MQTT_SERVER_LENGTH)
+  // 301     mqttPort                  6   (MQTT_PORT_LENGTH)
+  // 307     mqttUser                 31   (MQTT_USER_LENGTH)
+  // 338     mqttPass                 31   (MQTT_PASS_LENGTH)
+  // 369     board                     3   (BOARD_LENGTH)
+  // 372     oledBright               32   (NUMBER_LEN)
+  // 404     allowTx                   9   (CHECKBOX_LENGTH)
+  // 413     remoteTune                9   (CHECKBOX_LENGTH)
+  // 422     telemetry3rd              9   (CHECKBOX_LENGTH)
+  // 431     testMode                  9   (CHECKBOX_LENGTH)
+  // 440     autoUpdate                9   (CHECKBOX_LENGTH)
+  // 449     boardTemplate           256   (old TEMPLATE_LEN)
+  // 705     modemStartup            256   (MODEM_LEN)
+  // 961     advancedConfig          256   (ADVANCED_LEN)
+  // 1217    failsafe                  1   (not migrated)
+  // Total = 1218 bytes
 
-  oldPrefs.end();
+  const int MIN_BLOB = 449;  // minimum: up to autoUpdate end
+  if ((int)blobLen < MIN_BLOB) {
+    LOG_CONSOLE(PSTR("EEPROM blob too small (%d bytes), skipping migration"), (int)blobLen);
+    free(blob);
+    return false;
+  }
 
-  // Apply defaults if empty
+  readEepromField(blob,   4,  33, _stationName,   sizeof(_stationName));
+  readEepromField(blob,  37,  33, _apPassword,    sizeof(_apPassword));
+  readEepromField(blob,  70,  33, _wifiSSID,      sizeof(_wifiSSID));
+  readEepromField(blob, 103,  65, _wifiPass,      sizeof(_wifiPass));
+  // offset 168: apTimeout (33 bytes) — skipped, not used in new config
+  readEepromField(blob, 201,  10, _latitude,      sizeof(_latitude));
+  readEepromField(blob, 211,  10, _longitude,     sizeof(_longitude));
+  readEepromField(blob, 221,  49, _tz,            sizeof(_tz));
+  readEepromField(blob, 270,  31, _mqttServer,    sizeof(_mqttServer));
+  readEepromField(blob, 301,   6, _mqttPort,      sizeof(_mqttPort));
+  readEepromField(blob, 307,  31, _mqttUser,      sizeof(_mqttUser));
+  readEepromField(blob, 338,  31, _mqttPass,      sizeof(_mqttPass));
+  readEepromField(blob, 369,   3, _board,         sizeof(_board));
+  readEepromField(blob, 372,  32, _oledBright,    sizeof(_oledBright));
+  readEepromField(blob, 404,   9, _allowTx,       sizeof(_allowTx));
+  readEepromField(blob, 413,   9, _remoteTune,    sizeof(_remoteTune));
+  readEepromField(blob, 422,   9, _telemetry3rd,  sizeof(_telemetry3rd));
+  readEepromField(blob, 431,   9, _testMode,      sizeof(_testMode));
+  readEepromField(blob, 440,   9, _autoUpdate,    sizeof(_autoUpdate));
+
+  // These larger fields only exist if the blob is big enough
+  if ((int)blobLen >= 705)
+    readEepromField(blob, 449, 256, _boardTemplate,  sizeof(_boardTemplate));
+  if ((int)blobLen >= 961)
+    readEepromField(blob, 705, 256, _modemStartup,   sizeof(_modemStartup));
+  if ((int)blobLen >= 1217)
+    readEepromField(blob, 961, 256, _advancedConfig, sizeof(_advancedConfig));
+
+  free(blob);
+
+  // Apply defaults for critical empty fields
   if (_mqttServer[0] == '\0') strncpy(_mqttServer, MQTT_DEFAULT_SERVER, sizeof(_mqttServer));
   if (_mqttPort[0] == '\0')   strncpy(_mqttPort, MQTT_DEFAULT_PORT, sizeof(_mqttPort));
   if (_stationName[0] == '\0') strncpy(_stationName, thingName, sizeof(_stationName));
@@ -237,13 +301,10 @@ bool ConfigStore::migrateFromEEPROM() {
   // Save to new NVS namespace
   saveToNVS();
 
-  // Clean up old namespace
-  Preferences cleanup;
-  cleanup.begin("iotwebconf", false);
-  cleanup.clear();
-  cleanup.end();
+  // NOTE: The old EEPROM NVS data (namespace "eeprom") is intentionally
+  // preserved so firmware can be downgraded back to the beta branch.
 
-  LOG_CONSOLE(PSTR("Migration complete. Old EEPROM config cleared."));
+  LOG_CONSOLE(PSTR("Migration from EEPROM complete."));
   return true;
 }
 
@@ -456,6 +517,7 @@ void ConfigStore::boardDetection() {
       if (!Wire.endTransmission()) {
         LOG_ERROR(PSTR("Compatible OLED FOUND"));
         itoa(ite, _board, 10);
+        save();
         return;
       } else {
         LOG_ERROR(PSTR("Not Compatible board found, please select it manually on the web config panel"));
