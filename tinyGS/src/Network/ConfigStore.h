@@ -123,7 +123,11 @@ struct board_t {
   uint8_t TX_EN;
   String  BOARD;
 
-  uint8_t L_SPI   = 2;        // SPI bus for radio: 2=SPI2(HSPI), 3=SPI3(VSPI)
+#if CONFIG_IDF_TARGET_ESP32S3
+  uint8_t L_SPI   = 2;        // SPI bus for radio: 2=SPI2(HSPI) — S3 default
+#else
+  uint8_t L_SPI   = 3;        // SPI bus for radio: 3=SPI3(VSPI) — Classic ESP32 default (matches beta)
+#endif
 
   // Ethernet fields (from board template JSON)
   bool    ethEN   = false;

@@ -62,11 +62,19 @@ void Radio::init()
     return;
   }
 
-  // Select SPI bus from board template (2=SPI2/HSPI, 3=SPI3/VSPI)
+  // Override SPI bus only when the board template requests a non-default bus.
+  // The constructor already sets the correct default per target:
+  //   ESP32-S3 → HSPI (SPI2),  ESP32 classic → VSPI (SPI3),  ESP32-C3 → SPI
 #if CONFIG_IDF_TARGET_ESP32S3
-  spi = (board.L_SPI == 3) ? SPIClass(3) : SPIClass(HSPI);
+  if (board.L_SPI == 3) {
+    spi.end();
+    spi = SPIClass(3);
+  }
 #elif !defined(CONFIG_IDF_TARGET_ESP32C3)
-  spi = (board.L_SPI == 3) ? SPIClass(VSPI) : SPIClass(HSPI);
+  if (board.L_SPI == 2) {
+    spi.end();
+    spi = SPIClass(HSPI);
+  }
 #endif
 
   spi.begin(board.L_SCK, board.L_MISO, board.L_MOSI, board.L_NSS);
