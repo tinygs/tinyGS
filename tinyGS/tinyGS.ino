@@ -335,13 +335,8 @@ void loop() {
   // Check button
   checkButton();
 
-  // Radio
-  if (radio.isReady()) {
-    status.radio_ready = true;
-    radio.listen();
-  } else {
-    status.radio_ready = false;
-  }
+  // Track radio hardware status (independent of connection state)
+  status.radio_ready = radio.isReady();
 
   // Not connected yet — reset NTP flag so it runs again on the next reconnect
   if (!connMgr.isConnected()) {
@@ -377,6 +372,15 @@ void loop() {
       (configStore.getMqttPass()[0] == '\0')) {
     mqttAutoconf();
     return;
+  }
+
+  if (radio.isReady())
+  {
+    status.radio_ready = true;
+    radio.listen();
+  }
+  else {
+    status.radio_ready = false;
   }
 
   // Connected - run MQTT and OTA
