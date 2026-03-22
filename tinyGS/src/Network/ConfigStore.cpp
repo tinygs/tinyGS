@@ -570,7 +570,7 @@ void ConfigStore::parseModemStartup() {
   const char* mode = doc["mode"].as<const char*>();
   strncpy(m.modem_mode, mode ? mode : "", sizeof(m.modem_mode) - 1);
   m.modem_mode[sizeof(m.modem_mode) - 1] = '\0';
-  strcpy(m.satellite, doc["sat"].as<char*>());
+  strcpy(m.satellite, doc["sat"].as<const char*>());
   m.NORAD = doc["NORAD"];
 
   if (strcmp(m.modem_mode, "LoRa") == 0) {
