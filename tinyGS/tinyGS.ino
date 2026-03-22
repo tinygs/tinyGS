@@ -349,7 +349,6 @@ void loop() {
   static bool firstConnectDone = false;
   if (!firstConnectDone) {
     firstConnectDone = true;
-    displayShowConnected();
     arduino_ota_setup();
     if (configStore.getLowPower()) {
       Log::debug(PSTR("Set low power CPU=80Mhz"));
@@ -366,10 +365,11 @@ void loop() {
     setupNTP();
   }
 
-  // MQTT credentials missing - auto-configure
+  // MQTT credentials missing - show OTP and auto-configure
   if ((configStore.getMqttServer()[0] == '\0') ||
       (configStore.getMqttUser()[0] == '\0') ||
       (configStore.getMqttPass()[0] == '\0')) {
+    displayShowConnected();
     mqttAutoconf();
     return;
   }
