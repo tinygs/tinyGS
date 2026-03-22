@@ -300,8 +300,13 @@ void ConfigManager::handleDashboard()
   if (status.modeminfo.tle[0] != 0) {
     s += "<tr><td>Lat / Lon </td><td>" + String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º </td></tr>";
     s += "<tr><td>Az  / El  </td><td>" + String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º </td></tr>";
-    s += "<tr><td>Doppler </td><td>" + String(status.tle.new_freqDoppler) + " Hz </td></tr>";
-  } else 
+      if (status.tle.freqComp) {
+      s += "<tr><td>Doppler </td><td>" + String(status.tle.new_freqDoppler) + " Hz </td></tr>";
+      } else {
+        s += "<tr><td>Doppler </td><td> - </td></tr>";
+      } 
+    }
+  else 
   {
     s += "<tr><td>Lat / Lon </td><td> - / - </td></tr>";
     s += "<tr><td>Az  / El  </td><td> - / - </td></tr>";
@@ -527,8 +532,15 @@ void ConfigManager::handleRefreshWorldmap()
    if (status.modeminfo.tle[0] != 0) {
    data_string += String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º ," ;
    data_string += String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º ," ;
-   data_string += String( status.tle.new_freqDoppler) + " Hz," ; 
-   } else    {
+
+
+      if (status.tle.freqComp)  {
+      	data_string += String( status.tle.new_freqDoppler) + " Hz," ; 
+          } else {
+    	  data_string += " - ," ;
+      }  
+   
+  } else    {
    data_string += " - / - ," ;
    data_string += " - / - ," ;
    data_string += " - ," ;

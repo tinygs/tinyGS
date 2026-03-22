@@ -363,6 +363,7 @@ void Radio::tle()
   } else {
 
     status.tle.freqDoppler = 0;
+    status.tle.new_freqDoppler = 0;
   }
 }
 
@@ -726,7 +727,8 @@ uint8_t Radio::listen()
   noisyInterrupt = false;
   
   // force doppler-recalc
-  status.tle.freqDoppler = 99999; // oe6isp
+  status.tle.freqDoppler = 1; // oe6isp 99999  
+
   tle(); // oe6isp
 
   // put module back to listen mode
