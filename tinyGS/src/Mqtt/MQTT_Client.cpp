@@ -44,6 +44,7 @@ MQTT_Client::MQTT_Client() {
 // ---- INetworkAware ----
 void MQTT_Client::onConnected(IPAddress ip, ActiveInterface iface) {
   _networkAvailable = true;
+  connectionAttempts = 0; // reset on every network-level reconnect
   ConfigStore& cfg = ConfigStore::getInstance();
   if (cfg.getMqttServer()[0] == '\0' ||
       cfg.getMqttUser()[0]   == '\0' ||
@@ -99,7 +100,12 @@ void MQTT_Client::handleMqttEvent(esp_mqtt_event_handle_t event) {
       LOG_CONSOLE(PSTR("MQTT disconnected"));
       _mqttConnected = false;
       status.mqtt_connected = false;
-      connectionAttempts++;
+      // Only count as a genuine MQTT failure when the network is actually up.
+      // If WiFi/ETH is down, the disconnect is caused by the transport loss —
+      // incrementing here would trip the restart watchdog spuriously.
+      if (_networkAvailable) {
+        connectionAttempts++;
+      }
       break;
 
     case MQTT_EVENT_DATA:
