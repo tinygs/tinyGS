@@ -24,6 +24,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
+#include <freertos/semphr.h>
 
 #define MAX_LOG_SIZE 4000
 #define LOG_LEVEL    LOG_LEVEL_NONE
@@ -68,6 +69,7 @@ private:
   static QueueHandle_t logQueue;
   static TaskHandle_t logTask;
   static bool asyncEnabled;
+  static SemaphoreHandle_t logMutex;
 };
 
 // ---------------------------------------------------------------------------

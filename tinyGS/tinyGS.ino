@@ -82,6 +82,8 @@
 #include "time.h"
 #include "src/Mqtt/MQTT_credentials.h"
 #include "src/Improv/tinygs_improv.h"
+#include "src/Power/Power.h"
+#include <Wire.h>
 
 
 #if  RADIOLIB_VERSION_MAJOR != (0x07) || RADIOLIB_VERSION_MINOR != (0x06) || RADIOLIB_VERSION_PATCH != (0x00) || RADIOLIB_VERSION_EXTRA != (0x00)
@@ -169,6 +171,19 @@ void setup()
   board_t board;
   if (configStore.getBoardConfig(board)) {
     pinMode(board.PROG__BUTTON, INPUT_PULLUP);
+  }
+
+  // AXP power check runs on the main task — it uses I2C (Wire) which is
+  // not safe to call from the radioInit task.  checkAXP() also calls
+  // Wire.end(), so we must re-establish Wire for the OLED display after.
+  {
+    Power& power = Power::getInstance();
+    power.checkAXP();
+    if (!configStore.getDisableOled()) {
+      Wire.begin(board.OLED__SDA, board.OLED__SCL);
+      Wire.setClock(700000);
+      Wire.setTimeOut(50);
+    }
   }
 
   if (!configStore.isFailSafeActive()) {

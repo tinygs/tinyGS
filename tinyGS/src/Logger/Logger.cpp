@@ -26,10 +26,15 @@ char Log::log[MAX_LOG_SIZE] = "";
 QueueHandle_t Log::logQueue = nullptr;
 TaskHandle_t Log::logTask = nullptr;
 bool Log::asyncEnabled = false;
+SemaphoreHandle_t Log::logMutex = nullptr;
 
 void Log::initAsync()
 {
   if (asyncEnabled) return;
+
+  if (!logMutex) {
+    logMutex = xSemaphoreCreateMutex();
+  }
   
   logQueue = xQueueCreate(LOG_QUEUE_SIZE, sizeof(LogMessage));
   if (logQueue == nullptr) {
@@ -193,6 +198,15 @@ void Log::AddLog(Log::LoggingLevels level, const char* logData)
   if (level > Log::logLevel)
     return;
 
+  // Acquire mutex to protect shared log[] buffer from concurrent access
+  // across cores (WiFi events on Core 0, main loop on Core 1).
+  if (logMutex) {
+    if (xSemaphoreTake(logMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+      // Timeout acquiring mutex — skip this log entry to avoid deadlock
+      return;
+    }
+  }
+
   char timeStr[10];  // "13:45:21 "
   time_t currentTime = time (NULL);
   if (currentTime > 0) {
@@ -225,21 +239,45 @@ void Log::AddLog(Log::LoggingLevels level, const char* logData)
 
   // Delimited, zero-terminated buffer of log lines.
   // Each entry has this format: [index][log data]['\1']
+  // Safety: ensure the buffer is always null-terminated to prevent
+  // strlen() from reading past bounds if concurrent access corrupted it.
+  log[MAX_LOG_SIZE - 1] = '\0';
+
+  int evictGuard = 0;
   while (logIdx == log[0] ||  // If log already holds the next index, remove it
           strlen(log) + strlen(logData) + 13 > MAX_LOG_SIZE)  // 13 = idx + time + '\1' + '\0'
   {
+    if (++evictGuard > 200) {
+      // Buffer is severely corrupted — reset it
+      log[0] = '\0';
+      break;
+    }
     char* it = log;
     it++;                                // Skip web_log_index
     it += strchrspn(it, '\1');           // Skip log line
     it++;                                // Skip delimiting "\1"
     memmove(log, it, MAX_LOG_SIZE -(it-log));  // Move buffer forward to remove oldest log line
   }
-  
-  snprintf_P(log, sizeof(log), PSTR("%s%c%s%s\1"), log, logIdx++, timeStr, logData);
+
+  // Build the new entry in a temporary buffer to avoid UB from
+  // overlapping source/destination in snprintf(log, ..., log, ...).
+  char entry[MAX_ASYNC_LOG_SIZE + 12];  // entry data + idx + time + delimiter
+  int entryLen = snprintf_P(entry, sizeof(entry), PSTR("%c%s%s\1"), logIdx++, timeStr, logData);
+  if (entryLen > 0) {
+    size_t currentLen = strlen(log);
+    size_t toCopy = (size_t)entryLen;
+    if (currentLen + toCopy < MAX_LOG_SIZE) {
+      memcpy(log + currentLen, entry, toCopy + 1);  // +1 for '\0'
+    }
+  }
 
   logIdx &= 0xFF;
   if (!logIdx) 
     logIdx++;       // Index 0 is not allowed as it is the end of char string*/
+
+  if (logMutex) {
+    xSemaphoreGive(logMutex);
+  }
 }
 
 void Log::getLog(uint32_t idx, char** entry_pp, size_t* len_p)

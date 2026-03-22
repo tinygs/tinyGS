@@ -50,8 +50,8 @@ Radio::Radio()
 
 void Radio::init()
 {
-  Power& power = Power::getInstance();
-  power.checkAXP();                                       // check and setup AXP192 and AXP2101 power controller
+  // NOTE: power.checkAXP() is now called from the main task in tinyGS.ino
+  // to avoid corrupting Wire I2C state (checkAXP uses I2C and calls Wire.end).
   LOG_CONSOLE(PSTR("[SX12xx] Initializing ... "));
   board_t board;
   if (!ConfigStore::getInstance().getBoardConfig(board))

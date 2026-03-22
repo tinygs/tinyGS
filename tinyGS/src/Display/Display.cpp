@@ -107,6 +107,10 @@ void displayInit()
   /* ui->init() also initialises the underlying display */
   ui->init();
 
+  // Restore I2C timeout — SSD1306Wire::connect() inside ui->init() calls
+  // Wire.begin() again which may reset the timeout set earlier.
+  Wire.setTimeOut(50);
+
   if (ConfigStore::getInstance().getFlipOled())
     display->flipScreenVertically();
 }
