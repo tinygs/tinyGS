@@ -127,7 +127,10 @@ void setup()
   setCpuFrequencyMhz(240);
 #endif
   Serial.begin(115200);
-  delay(100);
+  // Give the serial monitor time to connect before any important log output.
+  // 3 s is enough for a human to open the monitor; the 10-s migration wait
+  // is additive on top of this when a first-time migration is needed.
+  delay(5000);
 
   // Initialize async logging early
   Log::initAsync();
@@ -136,25 +139,39 @@ void setup()
   Log::console(PSTR("TinyGS Version %d - %s"), status.version, status.git_version);
   Log::console(PSTR("Chip  %s - %d"), ESP.getChipModel(), ESP.getChipRevision());
 
-  // Initialize ConfigStore (NVS + EEPROM migration)
+  // -----------------------------------------------------------------------
+  // STEP 1: Load configuration (and migrate from legacy EEPROM if needed).
+  // THIS MUST RUN BEFORE ANY network, display, OTP or radio initialisation
+  // so that every subsystem receives the correct, already-migrated values.
+  // -----------------------------------------------------------------------
   configStore.init();
 
-  // Generate OTP if MQTT credentials are missing
+  // -----------------------------------------------------------------------
+  // STEP 2: OTP – depends on config credentials, no network started yet.
+  // -----------------------------------------------------------------------
   if ((configStore.getMqttServer()[0] == '\0') ||
       (configStore.getMqttUser()[0] == '\0') ||
       (configStore.getMqttPass()[0] == '\0')) {
     mqttCredentials.generateOTPCode();
   }
 
-  // Initialize display
+  // -----------------------------------------------------------------------
+  // STEP 3: Display – local hardware only, no network.
+  // -----------------------------------------------------------------------
   if (!configStore.getDisableOled()) {
     displayInit();
     displayShowInitialCredits();
   }
 
-  // Initialize ConnectionManager (EthWiFiManager + AP fallback)
+  // -----------------------------------------------------------------------
+  // STEP 4: Network (WiFi / Ethernet + AP fallback). Config already loaded.
+  // -----------------------------------------------------------------------
   connMgr.init();
 
+  // -----------------------------------------------------------------------
+  // STEP 4 (cont.): Network observers + WebServer (still STEP 4 – all
+  // network-layer setup before radio or hardware init).
+  // -----------------------------------------------------------------------
   // Register network observers
   connMgr.registerObserver(&mqtt);
 
@@ -167,7 +184,9 @@ void setup()
   // Wait for connection or AP mode
   connMgr.managedDelay(1000);
 
-  // Initialize radio
+  // -----------------------------------------------------------------------
+  // STEP 5: Hardware peripherals (AXP power IC, radio). WiFi is up by now.
+  // -----------------------------------------------------------------------
   board_t board;
   if (configStore.getBoardConfig(board)) {
     pinMode(board.PROG__BUTTON, INPUT_PULLUP);

@@ -149,9 +149,18 @@ bool ConfigStore::init() {
   bool validConfig = false;
 
   if (ver.length() == 0) {
-    // First boot or migrated from IotWebConf2 → attempt migration
+    // First boot or migrated from IotWebConf2 → attempt migration.
+    // Wait 10 s so the serial monitor can connect before migration logs appear.
+    LOG_CONSOLE(PSTR("[Migration] Config version not found in NVS namespace 'tinygs'."));
+    LOG_CONSOLE(PSTR("[Migration] Waiting 10 s for serial monitor to connect..."));
+    for (int _s = 10; _s > 0; _s--) {
+      LOG_CONSOLE(PSTR("[Migration] Starting in %d s..."), _s);
+      delay(1000);
+    }
+    LOG_CONSOLE(PSTR("[Migration] Starting EEPROM migration check now."));
     if (!migrateFromEEPROM()) {
-      // Fresh install: set defaults
+      // No legacy config found — fresh install, apply defaults.
+      LOG_CONSOLE(PSTR("[Migration] No legacy EEPROM config found. Applying factory defaults."));
       strncpy(_stationName, thingName, sizeof(_stationName));
       strncpy(_mqttServer, MQTT_DEFAULT_SERVER, sizeof(_mqttServer));
       strncpy(_mqttPort, MQTT_DEFAULT_PORT, sizeof(_mqttPort));
@@ -159,17 +168,63 @@ bool ConfigStore::init() {
       strncpy(_remoteTune, "selected", sizeof(_remoteTune));
       strncpy(_telemetry3rd, "selected", sizeof(_telemetry3rd));
       strncpy(_autoUpdate, "selected", sizeof(_autoUpdate));
+      LOG_CONSOLE(PSTR("[Migration] Saving factory defaults to NVS..."));
       saveToNVS();
+      LOG_CONSOLE(PSTR("[Migration] Factory defaults saved. Fresh install complete."));
     } else {
       validConfig = true;
     }
   } else {
+    LOG_CONSOLE(PSTR("[Migration] NVS config version found: \"%s\". Loading config from NVS."), ver.c_str());
     loadFromNVS();
-    // If WiFi SSID is empty after loading, the previous config was likely written
-    // by the old (broken) migration that used the wrong namespace and left defaults.
-    // If the original EEPROM blob is still present, re-run migration now.
+    LOG_CONSOLE(PSTR("[Migration] NVS config loaded. WiFi SSID: \"%s\"."), _wifiSSID);
+
+    // Check whether the legacy EEPROM blob still exists in NVS to confirm
+    // whether a previous migration already ran (or if old data is still available).
+    {
+      Preferences eepromCheck;
+      if (eepromCheck.begin("eeprom", true)) {
+        size_t oldBlobLen = eepromCheck.getBytesLength("eeprom");
+        eepromCheck.end();
+        if (oldBlobLen > 0) {
+          LOG_CONSOLE(PSTR("[Migration] Legacy EEPROM NVS blob still present (%d bytes) "
+                           "— previous migration ran and old data was preserved."), (int)oldBlobLen);
+        } else {
+          LOG_CONSOLE(PSTR("[Migration] Legacy EEPROM NVS namespace exists but blob is empty."));
+        }
+      } else {
+        LOG_CONSOLE(PSTR("[Migration] Legacy EEPROM NVS namespace \"eeprom\" not found "
+                         "— either migration never ran or old data was erased externally."));
+      }
+    }
+    // Detect an incomplete previous migration: re-run if any critical field that
+    // should have been present in a configured device is still empty.
+    // This covers both the "wrong namespace" bug and partial extractions.
+    bool needsReMigration = false;
     if (_wifiSSID[0] == '\0') {
-      migrateFromEEPROM();  // no-op if no EEPROM blob; saves on success
+      LOG_CONSOLE(PSTR("[Migration] WARNING: WiFi SSID is empty after NVS load."));
+      needsReMigration = true;
+    }
+    if (_mqttUser[0] == '\0') {
+      LOG_CONSOLE(PSTR("[Migration] WARNING: MQTT user is empty after NVS load."));
+      needsReMigration = true;
+    }
+    if (_mqttPass[0] == '\0') {
+      LOG_CONSOLE(PSTR("[Migration] WARNING: MQTT password is empty after NVS load."));
+      needsReMigration = true;
+    }
+    if (needsReMigration) {
+      LOG_CONSOLE(PSTR("[Migration] One or more critical fields are empty — attempting corrective re-migration from EEPROM..."));
+      if (migrateFromEEPROM()) {
+        LOG_CONSOLE(PSTR("[Migration] Corrective re-migration succeeded."));
+        LOG_CONSOLE(PSTR("[Migration]   WiFi SSID  : \"%s\""), _wifiSSID);
+        LOG_CONSOLE(PSTR("[Migration]   MQTT user  : %s"), (_mqttUser[0] ? "(set)" : "(empty)"));
+        LOG_CONSOLE(PSTR("[Migration]   MQTT pass  : %s"), (_mqttPass[0] ? "(set)" : "(empty)"));
+      } else {
+        LOG_CONSOLE(PSTR("[Migration] Corrective re-migration found no EEPROM data — fields remain empty."));
+      }
+    } else {
+      LOG_CONSOLE(PSTR("[Migration] All critical fields present — no re-migration needed."));
     }
     validConfig = true;
   }
@@ -183,6 +238,19 @@ bool ConfigStore::init() {
     parseAdvancedConf();
 
   parseModemStartup();
+
+  // Summary of effective configuration after init
+  LOG_CONSOLE(PSTR("[Migration] Config init done. Summary:"));
+  LOG_CONSOLE(PSTR("[Migration]   validConfig  : %s"), validConfig ? "true" : "false");
+  LOG_CONSOLE(PSTR("[Migration]   stationName  : \"%s\""), _stationName);
+  LOG_CONSOLE(PSTR("[Migration]   wifiSSID     : \"%s\""), _wifiSSID);
+  LOG_CONSOLE(PSTR("[Migration]   mqttServer   : \"%s\""), _mqttServer);
+  LOG_CONSOLE(PSTR("[Migration]   mqttPort     : \"%s\""), _mqttPort);
+  LOG_CONSOLE(PSTR("[Migration]   mqttUser     : %s"), (_mqttUser[0] ? "(set)" : "(empty)"));
+  LOG_CONSOLE(PSTR("[Migration]   mqttPass     : %s"), (_mqttPass[0] ? "(set)" : "(empty)"));
+  LOG_CONSOLE(PSTR("[Migration]   board        : \"%s\""), _board);
+  LOG_CONSOLE(PSTR("[Migration]   latitude     : \"%s\""), _latitude);
+  LOG_CONSOLE(PSTR("[Migration]   longitude    : \"%s\""), _longitude);
 
   return validConfig;
 }
@@ -206,33 +274,46 @@ bool ConfigStore::migrateFromEEPROM() {
   // The blob layout is sequential fields written by ParameterGroup::storeValue().
   // We read the raw blob and extract each field at its known byte offset.
 
+  LOG_CONSOLE(PSTR("[Migration] Opening legacy EEPROM NVS namespace (\"eeprom\")..."));
+
   Preferences oldPrefs;
   if (!oldPrefs.begin("eeprom", true)) {  // read-only
+    LOG_CONSOLE(PSTR("[Migration] NVS namespace \"eeprom\" not found. No legacy config to migrate."));
     return false;
   }
 
   size_t blobLen = oldPrefs.getBytesLength("eeprom");
+  LOG_CONSOLE(PSTR("[Migration] EEPROM blob length: %d bytes"), (int)blobLen);
+
   if (blobLen == 0) {
+    LOG_CONSOLE(PSTR("[Migration] EEPROM blob is empty. Nothing to migrate."));
     oldPrefs.end();
     return false;
   }
 
   uint8_t* blob = (uint8_t*)malloc(blobLen);
   if (!blob) {
+    LOG_CONSOLE(PSTR("[Migration] ERROR: malloc(%d) failed."), (int)blobLen);
     oldPrefs.end();
     return false;
   }
   oldPrefs.getBytes("eeprom", blob, blobLen);
   oldPrefs.end();
+  LOG_CONSOLE(PSTR("[Migration] EEPROM blob read successfully."));
 
   // Beta's configVersion is "0.05" (4 chars at offset 0)
   const char oldConfigVersion[] = "0.05";
+  char foundVer[5] = {0};
+  memcpy(foundVer, blob, (blobLen >= 4) ? 4 : blobLen);
+  LOG_CONSOLE(PSTR("[Migration] Config version tag in blob: \"%.4s\" (expected \"0.05\")"), foundVer);
+
   if (blobLen < 4 || memcmp(blob, oldConfigVersion, 4) != 0) {
+    LOG_CONSOLE(PSTR("[Migration] Version mismatch — skipping EEPROM migration."));
     free(blob);
     return false;
   }
 
-  LOG_CONSOLE(PSTR("Migrating config from IotWebConf2 EEPROM to NVS..."));
+  LOG_CONSOLE(PSTR("[Migration] Version tag OK. Starting field extraction from IotWebConf2 EEPROM blob..."));
 
   // ---- EEPROM blob layout (IotWebConf2 serialization order) ----
   // Offset  Field                   Size (bytes)
@@ -264,53 +345,133 @@ bool ConfigStore::migrateFromEEPROM() {
 
   const int MIN_BLOB = 449;  // minimum: up to autoUpdate end
   if ((int)blobLen < MIN_BLOB) {
-    LOG_CONSOLE(PSTR("EEPROM blob too small (%d bytes), skipping migration"), (int)blobLen);
+    LOG_CONSOLE(PSTR("[Migration] Blob too small (%d bytes, need %d). Skipping migration."), (int)blobLen, MIN_BLOB);
     free(blob);
     return false;
   }
 
+  LOG_CONSOLE(PSTR("[Migration] Blob size OK (%d bytes). Reading fields..."), (int)blobLen);
+
   readEepromField(blob,   4,  33, _stationName,   sizeof(_stationName));
+  LOG_CONSOLE(PSTR("[Migration]   thingName    (off=  4, len=33): \"%s\""), _stationName);
+
   readEepromField(blob,  37,  33, _apPassword,    sizeof(_apPassword));
+  LOG_CONSOLE(PSTR("[Migration]   apPassword   (off= 37, len=33): %s"), (_apPassword[0] ? "(set)" : "(empty)"));
+
   readEepromField(blob,  70,  33, _wifiSSID,      sizeof(_wifiSSID));
+  LOG_CONSOLE(PSTR("[Migration]   wifiSSID     (off= 70, len=33): \"%s\""), _wifiSSID);
+
   readEepromField(blob, 103,  65, _wifiPass,      sizeof(_wifiPass));
+  LOG_CONSOLE(PSTR("[Migration]   wifiPassword (off=103, len=65): %s"), (_wifiPass[0] ? "(set)" : "(empty)"));
+
   // offset 168: apTimeout (33 bytes) — skipped, not used in new config
+  LOG_CONSOLE(PSTR("[Migration]   apTimeout    (off=168, len=33): skipped"));
+
   readEepromField(blob, 201,  10, _latitude,      sizeof(_latitude));
+  LOG_CONSOLE(PSTR("[Migration]   latitude     (off=201, len=10): \"%s\""), _latitude);
+
   readEepromField(blob, 211,  10, _longitude,     sizeof(_longitude));
+  LOG_CONSOLE(PSTR("[Migration]   longitude    (off=211, len=10): \"%s\""), _longitude);
+
   readEepromField(blob, 221,  49, _tz,            sizeof(_tz));
+  LOG_CONSOLE(PSTR("[Migration]   tz           (off=221, len=49): \"%s\""), _tz);
+
   readEepromField(blob, 270,  31, _mqttServer,    sizeof(_mqttServer));
+  LOG_CONSOLE(PSTR("[Migration]   mqttServer   (off=270, len=31): \"%s\""), _mqttServer);
+
   readEepromField(blob, 301,   6, _mqttPort,      sizeof(_mqttPort));
+  LOG_CONSOLE(PSTR("[Migration]   mqttPort     (off=301, len= 6): \"%s\""), _mqttPort);
+
   readEepromField(blob, 307,  31, _mqttUser,      sizeof(_mqttUser));
+  LOG_CONSOLE(PSTR("[Migration]   mqttUser     (off=307, len=31): %s"), (_mqttUser[0] ? "(set)" : "(empty)"));
+
   readEepromField(blob, 338,  31, _mqttPass,      sizeof(_mqttPass));
+  LOG_CONSOLE(PSTR("[Migration]   mqttPass     (off=338, len=31): %s"), (_mqttPass[0] ? "(set)" : "(empty)"));
+
   readEepromField(blob, 369,   3, _board,         sizeof(_board));
+  LOG_CONSOLE(PSTR("[Migration]   board        (off=369, len= 3): \"%s\""), _board);
+
   readEepromField(blob, 372,  32, _oledBright,    sizeof(_oledBright));
+  LOG_CONSOLE(PSTR("[Migration]   oledBright   (off=372, len=32): \"%s\""), _oledBright);
+
   readEepromField(blob, 404,   9, _allowTx,       sizeof(_allowTx));
+  LOG_CONSOLE(PSTR("[Migration]   allowTx      (off=404, len= 9): \"%s\""), _allowTx);
+
   readEepromField(blob, 413,   9, _remoteTune,    sizeof(_remoteTune));
+  LOG_CONSOLE(PSTR("[Migration]   remoteTune   (off=413, len= 9): \"%s\""), _remoteTune);
+
   readEepromField(blob, 422,   9, _telemetry3rd,  sizeof(_telemetry3rd));
+  LOG_CONSOLE(PSTR("[Migration]   telemetry3rd (off=422, len= 9): \"%s\""), _telemetry3rd);
+
   readEepromField(blob, 431,   9, _testMode,      sizeof(_testMode));
+  LOG_CONSOLE(PSTR("[Migration]   testMode     (off=431, len= 9): \"%s\""), _testMode);
+
   readEepromField(blob, 440,   9, _autoUpdate,    sizeof(_autoUpdate));
+  LOG_CONSOLE(PSTR("[Migration]   autoUpdate   (off=440, len= 9): \"%s\""), _autoUpdate);
 
   // These larger fields only exist if the blob is big enough
-  if ((int)blobLen >= 705)
+  if ((int)blobLen >= 705) {
     readEepromField(blob, 449, 256, _boardTemplate,  sizeof(_boardTemplate));
-  if ((int)blobLen >= 961)
+    LOG_CONSOLE(PSTR("[Migration]   boardTemplate(off=449, len=256): %s"), (_boardTemplate[0] ? "(set)" : "(empty)"));
+  } else {
+    LOG_CONSOLE(PSTR("[Migration]   boardTemplate: blob too small (%d < 705), skipped"), (int)blobLen);
+  }
+
+  if ((int)blobLen >= 961) {
     readEepromField(blob, 705, 256, _modemStartup,   sizeof(_modemStartup));
-  if ((int)blobLen >= 1217)
+    LOG_CONSOLE(PSTR("[Migration]   modemStartup (off=705, len=256): %s"), (_modemStartup[0] ? "(set)" : "(empty)"));
+  } else {
+    LOG_CONSOLE(PSTR("[Migration]   modemStartup: blob too small (%d < 961), skipped"), (int)blobLen);
+  }
+
+  if ((int)blobLen >= 1217) {
     readEepromField(blob, 961, 256, _advancedConfig, sizeof(_advancedConfig));
+    LOG_CONSOLE(PSTR("[Migration]   advancedConfig(off=961,len=256): %s"), (_advancedConfig[0] ? "(set)" : "(empty)"));
+  } else {
+    LOG_CONSOLE(PSTR("[Migration]   advancedConfig: blob too small (%d < 1217), skipped"), (int)blobLen);
+  }
 
   free(blob);
 
   // Apply defaults for critical empty fields
-  if (_mqttServer[0] == '\0') strncpy(_mqttServer, MQTT_DEFAULT_SERVER, sizeof(_mqttServer));
-  if (_mqttPort[0] == '\0')   strncpy(_mqttPort, MQTT_DEFAULT_PORT, sizeof(_mqttPort));
-  if (_stationName[0] == '\0') strncpy(_stationName, thingName, sizeof(_stationName));
+  LOG_CONSOLE(PSTR("[Migration] Applying defaults for empty critical fields..."));
+  if (_mqttServer[0] == '\0') {
+    strncpy(_mqttServer, MQTT_DEFAULT_SERVER, sizeof(_mqttServer));
+    LOG_CONSOLE(PSTR("[Migration]   mqttServer was empty → default: %s"), _mqttServer);
+  }
+  if (_mqttPort[0] == '\0') {
+    strncpy(_mqttPort, MQTT_DEFAULT_PORT, sizeof(_mqttPort));
+    LOG_CONSOLE(PSTR("[Migration]   mqttPort was empty → default: %s"), _mqttPort);
+  }
+  if (_stationName[0] == '\0') {
+    strncpy(_stationName, thingName, sizeof(_stationName));
+    LOG_CONSOLE(PSTR("[Migration]   stationName was empty → default: %s"), _stationName);
+  }
 
   // Save to new NVS namespace
+  LOG_CONSOLE(PSTR("[Migration] Saving migrated config to NVS namespace \"tinygs\"..."));
   saveToNVS();
+
+  // Verify the write succeeded by re-reading cfgVer from NVS.
+  {
+    Preferences verifyPrefs;
+    verifyPrefs.begin("tinygs", true);
+    String savedVer = verifyPrefs.getString("cfgVer", "");
+    String savedSSID = verifyPrefs.getString("wifiSSID", "");
+    verifyPrefs.end();
+    if (savedVer.length() > 0) {
+      LOG_CONSOLE(PSTR("[Migration] NVS write verified: cfgVer=\"%s\", wifiSSID=\"%s\"."),
+                  savedVer.c_str(), savedSSID.c_str());
+    } else {
+      LOG_CONSOLE(PSTR("[Migration] ERROR: NVS write FAILED — cfgVer not found after saveToNVS()!"));
+    }
+  }
 
   // NOTE: The old EEPROM NVS data (namespace "eeprom") is intentionally
   // preserved so firmware can be downgraded back to the beta branch.
+  LOG_CONSOLE(PSTR("[Migration] Legacy EEPROM NVS data (namespace \"eeprom\") preserved for potential downgrade."));
 
-  LOG_CONSOLE(PSTR("Migration from EEPROM complete."));
+  LOG_CONSOLE(PSTR("[Migration] *** Migration from EEPROM complete. Old config was NOT erased. ***"));
   return true;
 }
 
