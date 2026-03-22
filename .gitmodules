@@ -1,3 +1,6 @@
 [submodule "lib/esp8266-oled-ssd1306"]
 	path = lib/esp8266-oled-ssd1306
 	url = https://github.com/ThingPulse/esp8266-oled-ssd1306.git
+[submodule "lib/ArduinoJson"]
+	path = lib/ArduinoJson
+	url = https://github.com/bblanchon/ArduinoJson.git
