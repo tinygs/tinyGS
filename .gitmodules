@@ -4,3 +4,6 @@
 [submodule "lib/ArduinoJson"]
 	path = lib/ArduinoJson
 	url = https://github.com/bblanchon/ArduinoJson.git
+[submodule "lib/AioP13"]
+	path = lib/AioP13
+	url = https://github.com/dl9sec/AioP13.git
