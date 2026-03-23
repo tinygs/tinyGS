@@ -266,9 +266,6 @@ public:
   // Returns true only when boardTemplate is non-empty AND differs from the
   // default config of the currently selected board index.
   bool isBoardTemplateModified() const;
-  // Returns true only when boardTemplate is non-empty AND differs from the
-  // default config of the currently selected board index.
-  bool isBoardTemplateModified() const;
 
   // ---- Raw buffer access (for Improv/OTP) ----
   char* stationNameBuffer() { return _stationName; }
