@@ -27,7 +27,7 @@ public:
   virtual int16_t setSyncWord(uint8_t* syncWord, uint8_t len) = 0;
   virtual int16_t setFrequency(float freq) = 0;
   virtual int16_t setEncoding(uint8_t encoding) = 0;
-  virtual void setRfSwitchPins(uint8_t rxEnPin, uint8_t txEnPin) = 0;
+  virtual void setRfSwitchTable(const uint32_t (&pins)[5], const Module::RfSwitchMode_t* table) = 0;
   virtual int16_t setWhitening(bool enabled, uint16_t initial) = 0;  
   virtual int16_t invertIQ (bool enable) = 0;
   virtual int16_t explicitHeader() = 0;
@@ -114,9 +114,10 @@ public:
 
   int16_t setEncoding(uint8_t encoding);
 
-  void setRfSwitchPins(uint8_t rxEnPin, uint8_t txEnPin)
+ 
+  void setRfSwitchTable(const uint32_t (&pins)[5], const Module::RfSwitchMode_t* table)
   {
-    radio->setRfSwitchPins(rxEnPin, txEnPin);
+    radio->setRfSwitchTable(pins, table);
   }
 
   int16_t setWhitening(bool enabled, uint16_t initial);
