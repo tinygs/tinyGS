@@ -903,6 +903,7 @@ void ConfigStore::boardDetection() {
     if (!Wire.endTransmission()) {
       LOG_CONSOLE(PSTR("Compatible OLED FOUND"));
       itoa(ite, _board, 10);
+      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
       save();
       return;
     }
@@ -930,6 +931,7 @@ void ConfigStore::boardDetection() {
     if (!Wire.endTransmission()) {
       LOG_CONSOLE(PSTR("Compatible OLED FOUND"));
       itoa(ite, _board, 10);
+      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
       save();
       return;
     } else {
