@@ -729,6 +729,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     ModemInfo& m = status.modeminfo;
     m.tle[0] = 0;
     status.tle.freqDoppler = 0;
+    status.tle.new_freqDoppler = 0;
     ConfigStore::getInstance().setModemStartup(buff);
   }
 
@@ -849,6 +850,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     } else {
       m.tle[0] = 0;
       status.tle.freqDoppler = 0;
+      status.tle.new_freqDoppler = 0;
       status.tle.freqComp = false;
     }
 

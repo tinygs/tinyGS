@@ -71,7 +71,7 @@ int16_t RadioHal<LR1121>::begin(float freq, float bw, uint8_t sf, uint8_t cr, ui
         else if (bw <= 125.0f) bw = 125.0f;
         else if (bw <= 250.0f) bw = 250.0f;
         else                   bw = 500.0f;
-        
+
     return radio->begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage);
 }
 
@@ -573,7 +573,7 @@ int16_t RadioHal<LR1121>::startReceive()
 template<>
 float RadioHal<LR1121>::getRSSI(bool packet, bool skipReceive)
 {
-    return radio->getRSSI(packet, skipReceive);
+    return radio->getRSSI();
 }
 
 template<>
@@ -620,3 +620,14 @@ int16_t RadioHal<LR1121>::implicitHeader(size_t len)
 {
     return radio->implicitHeader(len);
 }
+
+// ─── setRxBoostedGainMode ───────────────────────────────────────────────────
+// SX126x: supported with persist flag
+template<> int16_t RadioHal<SX1268>::setRxBoostedGainMode(bool enable) { return radio->setRxBoostedGainMode(enable, true); }
+template<> int16_t RadioHal<SX1262>::setRxBoostedGainMode(bool enable) { return radio->setRxBoostedGainMode(enable, true); }
+// SX127x and SX1280: not supported
+template<> int16_t RadioHal<SX1278>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
+template<> int16_t RadioHal<SX1276>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
+template<> int16_t RadioHal<SX1280>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
+// LR1121: supported
+template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return radio->setRxBoostedGainMode(enable); }

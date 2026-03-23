@@ -32,6 +32,7 @@ public:
   virtual int16_t invertIQ (bool enable) = 0;
   virtual int16_t explicitHeader() = 0;
   virtual int16_t implicitHeader(size_t len) = 0;
+  virtual int16_t setRxBoostedGainMode(bool enable) = 0;
 };
 
 
@@ -121,6 +122,7 @@ public:
   }
 
   int16_t setWhitening(bool enabled, uint16_t initial);
+  int16_t setRxBoostedGainMode(bool enable);
 
 private:
   T* radio;
