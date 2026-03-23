@@ -351,7 +351,7 @@ void MQTT_Client::sendWelcome() {
   if (cfg.getLowPower())
     doc["lp"].set(cfg.getLowPower());
   doc["modem_conf"].set(cfg.getModemStartup());
-  doc["boardTemplate"].set(cfg.getBoardTemplate());
+  doc["boardTemplate"].set(cfg.isBoardTemplateModified() ? cfg.getBoardTemplate() : "");
   doc["Mem"] = ESP.getFreeHeap();
   doc["Size"] = ESP.getSketchSize();
   doc["MD5"] = ESP.getSketchMD5();

@@ -697,6 +697,55 @@ bool ConfigStore::parseBoardTemplate(board_t& board) {
   return true;
 }
 
+bool ConfigStore::isBoardTemplateModified() const {
+  // Empty template → not modified (using the board table directly).
+  if (_boardTemplate[0] == '\0') return false;
+
+  uint8_t idx = (uint8_t)atoi(_board);
+  if (idx >= NUM_BOARDS) return true;  // unknown index → treat as custom
+  const board_t& def = _boards[idx];
+
+  // Parse the stored template and compare every hardware field against the
+  // default board entry.  Any mismatch means the user has customised it.
+  StaticJsonDocument<1024> doc;
+  if (deserializeJson(doc, (const char*)_boardTemplate) != DeserializationError::Ok
+      || !doc.containsKey("radio")) {
+    return true;  // unparseable → treat as custom
+  }
+
+  auto u8field = [&](const char* key, uint8_t fallback) -> uint8_t {
+    return doc.containsKey(key) ? (uint8_t)doc[key] : fallback;
+  };
+
+  if (u8field("aADDR",  0)         != def.OLED__address)  return true;
+  if (u8field("oSDA",   0)         != def.OLED__SDA)      return true;
+  if (u8field("oSCL",   0)         != def.OLED__SCL)      return true;
+  if (u8field("oRST",   UNUSED_PIN) != def.OLED__RST)     return true;
+  if (u8field("pBut",   0)         != def.PROG__BUTTON)   return true;
+  if (u8field("led",    0)         != def.BOARD_LED)      return true;
+  if (u8field("radio",  0)         != def.L_radio)        return true;
+  if (u8field("lNSS",   0)         != def.L_NSS)          return true;
+  if (u8field("lDIO0",  0)         != def.L_DI00)         return true;
+  if (u8field("lDIO1",  0)         != def.L_DI01)         return true;
+  if (u8field("lBUSSY", 0)         != def.L_BUSSY)        return true;
+  if (u8field("lRST",   0)         != def.L_RST)          return true;
+  if (u8field("lMISO",  0)         != def.L_MISO)         return true;
+  if (u8field("lMOSI",  0)         != def.L_MOSI)         return true;
+  if (u8field("lSCK",   0)         != def.L_SCK)          return true;
+  if ((float)doc["lTCXOV"]         != def.L_TCXO_V)       return true;
+  if (u8field("RXEN",   UNUSED_PIN) != def.RX_EN)         return true;
+  if (u8field("TXEN",   UNUSED_PIN) != def.TX_EN)         return true;
+#if CONFIG_IDF_TARGET_ESP32S3
+  if (u8field("lSPI", 2) != def.L_SPI) return true;
+#else
+  if (u8field("lSPI", 3) != def.L_SPI) return true;
+#endif
+  bool tplEthEN = doc.containsKey("ethEN") ? doc["ethEN"].as<bool>() : false;
+  if (tplEthEN != def.ethEN) return true;
+
+  return false;  // all fields match → template is unmodified
+}
+
 // ---------------------------------------------------------------------------
 // Ethernet auto-detection helpers
 // ---------------------------------------------------------------------------
