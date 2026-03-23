@@ -638,14 +638,9 @@ String TinyGSWebServer::buildConfigPage() {
   s += F("<fieldset id='Board config'><legend>Board config</legend>");
   s += F("<div><label for='board'>Board type</label>");
   s += F("<select id='board' name='board'>");
-  size_t boardCount = sizeof(BOARD_VALUES) / BOARD_LENGTH;
-  for (size_t i = 0; i < boardCount; i++) {
-    char bVal[BOARD_LENGTH];
-    char bName[BOARD_NAME_LENGTH];
-    strncpy_P(bVal, BOARD_VALUES[i], BOARD_LENGTH);
-    strncpy_P(bName, BOARD_NAMES[i], BOARD_NAME_LENGTH);
-    bool selected = (cfg.getBoard() == (uint8_t)atoi(bVal));
-    s += "<option value='" + String(bVal) + "'" + (selected ? " selected" : "") + ">" + String(bName) + "</option>";
+  for (uint8_t i = 0; i < cfg.getBoardCount(); i++) {
+    bool selected = (cfg.getBoard() == i);
+    s += "<option value='" + String(i) + "'" + (selected ? " selected" : "") + ">" + cfg.getBoardName(i) + "</option>";
   }
   s += F("</select></div>");
 

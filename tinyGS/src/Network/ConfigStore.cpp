@@ -21,6 +21,16 @@
 #include "../Logger/Logger.h"
 #include <Wire.h>
 #include <EEPROM.h>
+#include <SPI.h>
+
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+#include <esp_idf_version.h>
+#include <esp_eth_mac.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#include <esp_eth_mac_esp.h>
+#endif
+#include <driver/gpio.h>
+#endif
 
 // ============================================================
 //  Board table - exact same data from old ConfigManager
@@ -37,6 +47,18 @@ void ConfigStore::initBoardTable() {
   _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 35, RADIO_SX1278, 8, 6, 14, UNUSED_PIN, 12, 11, 10, 9, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-S3 433MHz SX1278"};
   _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 3, RADIO_SX1262, 10, UNUSED_PIN, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED_PIN, UNUSED_PIN, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"};
   _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 37, RADIO_SX1280, 7, UNUSED_PIN, 9, UNUSED_PIN, 8, 3, 6, 5, 0.0f, 21, 10, "2.4Ghz LILYGO SX1280"};
+  // Waveshare ESP32-S3-ETH: no OLED, no radio — W5500 SPI ethernet
+  _boards[i] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, UNUSED_PIN, 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0.0f, UNUSED_PIN, UNUSED_PIN, "Waveshare ESP32-S3-ETH (W5500)"};
+  _boards[i].ethEN   = true;
+  _boards[i].ethPHY  = 0;   // W5500
+  _boards[i].ethSPI  = 2;   // HSPI
+  _boards[i].ethCS   = 14;
+  _boards[i].ethINT  = 10;
+  _boards[i].ethRST  = 9;
+  _boards[i].ethMISO = 12;
+  _boards[i].ethMOSI = 11;
+  _boards[i].ethSCK  = 13;
+  i++;
 #elif CONFIG_IDF_TARGET_ESP32C3
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1262, 8, UNUSED_PIN, 3, 4, 5, 6, 7, 10, 1.6f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC LORA32 HT-CT62 SX1262"};
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1278, 8, 4, UNUSED_PIN, UNUSED_PIN, 5, 6, 7, 10, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-C3 433MHz SX1278"};
@@ -64,6 +86,18 @@ void ConfigStore::initBoardTable() {
   _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 25, RADIO_SX1276, 18, 26, 33, UNUSED_PIN, 23, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz LILYGO T3_V1.6.1"};
   _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 25, RADIO_SX1276, 18, 26, UNUSED_PIN, 32, 23, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz LILYGO T3_V1.6.1 TCXO"};
   _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 38, 4, RADIO_SX1268, 18, 26, 33, 32, 23, 19, 27, 5, 1.6f, UNUSED_PIN, UNUSED_PIN, "433 Mhz T-Beam SX1268 V1.0"};
+  // WT32-ETH01/02: no OLED, no radio — LAN8720 Internal EMAC
+  _boards[i] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0.0f, UNUSED_PIN, UNUSED_PIN, "WT32-ETH01/02 (LAN8720)"};
+  _boards[i].ethEN      = true;
+  _boards[i].ethPHY     = 0xFF;  // Internal EMAC
+  _boards[i].ethMDC     = 23;
+  _boards[i].ethMDIO    = 18;
+  _boards[i].ethPhyAddr = 1;
+  _boards[i].ethPhyType = 0;     // LAN8720
+  _boards[i].ethRefClk  = 0;     // GPIO0
+  _boards[i].ethClkExt  = true;  // PHY drives REF_CLK
+  _boards[i].ethOscEN   = 16;    // Oscillator enable
+  i++;
 #endif
 }
 
@@ -611,11 +645,12 @@ bool ConfigStore::getBoardConfig(board_t& board) {
 }
 
 bool ConfigStore::parseBoardTemplate(board_t& board) {
-  StaticJsonDocument<640> doc;
+  StaticJsonDocument<1024> doc;
   DeserializationError error = deserializeJson(doc, (const char*)_boardTemplate);
 
   if (error.code() != DeserializationError::Ok || !doc.containsKey("radio")) {
-    LOG_CONSOLE(PSTR("Error: Your Board template is not valid. Unable to finish setup."));
+    LOG_CONSOLE(PSTR("Error: Board template parse failed (%s). Template: %.80s"),
+                error.c_str(), _boardTemplate);
     return false;
   }
 
@@ -662,35 +697,286 @@ bool ConfigStore::parseBoardTemplate(board_t& board) {
   return true;
 }
 
-void ConfigStore::boardDetection() {
-  LOG_ERROR(PSTR("Automatic board detection running... "));
+// ---------------------------------------------------------------------------
+// Ethernet auto-detection helpers
+// ---------------------------------------------------------------------------
 
 #if CONFIG_IDF_TARGET_ESP32S3
-  // not implemented yet for S3
-#elif CONFIG_IDF_TARGET_ESP32C3
-  // not implemented yet for C3
+// Probe a W5500 on the given SPI pins.  Reads the VERSIONR common register
+// (address 0x0039) and checks for the expected value 0x04.
+static bool probeW5500Spi(uint8_t cs, uint8_t miso, uint8_t mosi, uint8_t sck) {
+  SPIClass spi(HSPI);
+  spi.begin(sck, miso, mosi, cs);
+  pinMode(cs, OUTPUT);
+  digitalWrite(cs, HIGH);
+  delay(20);
+  spi.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  digitalWrite(cs, LOW);
+  spi.transfer(0x00);  // VERSIONR address high byte
+  spi.transfer(0x39);  // VERSIONR address low  byte
+  spi.transfer(0x01);  // control: common block BS=0, read, FDM-1B
+  uint8_t ver = spi.transfer(0x00);
+  digitalWrite(cs, HIGH);
+  spi.endTransaction();
+  spi.end();
+  return (ver == 0x04);
+}
+#endif // CONFIG_IDF_TARGET_ESP32S3
+
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+// Minimal no-op mediator stubs — MAC init() requires a non-NULL mediator
+// (it calls eth->on_state_changed() internally).  For a probe-only flow we
+// don't route frames or PHY interrupts so all callbacks can be no-ops.
+static esp_err_t _probe_state_cb(esp_eth_mediator_t*, esp_eth_state_t, void*)  { return ESP_OK; }
+static esp_err_t _probe_phy_read(esp_eth_mediator_t*, uint32_t, uint32_t, uint32_t*) { return ESP_OK; }
+static esp_err_t _probe_phy_write(esp_eth_mediator_t*, uint32_t, uint32_t, uint32_t)  { return ESP_OK; }
+static esp_err_t _probe_stack_rx(esp_eth_mediator_t*, uint8_t*, uint32_t)             { return ESP_OK; }
+static esp_eth_mediator_t s_probe_mediator = {
+    .phy_reg_read     = _probe_phy_read,
+    .phy_reg_write    = _probe_phy_write,
+    .stack_input      = _probe_stack_rx,
+    .on_state_changed = _probe_state_cb,
+};
+
+// Use the ESP-IDF EMAC MAC layer to probe for a PHY via MDIO.
+// Enables the oscillator, initialises just the MAC (not a full ETH stack),
+// reads PHY ID register 2 (PHYID1) and then immediately tears down the MAC.
+// Returns true when the PHY responds with a valid (non-trivial) ID value.
+static bool probeInternalEmac(uint8_t mdcPin, uint8_t mdioPin, uint8_t phyAddr,
+                               uint8_t refClkPin, bool clkExt, uint8_t oscEN) {
+  LOG_CONSOLE(PSTR("[ETH probe] EMAC probe: MDC=%u MDIO=%u PHY=%u refClk=%u clkExt=%d oscEN=%u"),
+            mdcPin, mdioPin, phyAddr, refClkPin, (int)clkExt, oscEN);
+
+  // 1. Enable oscillator; give the PLL ~100 ms to lock before EMAC init
+  if (oscEN != UNUSED_PIN) {
+    gpio_set_direction((gpio_num_t)oscEN, GPIO_MODE_OUTPUT);
+    gpio_set_level((gpio_num_t)oscEN, 1);
+    LOG_CONSOLE(PSTR("[ETH probe] oscEN GPIO%u HIGH — waiting 100ms"), oscEN);
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+  // 2. Configure REF_CLK pin as input when the PHY drives the clock
+  if (clkExt) {
+    gpio_set_direction((gpio_num_t)refClkPin, GPIO_MODE_INPUT);
+    LOG_CONSOLE(PSTR("[ETH probe] refClk GPIO%u set INPUT — waiting 50ms"), refClkPin);
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+
+  eth_mac_config_t macCfg = ETH_MAC_DEFAULT_CONFIG();
+  macCfg.sw_reset_timeout_ms = 200;  // fail fast when clock absent
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  LOG_CONSOLE(PSTR("[ETH probe] Using IDF 5.x code path"));
+  eth_esp32_emac_config_t emacCfg = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  emacCfg.smi_mdc_gpio_num  = (gpio_num_t)mdcPin;
+  emacCfg.smi_mdio_gpio_num = (gpio_num_t)mdioPin;
+#pragma GCC diagnostic pop
+  emacCfg.clock_config.rmii.clock_mode = clkExt ? EMAC_CLK_EXT_IN : EMAC_CLK_OUT;
+  emacCfg.clock_config.rmii.clock_gpio = (emac_rmii_clock_gpio_t)refClkPin;
+  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&emacCfg, &macCfg);
 #else
-  if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") != 0) {
-    for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
-      LOG_ERROR(PSTR("%s"), _boards[ite].BOARD.c_str());
-      if (_boards[ite].OLED__RST != UNUSED_PIN) {
-        pinMode(_boards[ite].OLED__RST, OUTPUT);
-        digitalWrite(_boards[ite].OLED__RST, LOW);
-        delay(25);
-        digitalWrite(_boards[ite].OLED__RST, HIGH);
-      }
-      Wire.begin(_boards[ite].OLED__SDA, _boards[ite].OLED__SCL);
-      Wire.beginTransmission(_boards[ite].OLED__address);
-      if (!Wire.endTransmission()) {
-        LOG_ERROR(PSTR("Compatible OLED FOUND"));
-        itoa(ite, _board, 10);
-        save();
-        return;
-      } else {
-        LOG_ERROR(PSTR("Not Compatible board found, please select it manually on the web config panel"));
-      }
+  LOG_CONSOLE(PSTR("[ETH probe] Using IDF 4.x code path"));
+  macCfg.smi_mdc_gpio_num  = mdcPin;
+  macCfg.smi_mdio_gpio_num = mdioPin;
+  macCfg.clock_config.rmii.clock_mode = clkExt ? EMAC_CLK_EXT_IN : EMAC_CLK_OUT;
+  macCfg.clock_config.rmii.clock_gpio = (emac_rmii_clock_gpio_t)refClkPin;
+  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&macCfg);
+#endif
+
+  if (!mac) {
+    LOG_CONSOLE(PSTR("[ETH probe] esp_eth_mac_new_esp32 returned NULL"));
+    if (oscEN != UNUSED_PIN) {
+      gpio_set_level((gpio_num_t)oscEN, 0);
+      gpio_set_direction((gpio_num_t)oscEN, GPIO_MODE_INPUT);
+    }
+    return false;
+  }
+  LOG_CONSOLE(PSTR("[ETH probe] MAC created OK"));
+
+  // Link a dummy mediator so MAC init() doesn't crash dereferencing a NULL
+  // eth pointer when it calls eth->on_state_changed().
+  mac->set_mediator(mac, &s_probe_mediator);
+
+  esp_err_t initRet = mac->init(mac);
+  if (initRet != ESP_OK) {
+    LOG_CONSOLE(PSTR("[ETH probe] MAC init FAILED: 0x%x"), (unsigned)initRet);
+    mac->del(mac);
+    if (oscEN != UNUSED_PIN) {
+      gpio_set_level((gpio_num_t)oscEN, 0);
+      gpio_set_direction((gpio_num_t)oscEN, GPIO_MODE_INPUT);
+    }
+    return false;
+  }
+  LOG_CONSOLE(PSTR("[ETH probe] MAC init OK"));
+
+  uint32_t phyId = 0;
+  esp_err_t readRet = mac->read_phy_reg(mac, phyAddr, 2, &phyId);
+  LOG_CONSOLE(PSTR("[ETH probe] read_phy_reg ret=0x%x phyId=0x%04X"), (unsigned)readRet, (unsigned)phyId);
+  bool found = (readRet == ESP_OK) && (phyId != 0x0000 && phyId != 0xFFFF);
+
+  mac->deinit(mac);
+  mac->del(mac);
+
+  if (!found && oscEN != UNUSED_PIN) {
+    gpio_set_level((gpio_num_t)oscEN, 0);
+    gpio_set_direction((gpio_num_t)oscEN, GPIO_MODE_INPUT);
+  }
+  LOG_CONSOLE(PSTR("[ETH probe] result: %s"), found ? "FOUND" : "NOT FOUND");
+  return found;
+}
+#endif // !ESP32S3 && !ESP32C3
+
+// ---------------------------------------------------------------------------
+// boardToTemplateJson() — serializes a board_t to the JSON template format
+// so the user can see and edit it in the web UI "Board Template" field.
+// ---------------------------------------------------------------------------
+static void boardToTemplateJson(const board_t& b, char* buf, size_t bufLen) {
+  StaticJsonDocument<1024> doc;
+  doc["aADDR"]  = b.OLED__address;
+  doc["oSDA"]   = b.OLED__SDA;
+  doc["oSCL"]   = b.OLED__SCL;
+  doc["oRST"]   = b.OLED__RST;
+  doc["pBut"]   = b.PROG__BUTTON;
+  doc["led"]    = b.BOARD_LED;
+  doc["radio"]  = b.L_radio;
+  doc["lNSS"]   = b.L_NSS;
+  doc["lDIO0"]  = b.L_DI00;
+  doc["lDIO1"]  = b.L_DI01;
+  doc["lBUSSY"] = b.L_BUSSY;
+  doc["lRST"]   = b.L_RST;
+  doc["lMISO"]  = b.L_MISO;
+  doc["lMOSI"]  = b.L_MOSI;
+  doc["lSCK"]   = b.L_SCK;
+  doc["lTCXOV"] = b.L_TCXO_V;
+  doc["RXEN"]   = b.RX_EN;
+  doc["TXEN"]   = b.TX_EN;
+  doc["lSPI"]   = b.L_SPI;
+  if (b.ethEN) {
+    doc["ethEN"]  = true;
+    doc["ethPHY"] = b.ethPHY;
+    if (b.ethPHY != 0xFF) {
+      // SPI ethernet (W5500, DM9051, KSZ8851SNL)
+      doc["ethSPI"]  = b.ethSPI;
+      doc["ethCS"]   = b.ethCS;
+      doc["ethINT"]  = b.ethINT;
+      doc["ethRST"]  = b.ethRST;
+      doc["ethMISO"] = b.ethMISO;
+      doc["ethMOSI"] = b.ethMOSI;
+      doc["ethSCK"]  = b.ethSCK;
+    } else {
+      // Internal EMAC (LAN8720, etc.)
+      doc["ethMDC"]     = b.ethMDC;
+      doc["ethMDIO"]    = b.ethMDIO;
+      doc["ethPhyAddr"] = b.ethPhyAddr;
+      doc["ethPhyType"] = b.ethPhyType;
+      doc["ethRefClk"]  = b.ethRefClk;
+      doc["ethClkExt"]  = b.ethClkExt;
+      doc["ethPhyRST"]  = b.ethPhyRST;
+      doc["ethOscEN"]   = b.ethOscEN;
     }
   }
+  serializeJson(doc, buf, bufLen);
+}
+
+// ---------------------------------------------------------------------------
+// boardDetection() — probes hardware to auto-select the board configuration.
+//
+// Priority:
+//   1. OLED I2C presence  → saves board index to _board (existing behaviour)
+//   2. Ethernet presence  → writes board-template JSON to _boardTemplate,
+//      sets InterfaceMode::BOTH, saves.
+//
+// Both phases iterate the _boards[] table so new boards are picked up
+// automatically just by adding entries to initBoardTable().
+// ---------------------------------------------------------------------------
+void ConfigStore::boardDetection() {
+  LOG_CONSOLE(PSTR("Automatic board detection running... "));
+
+#if CONFIG_IDF_TARGET_ESP32C3
+  // ESP32-C3: no ethernet boards defined — OLED probe only
+  for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
+    if (_boards[ite].OLED__address == 0) continue;
+    LOG_CONSOLE(PSTR("%s"), _boards[ite].BOARD.c_str());
+    Wire.begin(_boards[ite].OLED__SDA, _boards[ite].OLED__SCL);
+    Wire.beginTransmission(_boards[ite].OLED__address);
+    if (!Wire.endTransmission()) {
+      LOG_CONSOLE(PSTR("Compatible OLED FOUND"));
+      itoa(ite, _board, 10);
+      save();
+      return;
+    }
+  }
+
+#else
+  // ESP32 classic and ESP32-S3
+
+#if !defined(CONFIG_IDF_TARGET_ESP32S3)
+  if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") == 0) return;
+#endif
+
+  // ── Phase 1: OLED I2C probe ────────────────────────────────────────────
+  for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
+    if (_boards[ite].OLED__address == 0) continue;  // skip non-OLED boards
+    LOG_CONSOLE(PSTR("%s"), _boards[ite].BOARD.c_str());
+    if (_boards[ite].OLED__RST != UNUSED_PIN) {
+      pinMode(_boards[ite].OLED__RST, OUTPUT);
+      digitalWrite(_boards[ite].OLED__RST, LOW);
+      delay(25);
+      digitalWrite(_boards[ite].OLED__RST, HIGH);
+    }
+    Wire.begin(_boards[ite].OLED__SDA, _boards[ite].OLED__SCL);
+    Wire.beginTransmission(_boards[ite].OLED__address);
+    if (!Wire.endTransmission()) {
+      LOG_CONSOLE(PSTR("Compatible OLED FOUND"));
+      itoa(ite, _board, 10);
+      save();
+      return;
+    } else {
+      LOG_CONSOLE(PSTR("Not compatible"));
+    }
+  }
+
+  // ── Phase 2: Ethernet probe (table-driven) ────────────────────────────
+  for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
+    if (!_boards[ite].ethEN) continue;  // skip non-ethernet boards
+
+    bool detected = false;
+
+    if (_boards[ite].ethPHY != 0xFF) {
+      // SPI ethernet (W5500, etc.)
+#if CONFIG_IDF_TARGET_ESP32S3
+      LOG_CONSOLE(PSTR("Probing %s (SPI CS=%u SCK=%u MOSI=%u MISO=%u) ..."),
+                _boards[ite].BOARD.c_str(),
+                _boards[ite].ethCS, _boards[ite].ethSCK,
+                _boards[ite].ethMOSI, _boards[ite].ethMISO);
+      detected = probeW5500Spi(_boards[ite].ethCS, _boards[ite].ethMISO,
+                               _boards[ite].ethMOSI, _boards[ite].ethSCK);
+#endif
+    } else {
+      // Internal EMAC (LAN8720, etc.)
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+      LOG_CONSOLE(PSTR("Probing %s (EMAC MDC=%u MDIO=%u PHYaddr=%d) ..."),
+                _boards[ite].BOARD.c_str(),
+                _boards[ite].ethMDC, _boards[ite].ethMDIO,
+                _boards[ite].ethPhyAddr);
+      detected = probeInternalEmac(_boards[ite].ethMDC, _boards[ite].ethMDIO,
+                                   _boards[ite].ethPhyAddr, _boards[ite].ethRefClk,
+                                   _boards[ite].ethClkExt, _boards[ite].ethOscEN);
+#endif
+    }
+
+    if (detected) {
+      LOG_CONSOLE(PSTR("Ethernet detected: %s"), _boards[ite].BOARD.c_str());
+      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
+      itoa(ite, _board, 10);  // mark board as selected so detection doesn't re-run
+      _currentBoardDirty = true;
+      _ifaceMode = InterfaceMode::BOTH;
+      save();
+      return;
+    }
+  }
+  LOG_CONSOLE(PSTR("Board detection: no board found"));
 #endif
 }
 

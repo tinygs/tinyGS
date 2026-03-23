@@ -209,25 +209,30 @@ void setup()
     if (!configStore.getDisableRadio()) {
       // Run radio.init() in a separate task to guard against an indefinite
       // SPI hang when no radio chip is physically present on the board.
-      static TaskHandle_t s_radioInitTask = nullptr;
+      static TaskHandle_t   s_radioInitTask = nullptr;
+      static volatile bool  s_radioInitDone = false;
       xTaskCreate(
         [](void*) {
           radio.init();
+          s_radioInitDone = true;   // signal before self-delete; prevents double-delete
           vTaskDelete(nullptr);
         },
         "radioInit", 4096, nullptr, 1, &s_radioInitTask
       );
       const unsigned long RADIO_INIT_TIMEOUT_MS = 15000UL;
       unsigned long t0 = millis();
-      while (!radio.isReady() && (millis() - t0 < RADIO_INIT_TIMEOUT_MS)) {
+      while (!radio.isReady() && !s_radioInitDone && (millis() - t0 < RADIO_INIT_TIMEOUT_MS)) {
         delay(50);
       }
       if (!radio.isReady()) {
-        Log::console(PSTR("[SX12xx] Init timeout after %ds - no radio chip detected"), RADIO_INIT_TIMEOUT_MS / 1000);
-        if (s_radioInitTask) {
+        if (!s_radioInitDone) {
+          // Task is still running but SPI appears to be hung — force-kill it.
+          Log::console(PSTR("[SX12xx] Init timeout after %ds - no radio chip detected"), RADIO_INIT_TIMEOUT_MS / 1000);
           vTaskDelete(s_radioInitTask);
-          s_radioInitTask = nullptr;
+        } else {
+          Log::console(PSTR("[SX12xx] No radio configured for this board"));
         }
+        s_radioInitTask = nullptr;
       }
     } else {
       Log::console(PSTR("Radio disabled (dev mode). Skipping radio init."));

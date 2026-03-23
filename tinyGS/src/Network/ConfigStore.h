@@ -39,7 +39,7 @@ constexpr auto MQTT_SERVER_LENGTH = 31;
 constexpr auto MQTT_PORT_LENGTH = 6;
 constexpr auto MQTT_USER_LENGTH = 31;
 constexpr auto MQTT_PASS_LENGTH = 31;
-constexpr auto TEMPLATE_LEN = 512;
+constexpr auto TEMPLATE_LEN = 768;
 constexpr auto MODEM_LEN = 256;
 constexpr auto ADVANCED_LEN = 256;
 constexpr auto AP_PASSWORD_LENGTH = 32;
@@ -68,6 +68,7 @@ enum boardNum {
   ESP32S3_SX1278_LF,
   TTGO_TBEAM_SX1262,
   LILYGO_T3S3_SX1280,
+  WAVESHARE_ESP32S3_ETH,
 #elif CONFIG_IDF_TARGET_ESP32C3
   HELTEC_LORA32_HTCT62 = 0,
   ESP32C3_SX1278_LF,
@@ -95,6 +96,7 @@ enum boardNum {
   LILYGO_T3_V1_6_1_HF,
   LILYGO_T3_V1_6_1_HF_TCXO,
   TBEAM_SX1268_TCXO,
+  WT32_ETH01,
 #endif
   NUM_BOARDS
 };
@@ -169,8 +171,6 @@ typedef struct {
 } AdvancedConfig;
 
 // Board name/length constants are defined in html.h (which is included above)
-// constexpr auto BOARD_NAME_LENGTH = 62;
-// constexpr auto BOARD_LENGTH = 3;
 
 class ConfigStore {
 public:
@@ -256,6 +256,10 @@ public:
   // ---- Network mode ----
   InterfaceMode getInterfaceMode()   const { return _ifaceMode; }
   void          setInterfaceMode(InterfaceMode m);
+
+  // ---- Board list (drives web UI dropdown) ----
+  uint8_t     getBoardCount()           const { return NUM_BOARDS; }
+  const char* getBoardName(uint8_t idx) const { return (idx < NUM_BOARDS) ? _boards[idx].BOARD.c_str() : ""; }
 
   // ---- Board config resolution ----
   bool getBoardConfig(board_t& board);
