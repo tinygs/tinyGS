@@ -49,6 +49,9 @@ struct RxPacketMessage {
   float frequencyerror;
   float freqDoppler;
   bool crc_error;
+  // Timestamps captured at reception time
+  time_t unix_time;
+  int64_t usec_time;
 };
 
 extern Status status;

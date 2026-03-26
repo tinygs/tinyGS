@@ -24,8 +24,12 @@
 #ifndef Status_h
 #define Status_h
 
+#include <sys/time.h>
+
 struct PacketInfo {
   char time[20] = "Waiting";
+  time_t unix_time = 0;              // epoch seconds at reception
+  int64_t usec_time = 0;             // epoch microseconds at reception
   float rssi = 0;
   float snr = 0;
   float frequencyerror = 0;       // Hz 
@@ -95,7 +99,7 @@ struct Tle {
 
  
 struct Status {
-  const uint32_t version = 2603226;  // version: year month day release
+  const uint32_t version = 2603242;  // version: year month day release
   const char* git_version = GIT_VERSION;
   bool mqtt_connected = false;
   bool radio_ready = false;

@@ -65,6 +65,7 @@ int16_t RadioHal<SX1280>::begin()
 template<>
 int16_t RadioHal<LR1121>::begin(float freq, float bw, uint8_t sf, uint8_t cr, uint8_t syncWord, int8_t power, uint16_t preambleLength, uint8_t gain, float tcxoVoltage)
 {
+    
     if (power > 22) power = 22;  // LR1121 HP PA max is +22 dBm
     // Snap BW to nearest LR1121-supported value
         if      (bw <= 62.5f)  bw = 62.5f;
@@ -334,13 +335,13 @@ int16_t RadioHal<SX1280>::fixedPacketLengthMode(uint8_t len)
 template<>
 int16_t RadioHal<SX1278>::setCRC(uint8_t len,	uint16_t initial , uint16_t polynomial , bool inverted )
 {
-    return radio->setCRC(len==1);
+    return radio->setCRC(len > 0);
 }
 
 template<>
 int16_t RadioHal<SX1276>::setCRC(uint8_t len,	uint16_t initial , uint16_t polynomial , bool inverted )
 {
-     return radio->setCRC(len==1);
+     return radio->setCRC(len > 0);
 }
 
 template<>
@@ -630,4 +631,5 @@ template<> int16_t RadioHal<SX1278>::setRxBoostedGainMode(bool enable) { return 
 template<> int16_t RadioHal<SX1276>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
 template<> int16_t RadioHal<SX1280>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
 // LR1121: supported
-template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return radio->setRxBoostedGainMode(enable); }
+//template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return radio->setRxBoostedGainMode(enable); }
+template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }

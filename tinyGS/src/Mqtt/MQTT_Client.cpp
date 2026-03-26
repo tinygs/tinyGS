@@ -374,10 +374,6 @@ void MQTT_Client::sendWelcome() {
 
 void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet) {
   ConfigStore& cfg = ConfigStore::getInstance();
-  time_t now;
-  time(&now);
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
 
   const size_t capacity = JSON_ARRAY_SIZE(2) + JSON_OBJECT_SIZE(24) + 256 + packet.length() + raw_packet.length();
   DynamicJsonDocument doc(capacity);
@@ -405,8 +401,8 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet) {
   doc["rssi"] = status.lastPacketInfo.rssi;
   doc["snr"] = status.lastPacketInfo.snr;
   doc["frequency_error"] = status.lastPacketInfo.frequencyerror;
-  doc["unix_GS_time"] = now;
-  doc["usec_time"] = (int64_t)tv.tv_usec + tv.tv_sec * 1000000ll;
+  doc["unix_GS_time"] = status.lastPacketInfo.unix_time;
+  doc["usec_time"] = status.lastPacketInfo.usec_time;
   doc["crc_error"] = status.lastPacketInfo.crc_error;
   doc["data"] = packet;
   doc["NORAD"] = status.modeminfolastpckt.NORAD;
@@ -425,12 +421,9 @@ void MQTT_Client::sendRx(String packet, bool noisy, String raw_packet) {
   free(buffer);
 }
 
+// Uses info saved in the queue — avoids issues if config changed between enqueue and send
 void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg) {
   ConfigStore& cfg = ConfigStore::getInstance();
-  time_t now;
-  time(&now);
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
 
   size_t packetLen = strlen(msg.packet);
   size_t rawLen = strlen(msg.raw_packet);
@@ -460,8 +453,8 @@ void MQTT_Client::sendRxFromQueue(const RxPacketMessage& msg) {
   doc["rssi"] = msg.rssi;
   doc["snr"] = msg.snr;
   doc["frequency_error"] = msg.frequencyerror;
-  doc["unix_GS_time"] = now;
-  doc["usec_time"] = (int64_t)tv.tv_usec + tv.tv_sec * 1000000ll;
+  doc["unix_GS_time"] = msg.unix_time;
+  doc["usec_time"] = msg.usec_time;
   doc["crc_error"] = msg.crc_error;
   doc["data"] = msg.packet;
   doc["NORAD"] = msg.NORAD;
@@ -488,6 +481,7 @@ void MQTT_Client::queueRx(const String& packet, bool noisy, const String& raw_pa
 
   RxPacketMessage msg;
   msg.noisy = noisy;
+  // Copy modem info AT TIME OF RECEPTION (only needed fields)
   strncpy(msg.modem_mode, status.modeminfolastpckt.modem_mode, sizeof(msg.modem_mode) - 1);
   msg.modem_mode[sizeof(msg.modem_mode) - 1] = '\0';
   strncpy(msg.satellite, status.modeminfolastpckt.satellite, sizeof(msg.satellite) - 1);
@@ -506,7 +500,8 @@ void MQTT_Client::queueRx(const String& packet, bool noisy, const String& raw_pa
   msg.frequencyerror = status.lastPacketInfo.frequencyerror;
   msg.freqDoppler = status.lastPacketInfo.freqDoppler;
   msg.crc_error = status.lastPacketInfo.crc_error;
-
+  msg.unix_time = status.lastPacketInfo.unix_time;
+  msg.usec_time = status.lastPacketInfo.usec_time;
   size_t packetLen = packet.length();
   size_t rawLen = raw_packet.length();
   if (packetLen >= sizeof(msg.packet)) packetLen = sizeof(msg.packet) - 1;
