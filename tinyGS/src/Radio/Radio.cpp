@@ -126,14 +126,27 @@ void Radio::init()
     rfswitch_pins[3] = RADIOLIB_NC;
     rfswitch_pins[4] = RADIOLIB_NC;
 
-    rfswitch_table[0] = {LR11x0::MODE_STBY,  {LOW,  LOW,  LOW }};
-    rfswitch_table[1] = {LR11x0::MODE_RX,    {LOW,  HIGH, LOW }};
-    rfswitch_table[2] = {LR11x0::MODE_TX,    {HIGH, HIGH, LOW }};
-    rfswitch_table[3] = {LR11x0::MODE_TX_HP, {HIGH, LOW,  LOW }};
-    rfswitch_table[4] = {LR11x0::MODE_TX_HF, {LOW,  LOW,  LOW }};
-    rfswitch_table[5] = {LR11x0::MODE_GNSS,  {LOW,  LOW,  HIGH}};
-    rfswitch_table[6] = {LR11x0::MODE_WIFI,  {LOW,  LOW,  LOW }};
-    rfswitch_table[7] = END_OF_MODE_TABLE;
+    // rfswitch_table[0] = {LR11x0::MODE_STBY,  {LOW,  LOW,  LOW }};
+    // rfswitch_table[1] = {LR11x0::MODE_RX,    {LOW,  HIGH, LOW }};
+    // rfswitch_table[2] = {LR11x0::MODE_TX,    {HIGH, HIGH, LOW }};
+    // rfswitch_table[3] = {LR11x0::MODE_TX_HP, {HIGH, LOW,  LOW }};
+    // rfswitch_table[4] = {LR11x0::MODE_TX_HF, {LOW,  LOW,  LOW }};
+    // rfswitch_table[5] = {LR11x0::MODE_GNSS,  {LOW,  LOW,  HIGH}};
+    // rfswitch_table[6] = {LR11x0::MODE_WIFI,  {LOW,  LOW,  LOW }};
+    // rfswitch_table[7] = END_OF_MODE_TABLE;
+
+
+
+  rfswitch_table[0] = {LR11x0::MODE_STBY,  {LOW,  LOW,  LOW }};   // all off
+  rfswitch_table[1] = {LR11x0::MODE_RX,    {LOW,  LOW,  LOW }};   // DIO5=0, DIO6=0 → RX ✓
+  rfswitch_table[2] = {LR11x0::MODE_TX,    {LOW,  HIGH, LOW }};   // DIO5=0, DIO6=1 → TX Sub-1GHz LP ✓  
+  rfswitch_table[3] = {LR11x0::MODE_TX_HP, {HIGH, LOW,  LOW }};   // DIO5=1, DIO6=0 → TX Sub-1GHz HP ✓
+  rfswitch_table[4] = {LR11x0::MODE_TX_HF, {HIGH, HIGH, LOW }};   // DIO5=1, DIO6=1 → TX 2.4GHz ✓
+  rfswitch_table[5] = {LR11x0::MODE_GNSS,  {LOW,  LOW,  LOW }};   // no RF path needed
+  rfswitch_table[6] = {LR11x0::MODE_WIFI,  {LOW,  LOW,  LOW }};   // no RF path needed
+  rfswitch_table[7] = END_OF_MODE_TABLE;
+
+
 
     radioHal->setRfSwitchTable(rfswitch_pins, rfswitch_table);
     LOG_DEBUG(PSTR("setRfSwitchTable(LR1121 DIO5/DIO6/DIO7)"));
@@ -337,6 +350,7 @@ void Radio::disableInterrupt()
 
 void Radio::startRx()
 {
+  radioHal->setRxBoostedGainMode(true);
   // put module back to listen mode
   radioHal->startReceive();
 
@@ -373,8 +387,6 @@ void Radio::setFrequency()
   //Serial.println( status.tle.freqDoppler ,4 );
   //Serial.print("modem: ");
   //Serial.println( (status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000 , 4);
-
-
 
 
 }
