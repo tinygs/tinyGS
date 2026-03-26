@@ -108,15 +108,64 @@ void Radio::init()
       radioHal = new RadioHal<SX1280>(new Module(board.L_NSS, board.L_DI01, board.L_RST, board.L_BUSSY, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
       moduleNameString="SX1280";
       break;
-    default:
-       radioHal = new RadioHal<SX1268>(new Module(board.L_NSS, board.L_DI01, board.L_RST, board.L_BUSSY, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
-       moduleNameString="default SX1268";
+    case RADIO_LR1121:
+      radioHal = new RadioHal<LR1121>(new Module(board.L_NSS, board.L_DI01, board.L_RST, board.L_BUSSY, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
+      moduleNameString="LR1121";
+      break;
+
+     default:
+      radioHal = new RadioHal<SX1268>(new Module(board.L_NSS, board.L_DI01, board.L_RST, board.L_BUSSY, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
+      moduleNameString="default SX1268";
   }
 
-  if (board.RX_EN != UNUSED && board.TX_EN != UNUSED)
+  if (board.L_radio == RADIO_LR1121)
   {
-    radioHal->setRfSwitchPins(board.RX_EN, board.TX_EN);
-    LOG_DEBUG(PSTR("setRfSwitchPins(RxEn->GPIO-%d, TxEn->GPIO-%d)"), board.RX_EN, board.TX_EN);
+    rfswitch_pins[0] = RADIOLIB_LR11X0_DIO5;
+    rfswitch_pins[1] = RADIOLIB_LR11X0_DIO6;
+    rfswitch_pins[2] = RADIOLIB_LR11X0_DIO7;
+    rfswitch_pins[3] = RADIOLIB_NC;
+    rfswitch_pins[4] = RADIOLIB_NC;
+
+    // rfswitch_table[0] = {LR11x0::MODE_STBY,  {LOW,  LOW,  LOW }};
+    // rfswitch_table[1] = {LR11x0::MODE_RX,    {LOW,  HIGH, LOW }};
+    // rfswitch_table[2] = {LR11x0::MODE_TX,    {HIGH, HIGH, LOW }};
+    // rfswitch_table[3] = {LR11x0::MODE_TX_HP, {HIGH, LOW,  LOW }};
+    // rfswitch_table[4] = {LR11x0::MODE_TX_HF, {LOW,  LOW,  LOW }};
+    // rfswitch_table[5] = {LR11x0::MODE_GNSS,  {LOW,  LOW,  HIGH}};
+    // rfswitch_table[6] = {LR11x0::MODE_WIFI,  {LOW,  LOW,  LOW }};
+    // rfswitch_table[7] = END_OF_MODE_TABLE;
+
+
+
+  rfswitch_table[0] = {LR11x0::MODE_STBY,  {LOW,  LOW,  LOW }};   // all off
+  rfswitch_table[1] = {LR11x0::MODE_RX,    {LOW,  LOW,  LOW }};   // DIO5=0, DIO6=0 → RX ✓
+  rfswitch_table[2] = {LR11x0::MODE_TX,    {LOW,  HIGH, LOW }};   // DIO5=0, DIO6=1 → TX Sub-1GHz LP ✓  
+  rfswitch_table[3] = {LR11x0::MODE_TX_HP, {HIGH, LOW,  LOW }};   // DIO5=1, DIO6=0 → TX Sub-1GHz HP ✓
+  rfswitch_table[4] = {LR11x0::MODE_TX_HF, {HIGH, HIGH, LOW }};   // DIO5=1, DIO6=1 → TX 2.4GHz ✓
+  rfswitch_table[5] = {LR11x0::MODE_GNSS,  {LOW,  LOW,  LOW }};   // no RF path needed
+  rfswitch_table[6] = {LR11x0::MODE_WIFI,  {LOW,  LOW,  LOW }};   // no RF path needed
+  rfswitch_table[7] = END_OF_MODE_TABLE;
+
+
+
+    radioHal->setRfSwitchTable(rfswitch_pins, rfswitch_table);
+    LOG_DEBUG(PSTR("setRfSwitchTable(LR1121 DIO5/DIO6/DIO7)"));
+  }
+  else if (board.RX_EN != UNUSED && board.TX_EN != UNUSED)
+  {
+    rfswitch_pins[0] = board.RX_EN;
+    rfswitch_pins[1] = board.TX_EN;
+    rfswitch_pins[2] = RADIOLIB_NC;
+    rfswitch_pins[3] = RADIOLIB_NC;
+    rfswitch_pins[4] = RADIOLIB_NC;
+
+    rfswitch_table[0] = {Module::MODE_IDLE, {LOW,  LOW }};
+    rfswitch_table[1] = {Module::MODE_RX,   {HIGH, LOW }};
+    rfswitch_table[2] = {Module::MODE_TX,   {LOW,  HIGH}};
+    rfswitch_table[3] = END_OF_MODE_TABLE;
+
+    radioHal->setRfSwitchTable(rfswitch_pins, rfswitch_table);
+    LOG_DEBUG(PSTR("setRfSwitchTable(RxEn->GPIO-%d, TxEn->GPIO-%d)"), board.RX_EN, board.TX_EN);
   }
 
   begin();
@@ -179,6 +228,7 @@ int16_t Radio::begin()
   // start listening for LoRa packets
   //LOG_CONSOLE(PSTR("[%s] Starting to listen to %s"), moduleNameString, m.satellite);
   LOG_CONSOLE(PSTR("[%s] Starting to listen to %s @ %s mode @ %.4f MHz"), moduleNameString, m.satellite,m.modem_mode,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
+  radioHal->setRxBoostedGainMode(true);
   CHECK_ERROR(radioHal->startReceive());
   status.modeminfo.currentRssi = radioHal->getRSSI(false,true);
 
@@ -271,6 +321,7 @@ void Radio::tle()
     }
   } else {
     status.tle.freqDoppler = 0;
+    status.tle.new_freqDoppler = 0;
   }
   }
 }
@@ -299,6 +350,7 @@ void Radio::disableInterrupt()
 
 void Radio::startRx()
 {
+  radioHal->setRxBoostedGainMode(true);
   // put module back to listen mode
   radioHal->startReceive();
 
@@ -327,7 +379,7 @@ void Radio::setFrequency()
   begin();
   //radioHal->setFrequency( (status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
   //LOG_DEBUG(PSTR("Base: %.4f Mhz Offset: %.1f Hz Doppler: %.1f Hz --> Modem: %.4f Mhz"),status.modeminfo.frequency, status.modeminfo.freqOffset,status.tle.freqDoppler,(status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000);
-  //Serial.print("base: ;
+  //Serial.print("base: ");
   //Serial.println( status.modeminfo.frequency ,4 );
   //Serial.print("offset: ");
   //Serial.println( status.modeminfo.freqOffset , 4 );
@@ -335,8 +387,6 @@ void Radio::setFrequency()
   //Serial.println( status.tle.freqDoppler ,4 );
   //Serial.print("modem: ");
   //Serial.println( (status.modeminfo.frequency * 1000000 + (status.modeminfo.freqOffset +  status.tle.freqDoppler)) / 1000000 , 4);
-
-
 
 
 }
@@ -634,10 +684,11 @@ uint8_t Radio::listen()
   delete[] respFrame_raw;
 
   noisyInterrupt = false;
-  
-  // force doppler-recalc
-  status.tle.freqDoppler = 99999; // oe6isp
-  tle(); // oe6isp
+
+  // Commented, force TLE calculation might be problem when we receive many messages in a row on FSK.
+  // // force doppler-recalc
+  // status.tle.freqDoppler = 1; // oe6isp 99999  
+  // tle(); // oe6isp
 
   // put module back to listen mode
   startRx();

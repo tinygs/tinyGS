@@ -59,6 +59,7 @@ void ConfigStore::initBoardTable() {
   _boards[i].ethMOSI = 11;
   _boards[i].ethSCK  = 13;
   i++;
+  _boards[i++] = {0x3c, 18, 17, 21, 0, 35, RADIO_LR1121, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.8f, UNUSED_PIN, UNUSED_PIN, "EBYTE EoRa-HUB ESP32S3 + LR1121"};
 #elif CONFIG_IDF_TARGET_ESP32C3
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1262, 8, UNUSED_PIN, 3, 4, 5, 6, 7, 10, 1.6f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC LORA32 HT-CT62 SX1262"};
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1278, 8, 4, UNUSED_PIN, UNUSED_PIN, 5, 6, 7, 10, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-C3 433MHz SX1278"};

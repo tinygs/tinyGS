@@ -58,7 +58,8 @@ public:
   int16_t sendTestPacket();
   int16_t remoteSetFreqOffset(char* payload, size_t payload_len);
   void clearPacketReceivedAction();
-   
+
+
 private:
   Radio();
   PhysicalLayer* lora; // TODO: Remove this
@@ -66,6 +67,8 @@ private:
   void readState(int state);
   static void setFlag();
   SPIClass spi;
+  uint32_t rfswitch_pins[5];
+  Module::RfSwitchMode_t rfswitch_table[8];
   const char* TEST_STRING = "TinyGS-test "; // make sure this always start with "TinyGS-test"!!!
   const char* moduleNameString = "Uninitalised";
 
