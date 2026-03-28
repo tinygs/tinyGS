@@ -58,6 +58,8 @@ ConfigManager::ConfigManager()
   {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
   {      0x3c,       18,        17,       21,           0,        35,      RADIO_LR1121,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.8f,   UNUSED, UNUSED, "EBYTE EoRa-HUB ESP32S3 + LR1121"    }, // LR1121 @ G4lile0
   {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
+  {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_LR2021,    8,      6,     14,      13,  12,      11,     10,     9,      0.0f,   UNUSED, UNUSED,  "Custom ESP32-S3 433MHz + LR2021"     },  // SX1278 @g4lile0
+  
 
   #elif CONFIG_IDF_TARGET_ESP32C3
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1262,    8,   UNUSED,    3,      4,     5,       6,      7,    10,     1.6f,    UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262" },  // SX1262  @gargomoma

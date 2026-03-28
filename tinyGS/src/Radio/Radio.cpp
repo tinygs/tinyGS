@@ -92,6 +92,10 @@ void Radio::init()
       radioHal = new RadioHal<LR1121>(new Module(board.L_NSS, board.L_DI01, board.L_RST, board.L_BUSSY, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
       moduleNameString="LR1121";
       break;
+    case RADIO_LR2021:
+      radioHal = new RadioHal<LR2021>(new Module(board.L_NSS, board.L_DI01, board.L_RST, board.L_BUSSY, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
+      moduleNameString="LR2021";
+      break;
 
      default:
       radioHal = new RadioHal<SX1268>(new Module(board.L_NSS, board.L_DI01, board.L_RST, board.L_BUSSY, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
@@ -99,7 +103,6 @@ void Radio::init()
   }
 
   
-
   begin();
 
 if (board.L_radio == RADIO_LR1121)
