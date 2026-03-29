@@ -642,10 +642,19 @@ int16_t RadioHal<LR2021>::begin(float freq, float bw, uint8_t sf, uint8_t cr, ui
 {
     radio->irqDioNum =8;
     if (power > 22) power = 22;  // LR2021 HP PA max is +22 dBm
-    if      (bw <= 62.5f)  bw = 62.5f;
-    else if (bw <= 125.0f) bw = 125.0f;
-    else if (bw <= 250.0f) bw = 250.0f;
-    else                   bw = 500.0f;
+
+    if      (bw <= 31.25f)    bw = 31.25f;
+    else if (bw <= 41.67f)    bw = 41.67f;
+    else if (bw <= 62.5f)     bw = 62.5f;
+    else if (bw <= 83.34f)    bw = 83.34f;
+    else if (bw <= 101.5625f) bw = 101.5625f;
+    else if (bw <= 125.0f)    bw = 125.0f;
+    else if (bw <= 203.125f)  bw = 203.125f;
+    else if (bw <= 250.0f)    bw = 250.0f;
+    else if (bw <= 406.25f)   bw = 406.25f;
+    else if (bw <= 500.0f)    bw = 500.0f;
+    else if (bw <= 812.5f)    bw = 812.5f;
+    else                      bw = 1000.0f;
 
     return radio->begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage);
 }
