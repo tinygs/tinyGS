@@ -850,8 +850,14 @@ static bool probeRadio(const board_t& b) {
                 ready ? "OK" : "TIMEOUT", (unsigned long)(millis() - t));
     if (!ready) return false;  // chip didn't boot — not present or damaged
 
-    // Set BUSY back to plain INPUT (no pull) so RadioLib reads the real pin
-    pinMode(b.L_BUSSY, INPUT);
+    // The RST→BUSY handshake is the detection: the chip asserted BUSY HIGH
+    // and then released it LOW within 500 ms.  No other device on these pins
+    // would do that.  Return immediately — don't call RadioLib::begin() which
+    // would trigger a second RST+TCXO calibration that times out on TCXO
+    // boards (e.g. WSL V3) causing a 10-second BUSY stall.
+    const char* sx_name = (b.L_radio == RADIO_SX1262) ? "SX1262" : "SX1268";
+    LOG_CONSOLE(PSTR("[Radio] %s detected via RST+BUSY handshake \u2192 OK"), sx_name);
+    return true;
   }
 
   // ── Step 3: Initialise SPI ────────────────────────────────────────────────
@@ -895,17 +901,11 @@ static bool probeRadio(const board_t& b) {
     }
     case RADIO_SX1262:
     case RADIO_SX1268: {
-      // The RST+BUSY handshake in Step 2 is definitive: we pulsed RST LOW→HIGH,
-      // then BUSY went HIGH (chip started booting) and dropped LOW (ready) within
-      // 500 ms.  No other device on these specific SPI pins would exhibit this
-      // behaviour.  We already confirmed chip presence there — no SPI read needed.
-      // (SPI MISO reads 0x00 because the GPIO matrix routing for MISO on ESP32-S3
-      // is unreliable after a prior SPI bus was torn down on overlapping pins;
-      // but that doesn't matter because RadioLib::begin() works fine 1 s later.)
+      Module mod(b.L_NSS, RADIOLIB_NC, b.L_RST, b.L_BUSSY, spi, spis);
+      SX1262 r(&mod);
+      err = r.begin();
       name = (b.L_radio == RADIO_SX1262) ? "SX1262" : "SX1268";
-      found = true;
-      err   = RADIOLIB_ERR_NONE;
-      LOG_CONSOLE(PSTR("[Radio] %s detected via RST+BUSY handshake → OK"), name);
+      if (err == RADIOLIB_ERR_NONE) r.sleep();
       break;
     }
     case RADIO_SX1280: {
@@ -1233,7 +1233,8 @@ void ConfigStore::boardDetection() {
 
     if (_boards[ite].ethPHY != 0xFF) {
       // SPI ethernet (W5500, etc.)
-#if CONFIG_IDF_TARGET_ESP32S3
+      // *** DEBUG: ETH probe temporarily disabled to isolate SPI bus interference ***
+#if 0 && CONFIG_IDF_TARGET_ESP32S3
       LOG_CONSOLE(PSTR("Probing %s (SPI CS=%u SCK=%u MOSI=%u MISO=%u)..."),
                   _boards[ite].BOARD.c_str(), _boards[ite].ethCS, _boards[ite].ethSCK,
                   _boards[ite].ethMOSI, _boards[ite].ethMISO);
