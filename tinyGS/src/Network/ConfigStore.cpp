@@ -22,6 +22,7 @@
 #include <Wire.h>
 #include <EEPROM.h>
 #include <SPI.h>
+#include <RadioLib.h>
 
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
 #include <esp_idf_version.h>
@@ -30,6 +31,7 @@
 #include <esp_eth_mac_esp.h>
 #endif
 #include <driver/gpio.h>
+#include <esp_log.h>
 #endif
 
 // ============================================================
@@ -44,6 +46,8 @@ void ConfigStore::initBoardTable() {
   uint8_t i = 0;
 #if CONFIG_IDF_TARGET_ESP32S3
   _boards[i++] = {0x3c, 17, 18, 21, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC LORA32 V3 SX1262"};
+  // Heltec Wireless Stick Lite V3: no OLED, same radio SPI as LORA32 V3
+  _boards[i++] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC WSL V3 SX1262"};
   _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 35, RADIO_SX1278, 8, 6, 14, UNUSED_PIN, 12, 11, 10, 9, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-S3 433MHz SX1278"};
   _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 3, RADIO_SX1262, 10, UNUSED_PIN, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED_PIN, UNUSED_PIN, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"};
   _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 37, RADIO_SX1280, 7, UNUSED_PIN, 9, UNUSED_PIN, 8, 3, 6, 5, 0.0f, 21, 10, "2.4Ghz LILYGO SX1280"};
@@ -286,6 +290,15 @@ bool ConfigStore::init() {
   LOG_CONSOLE(PSTR("[Migration]   board        : \"%s\""), _board);
   LOG_CONSOLE(PSTR("[Migration]   latitude     : \"%s\""), _latitude);
   LOG_CONSOLE(PSTR("[Migration]   longitude    : \"%s\""), _longitude);
+  // Always log the resolved board name so it's visible on every boot,
+  // not just when auto-detection runs (which only happens on first boot).
+  {
+    board_t resolvedBoard;
+    if (getBoardConfig(resolvedBoard) && resolvedBoard.BOARD.length() > 0)
+      LOG_CONSOLE(PSTR("Board: %s"), resolvedBoard.BOARD.c_str());
+    else
+      LOG_CONSOLE(PSTR("Board: (not configured)"));
+  }
 
   return validConfig;
 }
@@ -773,6 +786,155 @@ static bool probeW5500Spi(uint8_t cs, uint8_t miso, uint8_t mosi, uint8_t sck) {
 }
 #endif // CONFIG_IDF_TARGET_ESP32S3
 
+// ---------------------------------------------------------------------------
+// Radio auto-detection via RadioLib.
+//
+// Uses the same RadioLib begin() call path as the real radio initialisation,
+// so TCXO supply voltage, BUSY handshake, and chip-version verification are
+// all handled correctly by RadioLib's proven driver code.
+//
+// Note: SX1276 and SX1278 are identical silicon — they respond the same way
+// to begin(), so boards sharing the same SPI pins fall back to the first
+// matching entry in the board table.
+// ---------------------------------------------------------------------------
+static bool probeRadio(const board_t& b) {
+  if (b.L_NSS == UNUSED_PIN || b.L_SCK == UNUSED_PIN || b.L_radio == 0)
+    return false;
+
+  // ── Step 1: Release ALL radio-related GPIO pins ───────────────────────────
+  // A prior SPI probe (e.g. W5500) may have left pins as OUTPUTs.
+  // In particular, the W5500 probe manually calls pinMode(CS, OUTPUT) which
+  // spi.end() does NOT undo — so the CS pin (= SX1262 DIO1 on WSL V3) stays
+  // driven HIGH, locking the chip.  gpio_reset_pin() fully clears the GPIO
+  // matrix routing, output driver, and pull state.
+  auto resetPin = [](uint8_t pin) {
+    if (pin != UNUSED_PIN) gpio_reset_pin((gpio_num_t)pin);
+  };
+  resetPin(b.L_NSS);
+  resetPin(b.L_MISO);
+  resetPin(b.L_MOSI);
+  resetPin(b.L_SCK);
+  resetPin(b.L_BUSSY);
+  resetPin(b.L_RST);
+  resetPin(b.L_DI01);   // W5500 CS shares this pin on WSL V3
+  resetPin(b.RX_EN);
+  resetPin(b.TX_EN);
+
+  // ── Step 2: Manual RST + BUSY handshake for SX126x ───────────────────────
+  // The W5500 SPI probe drives GPIO13 (=BUSY) as SCK and GPIO11 (=MISO) as
+  // MOSI.  This external contention can lock the SX1262's internal state
+  // machine, keeping BUSY=HIGH until a proper reset clears it.  RadioLib does
+  // its own reset inside begin(), but only after spi.begin() — by then the
+  // chip may fail with a 10-second BUSY timeout.  We do an explicit hardware
+  // reset HERE, before RadioLib is involved, so RadioLib inherits a known-good
+  // chip state.
+  if ((b.L_radio == RADIO_SX1262 || b.L_radio == RADIO_SX1268) &&
+      b.L_RST != UNUSED_PIN && b.L_BUSSY != UNUSED_PIN) {
+    // RST: drive HIGH first (required for some boards without external pull-up)
+    pinMode(b.L_RST, OUTPUT);
+    digitalWrite(b.L_RST, HIGH);
+    delay(1);
+    // Pulse RST LOW → HIGH; keep it OUTPUT HIGH after the pulse
+    digitalWrite(b.L_RST, LOW);
+    delay(1);                         // hold ≥ 50 µs; 1 ms is plenty
+    digitalWrite(b.L_RST, HIGH);
+
+    // BUSY: INPUT_PULLDOWN so floating line reads LOW, not a false HIGH
+    pinMode(b.L_BUSSY, INPUT_PULLDOWN);
+    delay(2);                         // let chip assert BUSY=HIGH after RST
+    uint32_t t = millis();
+    while (digitalRead(b.L_BUSSY) == LOW  && millis() - t < 50)  {}  // wait HIGH
+    while (digitalRead(b.L_BUSSY) == HIGH && millis() - t < 500) {}  // wait LOW
+    bool ready = (digitalRead(b.L_BUSSY) == LOW);
+    LOG_CONSOLE(PSTR("[Radio] SX126x pre-reset BUSY: %s (%lums)"),
+                ready ? "OK" : "TIMEOUT", (unsigned long)(millis() - t));
+    if (!ready) return false;  // chip didn't boot — not present or damaged
+
+    // Set BUSY back to plain INPUT (no pull) so RadioLib reads the real pin
+    pinMode(b.L_BUSSY, INPUT);
+  }
+
+  // ── Step 3: Initialise SPI ────────────────────────────────────────────────
+  SPIClass spi(b.L_SPI);
+  spi.begin(b.L_SCK, b.L_MISO, b.L_MOSI, b.L_NSS);
+  // After spi.begin(), NSS is under SPI hardware CS control.
+  // Reclaim it as a plain GPIO output so all our manual CS toggling works.
+  pinMode(b.L_NSS, OUTPUT);
+  digitalWrite(b.L_NSS, HIGH);
+  delay(1);
+  SPISettings spis(2000000, MSBFIRST, SPI_MODE0);
+
+  // Module pin layout follows Radio.cpp conventions:
+  //   SX127x  (NSS, DIO0=NC, RST, DIO1=NC, spi, settings)
+  //   SX126x  (NSS, DIO1=NC, RST, BUSY,    spi, settings)
+  //   SX1280  (NSS, DIO1=NC, RST, BUSY,    spi, settings)
+  //   LR11xx  (NSS, DIO9=NC, RST, BUSY,    spi, settings)
+  // DIO pins are RADIOLIB_NC — they are only needed for RX/TX interrupts,
+  // not for begin() which just checks the chip version.
+
+  bool found = false;
+  int16_t err = RADIOLIB_ERR_UNKNOWN;
+  const char* name = "?";
+
+  switch (b.L_radio) {
+    case RADIO_SX1278: {
+      Module mod(b.L_NSS, RADIOLIB_NC, b.L_RST, RADIOLIB_NC, spi, spis);
+      SX1278 r(&mod);
+      err = r.begin();
+      name = "SX1278";
+      if (err == RADIOLIB_ERR_NONE) r.sleep();
+      break;
+    }
+    case RADIO_SX1276: {
+      Module mod(b.L_NSS, RADIOLIB_NC, b.L_RST, RADIOLIB_NC, spi, spis);
+      SX1276 r(&mod);
+      err = r.begin();
+      name = "SX1276";
+      if (err == RADIOLIB_ERR_NONE) r.sleep();
+      break;
+    }
+    case RADIO_SX1262:
+    case RADIO_SX1268: {
+      // The RST+BUSY handshake in Step 2 is definitive: we pulsed RST LOW→HIGH,
+      // then BUSY went HIGH (chip started booting) and dropped LOW (ready) within
+      // 500 ms.  No other device on these specific SPI pins would exhibit this
+      // behaviour.  We already confirmed chip presence there — no SPI read needed.
+      // (SPI MISO reads 0x00 because the GPIO matrix routing for MISO on ESP32-S3
+      // is unreliable after a prior SPI bus was torn down on overlapping pins;
+      // but that doesn't matter because RadioLib::begin() works fine 1 s later.)
+      name = (b.L_radio == RADIO_SX1262) ? "SX1262" : "SX1268";
+      found = true;
+      err   = RADIOLIB_ERR_NONE;
+      LOG_CONSOLE(PSTR("[Radio] %s detected via RST+BUSY handshake → OK"), name);
+      break;
+    }
+    case RADIO_SX1280: {
+      Module mod(b.L_NSS, RADIOLIB_NC, b.L_RST, b.L_BUSSY, spi, spis);
+      SX1280 r(&mod);
+      err = r.begin();
+      name = "SX1280";
+      if (err == RADIOLIB_ERR_NONE) r.sleep();
+      break;
+    }
+    case RADIO_LR1121:
+    case RADIO_LR2021: {
+      Module mod(b.L_NSS, RADIOLIB_NC, b.L_RST, b.L_BUSSY, spi, spis);
+      LR1121 r(&mod);
+      err = r.begin();
+      name = "LR1121";
+      if (err == RADIOLIB_ERR_NONE) r.sleep();
+      break;
+    }
+    default:
+      break;
+  }
+
+  spi.end();
+  found = (err == RADIOLIB_ERR_NONE);
+  LOG_CONSOLE(PSTR("[Radio] %s err=%d \u2192 %s"), name, err, found ? "OK" : "FAIL");
+  return found;
+}
+
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
 // Minimal no-op mediator stubs — MAC init() requires a non-NULL mediator
 // (it calls eth->on_state_changed() internally).  For a probe-only flow we
@@ -862,17 +1024,24 @@ static bool probeInternalEmac(uint8_t mdcPin, uint8_t mdioPin, uint8_t phyAddr,
 
   uint32_t phyId = 0;
   esp_err_t readRet = mac->read_phy_reg(mac, phyAddr, 2, &phyId);
-  LOG_CONSOLE(PSTR("[ETH probe] read_phy_reg ret=0x%x phyId=0x%04X"), (unsigned)readRet, (unsigned)phyId);
   bool found = (readRet == ESP_OK) && (phyId != 0x0000 && phyId != 0xFFFF);
+  LOG_CONSOLE(PSTR("[ETH probe] read_phy_reg ret=0x%x phyId=0x%04X → %s"),
+              (unsigned)readRet, (unsigned)phyId, found ? "FOUND" : "NOT FOUND");
+
+  // Log BEFORE deinit/del: mac->deinit() temporarily stalls the UART DMA
+  // via EMAC driver teardown, causing any log printed after it to be lost.
+  Serial.flush();
 
   mac->deinit(mac);
   mac->del(mac);
+
+  // Brief pause so the EMAC DMA teardown finishes before UART is used again.
+  vTaskDelay(pdMS_TO_TICKS(10));
 
   if (!found && oscEN != UNUSED_PIN) {
     gpio_set_level((gpio_num_t)oscEN, 0);
     gpio_set_direction((gpio_num_t)oscEN, GPIO_MODE_INPUT);
   }
-  LOG_CONSOLE(PSTR("[ETH probe] result: %s"), found ? "FOUND" : "NOT FOUND");
   return found;
 }
 #endif // !ESP32S3 && !ESP32C3
@@ -932,86 +1101,151 @@ static void boardToTemplateJson(const board_t& b, char* buf, size_t bufLen) {
 // ---------------------------------------------------------------------------
 // boardDetection() — probes hardware to auto-select the board configuration.
 //
-// Priority:
-//   1. OLED I2C presence  → saves board index to _board (existing behaviour)
-//   2. Ethernet presence  → writes board-template JSON to _boardTemplate,
-//      sets InterfaceMode::BOTH, saves.
-//
-// Both phases iterate the _boards[] table so new boards are picked up
-// automatically just by adding entries to initBoardTable().
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │  Detection algorithm (3-phase)                                          │
+// │                                                                         │
+// │  Phase 1 — OLED probe                                                   │
+// │    For each unique I2C bus (addr, SDA, SCL) in the board table:         │
+// │      • RST pulse if present + 100 ms SSD1306 startup delay              │
+// │      • Wire.begin(SDA, SCL) + Wire.beginTransmission(addr)              │
+// │      • First bus to ACK → detected OLED bus; break                      │
+// │                                                                         │
+// │    If OLED found → Phase 3a (radio probe among OLED-matching boards)    │
+// │      Candidates = all boards with same (addr, SDA, SCL).                │
+// │      First candidate where radio SPI confirms → selected.               │
+// │      Fallback (radio inconclusive) → first candidate.                   │
+// │                                                                         │
+// │    If NO OLED → Phase 2 (Ethernet probe)                                │
+// │      For each board with ethEN=true: probe W5500 SPI or EMAC.           │
+// │      If detected → select, set InterfaceMode::BOTH, return.             │
+// │                                                                         │
+// │    If no OLED and no ETH → Phase 2b (radio-only boards)                 │
+// │      Candidates = boards where OLED__address==0 AND ethEN==false.       │
+// │      First candidate where radio SPI confirms → selected.               │
+// │      Enables boards without OLED or ETH (e.g. Heltec WSL V3).          │
+// │                                                                         │
+// │  Radio disambiguation (probeRadioSpi):                                  │
+// │    SX127x (SX1276/1278) : reg 0x42 = 0x12  (same silicon → RF_SX127X)  │
+// │    SX126x (SX1262/1268) : SyncWord MSB 0x0740 = 0x14                   │
+// │    SX1280               : GetStatus circuit-mode bits [6:4] != 0        │
+// │    LR11xx (LR1121/2021) : GetVersion 0x0307, 32-bit != 0/0xFFFFFFFF    │
+// │                                                                         │
+// │  Known limitation: SX1276 and SX1278 are identical silicon —            │
+// │  they respond the same way to SPI probe → unresolvable collision.       │
+// └─────────────────────────────────────────────────────────────────────────┘
 // ---------------------------------------------------------------------------
 void ConfigStore::boardDetection() {
-  LOG_CONSOLE(PSTR("Automatic board detection running... "));
+  LOG_CONSOLE(PSTR("Automatic board detection running..."));
 
-#if CONFIG_IDF_TARGET_ESP32C3
-  // ESP32-C3: no ethernet boards defined — OLED probe only
-  for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
-    if (_boards[ite].OLED__address == 0) continue;
-    LOG_CONSOLE(PSTR("%s"), _boards[ite].BOARD.c_str());
-    Wire.begin(_boards[ite].OLED__SDA, _boards[ite].OLED__SCL);
-    Wire.beginTransmission(_boards[ite].OLED__address);
-    if (!Wire.endTransmission()) {
-      LOG_CONSOLE(PSTR("Compatible OLED FOUND"));
-      itoa(ite, _board, 10);
-      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
-      save();
-      return;
-    }
-  }
-
-#else
-  // ESP32 classic and ESP32-S3
-
-#if !defined(CONFIG_IDF_TARGET_ESP32S3)
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
   if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") == 0) return;
 #endif
 
-  // ── Phase 1: OLED I2C probe ────────────────────────────────────────────
-  for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
-    if (_boards[ite].OLED__address == 0) continue;  // skip non-OLED boards
-    LOG_CONSOLE(PSTR("%s"), _boards[ite].BOARD.c_str());
-    if (_boards[ite].OLED__RST != UNUSED_PIN) {
-      pinMode(_boards[ite].OLED__RST, OUTPUT);
-      digitalWrite(_boards[ite].OLED__RST, LOW);
-      delay(25);
-      digitalWrite(_boards[ite].OLED__RST, HIGH);
-    }
-    Wire.begin(_boards[ite].OLED__SDA, _boards[ite].OLED__SCL);
-    Wire.beginTransmission(_boards[ite].OLED__address);
-    if (!Wire.endTransmission()) {
-      LOG_CONSOLE(PSTR("Compatible OLED FOUND"));
-      itoa(ite, _board, 10);
-      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
-      save();
-      return;
-    } else {
-      LOG_CONSOLE(PSTR("Not compatible"));
+  // ── Phase 1: OLED probe ──────────────────────────────────────────────────
+  // Iterate unique I2C buses; stop at the first bus that ACKs.
+  uint8_t oledAddr = 0, oledSda = UNUSED_PIN, oledScl = UNUSED_PIN;
+
+  // Suppress IDF i2c.master NACK errors during probe — NACKs on buses where
+  // no display is present are expected and handled below.
+  esp_log_level_set("i2c.master", ESP_LOG_NONE);
+  {
+    // Track already-tried (SDA, SCL) pairs to avoid re-probing the same bus
+    // for boards that share the same I2C pins (very common).
+    uint8_t triedSda[8], triedScl[8];
+    uint8_t triedCount = 0;
+
+    for (uint8_t ite = 0; ite < NUM_BOARDS && oledAddr == 0; ite++) {
+      if (_boards[ite].OLED__address == 0) continue;
+
+      uint8_t sda = _boards[ite].OLED__SDA;
+      uint8_t scl = _boards[ite].OLED__SCL;
+
+      // Skip buses already probed
+      bool alreadyTried = false;
+      for (uint8_t t = 0; t < triedCount; t++) {
+        if (triedSda[t] == sda && triedScl[t] == scl) { alreadyTried = true; break; }
+      }
+      if (alreadyTried) continue;
+      if (triedCount < 8) { triedSda[triedCount] = sda; triedScl[triedCount++] = scl; }
+
+      // RST pulse — only once per bus
+      if (_boards[ite].OLED__RST != UNUSED_PIN) {
+        pinMode(_boards[ite].OLED__RST, OUTPUT);
+        digitalWrite(_boards[ite].OLED__RST, LOW);
+        delay(25);
+        digitalWrite(_boards[ite].OLED__RST, HIGH);
+        // SSD1306 requires ~100 ms after RESET before I2C is ready.
+        // On IDF 5.x (pioarduino) Wire.begin() is fast enough to race the
+        // display without this delay.
+        delay(100);
+      }
+
+      Wire.begin(sda, scl);
+      Wire.beginTransmission(_boards[ite].OLED__address);
+      if (!Wire.endTransmission()) {
+        oledAddr = _boards[ite].OLED__address;
+        oledSda  = sda;
+        oledScl  = scl;
+      }
     }
   }
+  esp_log_level_set("i2c.master", ESP_LOG_WARN);  // restore normal log level
 
-  // ── Phase 2: Ethernet probe (table-driven) ────────────────────────────
+  if (oledAddr != 0) {
+    LOG_CONSOLE(PSTR("OLED found: 0x%02X (SDA=%u SCL=%u)"), oledAddr, oledSda, oledScl);
+  } else {
+    LOG_CONSOLE(PSTR("OLED probe: no display found"));
+  }
+
+  if (oledAddr != 0) {
+    // ── Phase 3a: Radio probe among OLED-matching candidates ─────────────
+    int8_t firstCandidate = -1;
+    for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
+      if (_boards[ite].OLED__address != oledAddr) continue;
+      if (_boards[ite].OLED__SDA    != oledSda)  continue;
+      if (_boards[ite].OLED__SCL    != oledScl)  continue;
+      if (firstCandidate < 0) firstCandidate = (int8_t)ite;
+      LOG_CONSOLE(PSTR("Probing radio for: %s"), _boards[ite].BOARD.c_str());
+      if (probeRadio(_boards[ite])) {
+        LOG_CONSOLE(PSTR("Board confirmed: %s"), _boards[ite].BOARD.c_str());
+        itoa(ite, _board, 10);
+        boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
+        save();
+        return;
+      }
+    }
+    // Fallback: radio inconclusive → first OLED-matching board
+    if (firstCandidate >= 0) {
+      LOG_CONSOLE(PSTR("Radio probe inconclusive — fallback: %s"),
+                  _boards[firstCandidate].BOARD.c_str());
+      itoa(firstCandidate, _board, 10);
+      boardToTemplateJson(_boards[firstCandidate], _boardTemplate, sizeof(_boardTemplate));
+      save();
+    }
+    return;
+  }
+
+  // ── Phase 2: No OLED — Ethernet probe ────────────────────────────────────
   for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
-    if (!_boards[ite].ethEN) continue;  // skip non-ethernet boards
+    if (!_boards[ite].ethEN) continue;
 
     bool detected = false;
 
     if (_boards[ite].ethPHY != 0xFF) {
       // SPI ethernet (W5500, etc.)
 #if CONFIG_IDF_TARGET_ESP32S3
-      LOG_CONSOLE(PSTR("Probing %s (SPI CS=%u SCK=%u MOSI=%u MISO=%u) ..."),
-                _boards[ite].BOARD.c_str(),
-                _boards[ite].ethCS, _boards[ite].ethSCK,
-                _boards[ite].ethMOSI, _boards[ite].ethMISO);
+      LOG_CONSOLE(PSTR("Probing %s (SPI CS=%u SCK=%u MOSI=%u MISO=%u)..."),
+                  _boards[ite].BOARD.c_str(), _boards[ite].ethCS, _boards[ite].ethSCK,
+                  _boards[ite].ethMOSI, _boards[ite].ethMISO);
       detected = probeW5500Spi(_boards[ite].ethCS, _boards[ite].ethMISO,
                                _boards[ite].ethMOSI, _boards[ite].ethSCK);
 #endif
     } else {
       // Internal EMAC (LAN8720, etc.)
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
-      LOG_CONSOLE(PSTR("Probing %s (EMAC MDC=%u MDIO=%u PHYaddr=%d) ..."),
-                _boards[ite].BOARD.c_str(),
-                _boards[ite].ethMDC, _boards[ite].ethMDIO,
-                _boards[ite].ethPhyAddr);
+      LOG_CONSOLE(PSTR("Probing %s (EMAC MDC=%u MDIO=%u PHYaddr=%d)..."),
+                  _boards[ite].BOARD.c_str(), _boards[ite].ethMDC, _boards[ite].ethMDIO,
+                  _boards[ite].ethPhyAddr);
       detected = probeInternalEmac(_boards[ite].ethMDC, _boards[ite].ethMDIO,
                                    _boards[ite].ethPhyAddr, _boards[ite].ethRefClk,
                                    _boards[ite].ethClkExt, _boards[ite].ethOscEN);
@@ -1021,15 +1255,31 @@ void ConfigStore::boardDetection() {
     if (detected) {
       LOG_CONSOLE(PSTR("Ethernet detected: %s"), _boards[ite].BOARD.c_str());
       boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
-      itoa(ite, _board, 10);  // mark board as selected so detection doesn't re-run
+      itoa(ite, _board, 10);
       _currentBoardDirty = true;
       _ifaceMode = InterfaceMode::BOTH;
       save();
       return;
     }
   }
+
+  // ── Phase 2b: No OLED, no ETH — radio-only boards ────────────────────────
+  // Boards that have neither OLED nor ethernet (e.g. Heltec Wireless Stick Lite V3)
+  // can still be identified by probing their radio SPI bus directly.
+  for (uint8_t ite = 0; ite < NUM_BOARDS; ite++) {
+    if (_boards[ite].OLED__address != 0) continue;  // skip OLED boards
+    if (_boards[ite].ethEN)              continue;  // skip ETH boards
+    LOG_CONSOLE(PSTR("Probing radio-only board: %s"), _boards[ite].BOARD.c_str());
+    if (probeRadio(_boards[ite])) {
+      LOG_CONSOLE(PSTR("Board confirmed: %s"), _boards[ite].BOARD.c_str());
+      itoa(ite, _board, 10);
+      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
+      save();
+      return;
+    }
+  }
+
   LOG_CONSOLE(PSTR("Board detection: no board found"));
-#endif
 }
 
 // ============================================================
