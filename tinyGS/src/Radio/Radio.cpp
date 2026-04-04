@@ -63,15 +63,19 @@ void Radio::init()
   }
 
   // Override SPI bus only when the board template requests a non-default bus.
-  // The constructor already sets the correct default per target:
-  //   ESP32-S3 → HSPI (SPI2),  ESP32 classic → VSPI (SPI3),  ESP32-C3 → SPI
+  // Defaults (from constructor):
+  //   ESP32-S3  → spi(HSPI) = bus 1 = SPI3 hardware
+  //   ESP32-C3  → spi(SPI)  = bus 0 = SPI2 hardware
+  //   ESP32 classic → spi(VSPI) = bus 3 = SPI3 hardware
+  // L_SPI in board_t also uses these Arduino bus number macros.
+  // On S3 FSPI=0, HSPI=1; on classic ESP32 HSPI=2, VSPI=3.
 #if CONFIG_IDF_TARGET_ESP32S3
-  if (board.L_SPI == 3) {
+  if (board.L_SPI != HSPI) {   // FSPI=0 requested → switch to FSPI bus
     spi.end();
-    spi = SPIClass(3);
+    spi = SPIClass(board.L_SPI);
   }
 #elif !defined(CONFIG_IDF_TARGET_ESP32C3)
-  if (board.L_SPI == 2) {
+  if (board.L_SPI == HSPI) {   // HSPI=2 requested on classic ESP32 → switch
     spi.end();
     spi = SPIClass(HSPI);
   }

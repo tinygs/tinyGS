@@ -67,6 +67,7 @@ enum RadioModelNum_t {
 enum boardNum {
 #if CONFIG_IDF_TARGET_ESP32S3
   HELTEC_LORA32_V3 = 0,
+  HELTEC_WSL_V3,           // Heltec Wireless Stick Lite V3 (no OLED, same radio as LORA32 V3)
   ESP32S3_SX1278_LF,
   TTGO_TBEAM_SX1262,
   LILYGO_T3S3_SX1280,
@@ -128,10 +129,16 @@ struct board_t {
   uint8_t TX_EN;
   String  BOARD;
 
-#if CONFIG_IDF_TARGET_ESP32S3
-  uint8_t L_SPI   = 2;        // SPI bus for radio: 2=SPI2(HSPI) — S3 default
+// SPI bus number follows esp32-hal-spi.h macros:
+//   ESP32-S3/C3: FSPI=0 (SPI2 hw), HSPI=1 (SPI3 hw)
+//   ESP32 classic: HSPI=2 (SPI2 hw), VSPI=3 (SPI3 hw)
+// Use the Arduino HSPI macro so the value is always correct per target.
+// WARNING: do NOT hardcode 2 here — on S3 bus 2 is invalid and silently
+// maps to GPIO-matrix signal 0 (= internal flash bus), causing SPI failure.
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
+  uint8_t L_SPI   = HSPI;     // 1 on S3/C3 = SPI3 hardware (same as Radio.cpp default)
 #else
-  uint8_t L_SPI   = 3;        // SPI bus for radio: 3=SPI3(VSPI) — Classic ESP32 default (matches beta)
+  uint8_t L_SPI   = VSPI;     // 3 on classic ESP32 = SPI3(VSPI) — matches Radio.cpp default
 #endif
 
   // Ethernet fields (from board template JSON)
