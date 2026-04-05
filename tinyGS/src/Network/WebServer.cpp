@@ -193,7 +193,7 @@ esp_err_t TinyGSWebServer::handleDashboard(httpd_req_t* req) {
 }
 
 String TinyGSWebServer::buildWorldMapSVG() {
-  String svg = "<div style=\"display:inline-block\"><svg width=\"262\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
+  String svg = "<div class='map-wrap'><svg width=\"262\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
   svg += "<rect x=\"1\" y=\"1\" width=\"262\" height=\"134\" stroke=\"gray\" fill=\"none\" stroke-width=\"2\" />";
 
   uint ix = 0;
@@ -243,7 +243,7 @@ String TinyGSWebServer::buildDashboardPage() {
   }
 
   // Ground Station Status
-  s += F("</table></div><div class=\"card\"><h3>Groundstation Status</h3><table id=\"gsstatus\">");
+  s += F("<div class='cards'><div class=\"card\"><h3>Groundstation Status</h3><table id=\"gsstatus\">");
   s += "<tr><td>Name </td><td>" + String(cfg.getThingName()) + "</td></tr>";
   s += "<tr><td>Version </td><td>" + String(status.version) + "</td></tr>";
   s += "<tr><td>MQTT Server </td><td>" + String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
@@ -312,13 +312,13 @@ String TinyGSWebServer::buildDashboardPage() {
   s += F("</table></div>");
 
   // Last Packet
-  s += F("</table></div><div class=\"card\"><h3>Last Packet Received</h3><table id=\"lastpacket\">");
+  s += F("<div class=\"card\"><h3>Last Packet Received</h3><table id=\"lastpacket\">");
   s += "<tr><td>Received at </td><td>" + String(status.lastPacketInfo.time) + "</td></tr>";
   s += "<tr><td>Signal RSSI </td><td>" + String(status.lastPacketInfo.rssi) + "</td></tr>";
   s += "<tr><td>Signal SNR </td><td>" + String(status.lastPacketInfo.snr) + "</td></tr>";
   s += "<tr><td>Frequency error </td><td>" + String(status.lastPacketInfo.frequencyerror) + "</td></tr>";
   s += "<tr><td colspan=\"2\" style=\"text-align:center;\">" + String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "") + "</td></tr>";
-  s += F("</table></div>");
+  s += F("</table></div></div>"); // close last card + .cards grid
 
   // Console
   s += FPSTR(IOTWEBCONF_CONSOLE_BODY_INNER);
