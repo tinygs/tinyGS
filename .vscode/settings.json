@@ -10,5 +10,9 @@
         "memory": "cpp",
         "random": "cpp",
         "initializer_list": "cpp"
+    },
+    "editor.formatOnSave": false,
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools"
     }
 }

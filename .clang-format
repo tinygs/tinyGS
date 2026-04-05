@@ -1,2 +1,16 @@
 BasedOnStyle: LLVM
 BreakBeforeBraces: Attach
+
+# Keep short braced initializers and small constructs on a single line
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+
+# Avoid wrapping short initializer lists by disabling column wrapping
+ColumnLimit: 0
+
+# Prefer not to reflow parameter/argument lists across multiple lines
+BinPackParameters: false
+BinPackArguments: false

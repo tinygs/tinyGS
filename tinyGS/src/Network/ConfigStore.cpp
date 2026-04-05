@@ -38,127 +38,21 @@
 //  Board table - exact same data from old ConfigManager
 // ============================================================
 
-ConfigStore::ConfigStore() { initBoardTable(); }
+ConfigStore::ConfigStore() {
+  initBoardTable();
+}
 
 void ConfigStore::initBoardTable() {
   uint8_t i = 0;
 #if CONFIG_IDF_TARGET_ESP32S3
-  _boards[i++] = {0x3c,
-                  17,
-                  18,
-                  21,
-                  0,
-                  35,
-                  RADIO_SX1262,
-                  8,
-                  UNUSED_PIN,
-                  14,
-                  13,
-                  12,
-                  11,
-                  10,
-                  9,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "150-960Mhz - HELTEC LORA32 V3 SX1262"};
+  _boards[i++] = {0x3c, 17, 18, 21, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC LORA32 V3 SX1262"};
   // Heltec Wireless Stick Lite V3: no OLED, same radio SPI as LORA32 V3
-  _boards[i++] = {0,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  0,
-                  35,
-                  RADIO_SX1262,
-                  8,
-                  UNUSED_PIN,
-                  14,
-                  13,
-                  12,
-                  11,
-                  10,
-                  9,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "150-960Mhz - HELTEC WSL V3 SX1262"};
-  _boards[i++] = {0x3c,
-                  17,
-                  18,
-                  UNUSED_PIN,
-                  0,
-                  35,
-                  RADIO_SX1278,
-                  8,
-                  6,
-                  14,
-                  UNUSED_PIN,
-                  12,
-                  11,
-                  10,
-                  9,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "Custom ESP32-S3 433MHz SX1278"};
-  _boards[i++] = {0x3c,
-                  17,
-                  18,
-                  UNUSED_PIN,
-                  0,
-                  3,
-                  RADIO_SX1262,
-                  10,
-                  UNUSED_PIN,
-                  1,
-                  4,
-                  5,
-                  13,
-                  11,
-                  12,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433 Mhz TTGO T-Beam Sup SX1262 V1.0"};
-  _boards[i++] = {0x3c,
-                  17,
-                  18,
-                  UNUSED_PIN,
-                  0,
-                  37,
-                  RADIO_SX1280,
-                  7,
-                  UNUSED_PIN,
-                  9,
-                  UNUSED_PIN,
-                  8,
-                  3,
-                  6,
-                  5,
-                  0.0f,
-                  21,
-                  10,
-                  "2.4Ghz LILYGO SX1280"};
+  _boards[i++] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC WSL V3 SX1262"};
+  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 35, RADIO_SX1278, 8, 6, 14, UNUSED_PIN, 12, 11, 10, 9, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-S3 433MHz SX1278"};
+  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 3, RADIO_SX1262, 10, UNUSED_PIN, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED_PIN, UNUSED_PIN, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"};
+  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 37, RADIO_SX1280, 7, UNUSED_PIN, 9, UNUSED_PIN, 8, 3, 6, 5, 0.0f, 21, 10, "2.4Ghz LILYGO SX1280"};
   // Waveshare ESP32-S3-ETH: no OLED, no radio — W5500 SPI ethernet
-  _boards[i] = {0,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                0,
-                UNUSED_PIN,
-                0,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                0.0f,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                "Waveshare ESP32-S3-ETH (W5500)"};
+  _boards[i] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, UNUSED_PIN, 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0.0f, UNUSED_PIN, UNUSED_PIN, "Waveshare ESP32-S3-ETH (W5500)"};
   _boards[i].ethEN = true;
   _boards[i].ethPHY = 0; // W5500
   _boards[i].ethSPI = 2; // HSPI
@@ -169,523 +63,36 @@ void ConfigStore::initBoardTable() {
   _boards[i].ethMOSI = 11;
   _boards[i].ethSCK = 13;
   i++;
-  _boards[i++] = {0x3c,
-                  18,
-                  17,
-                  21,
-                  0,
-                  35,
-                  RADIO_LR1121,
-                  8,
-                  UNUSED_PIN,
-                  14,
-                  13,
-                  12,
-                  11,
-                  10,
-                  9,
-                  1.8f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "EBYTE EoRa-HUB ESP32S3 + LR1121"};
+  _boards[i++] = {0x3c, 18, 17, 21, 0, 35, RADIO_LR1121, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.8f, UNUSED_PIN, UNUSED_PIN, "EBYTE EoRa-HUB ESP32S3 + LR1121"};
 #elif CONFIG_IDF_TARGET_ESP32C3
-  _boards[i++] = {0x3c,
-                  0,
-                  1,
-                  UNUSED_PIN,
-                  20,
-                  21,
-                  RADIO_SX1262,
-                  8,
-                  UNUSED_PIN,
-                  3,
-                  4,
-                  5,
-                  6,
-                  7,
-                  10,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz HELTEC LORA32 HT-CT62 SX1262"};
-  _boards[i++] = {0x3c,
-                  0,
-                  1,
-                  UNUSED_PIN,
-                  20,
-                  21,
-                  RADIO_SX1278,
-                  8,
-                  4,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  5,
-                  6,
-                  7,
-                  10,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "Custom ESP32-C3 433MHz SX1278"};
+  _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1262, 8, UNUSED_PIN, 3, 4, 5, 6, 7, 10, 1.6f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC LORA32 HT-CT62 SX1262"};
+  _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1278, 8, 4, UNUSED_PIN, UNUSED_PIN, 5, 6, 7, 10, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-C3 433MHz SX1278"};
 #else
-  _boards[i++] = {0x3c,
-                  4,
-                  15,
-                  16,
-                  0,
-                  25,
-                  RADIO_SX1278,
-                  18,
-                  26,
-                  12,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz HELTEC WiFi LoRA 32 V1"};
-  _boards[i++] = {0x3c,
-                  4,
-                  15,
-                  16,
-                  0,
-                  25,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  12,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "863-928MHz HELTEC WiFi LoRA 32 V1"};
-  _boards[i++] = {0x3c,
-                  4,
-                  15,
-                  16,
-                  0,
-                  25,
-                  RADIO_SX1278,
-                  18,
-                  26,
-                  35,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz HELTEC WiFi LoRA 32 V2"};
-  _boards[i++] = {0x3c,
-                  4,
-                  15,
-                  16,
-                  0,
-                  25,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  35,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "863-928MHz HELTEC WiFi LoRA 32 V2"};
-  _boards[i++] = {0x3c,
-                  4,
-                  15,
-                  16,
-                  0,
-                  2,
-                  RADIO_SX1278,
-                  18,
-                  26,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433Mhz TTGO LoRa 32 v1"};
-  _boards[i++] = {0x3c,
-                  4,
-                  15,
-                  16,
-                  0,
-                  2,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "868-915MHz TTGO LoRa 32 v1"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  0,
-                  22,
-                  RADIO_SX1278,
-                  18,
-                  26,
-                  33,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz TTGO LoRA 32 v2"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  16,
-                  0,
-                  22,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  33,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "868-915MHz TTGO LoRA 32 v2"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  16,
-                  39,
-                  22,
-                  RADIO_SX1278,
-                  18,
-                  26,
-                  33,
-                  32,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz T-BEAM + OLED"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  16,
-                  39,
-                  22,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  33,
-                  32,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "868-915MHz T-BEAM + OLED"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  16,
-                  0,
-                  25,
-                  RADIO_SX1268,
-                  5,
-                  UNUSED_PIN,
-                  27,
-                  26,
-                  14,
-                  19,
-                  23,
-                  18,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "Custom ESP32 Wroom + SX126x (Crystal)"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  0,
-                  25,
-                  RADIO_SX1268,
-                  18,
-                  UNUSED_PIN,
-                  33,
-                  32,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "TTGO LoRa 32 V2 Modified with module SX126x (crystal)"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  16,
-                  0,
-                  25,
-                  RADIO_SX1268,
-                  5,
-                  UNUSED_PIN,
-                  2,
-                  13,
-                  26,
-                  19,
-                  23,
-                  18,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 2, 26, 13)"};
-  _boards[i++] = {
-      0x3c,
-      21,
-      22,
-      16,
-      0,
-      25,
-      RADIO_SX1268,
-      5,
-      UNUSED_PIN,
-      26,
-      12,
-      14,
-      19,
-      23,
-      18,
-      1.6f,
-      UNUSED_PIN,
-      UNUSED_PIN,
-      "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 26, 14, 12)"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  38,
-                  22,
-                  RADIO_SX1278,
-                  18,
-                  26,
-                  33,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz T-BEAM V1.0 + OLED"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  16,
-                  0,
-                  2,
-                  RADIO_SX1268,
-                  5,
-                  UNUSED_PIN,
-                  34,
-                  32,
-                  14,
-                  19,
-                  27,
-                  18,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz FOSSA 1W Ground Station"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  16,
-                  0,
-                  2,
-                  RADIO_SX1276,
-                  5,
-                  UNUSED_PIN,
-                  34,
-                  32,
-                  14,
-                  19,
-                  27,
-                  18,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "868-915MHz FOSSA 1W Ground Station"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  0,
-                  22,
-                  RADIO_SX1280,
-                  5,
-                  26,
-                  34,
-                  32,
-                  14,
-                  19,
-                  27,
-                  18,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "2.4GHz ESP32 + SX1280"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  38,
-                  22,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  33,
-                  UNUSED_PIN,
-                  14,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "868-915MHz T-BEAM V1.0 + OLED"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  0,
-                  25,
-                  RADIO_SX1278,
-                  18,
-                  26,
-                  33,
-                  UNUSED_PIN,
-                  23,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433MHz LILYGO T3_V1.6.1"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  0,
-                  25,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  33,
-                  UNUSED_PIN,
-                  23,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "868-915MHz LILYGO T3_V1.6.1"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  0,
-                  25,
-                  RADIO_SX1276,
-                  18,
-                  26,
-                  UNUSED_PIN,
-                  32,
-                  23,
-                  19,
-                  27,
-                  5,
-                  0.0f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "868-915MHz LILYGO T3_V1.6.1 TCXO"};
-  _boards[i++] = {0x3c,
-                  21,
-                  22,
-                  UNUSED_PIN,
-                  38,
-                  4,
-                  RADIO_SX1268,
-                  18,
-                  26,
-                  33,
-                  32,
-                  23,
-                  19,
-                  27,
-                  5,
-                  1.6f,
-                  UNUSED_PIN,
-                  UNUSED_PIN,
-                  "433 Mhz T-Beam SX1268 V1.0"};
+  _boards[i++] = {0x3c, 4, 15, 16, 0, 25, RADIO_SX1278, 18, 26, 12, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC WiFi LoRA 32 V1"};
+  _boards[i++] = {0x3c, 4, 15, 16, 0, 25, RADIO_SX1276, 18, 26, 12, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "863-928MHz HELTEC WiFi LoRA 32 V1"};
+  _boards[i++] = {0x3c, 4, 15, 16, 0, 25, RADIO_SX1278, 18, 26, 35, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC WiFi LoRA 32 V2"};
+  _boards[i++] = {0x3c, 4, 15, 16, 0, 25, RADIO_SX1276, 18, 26, 35, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "863-928MHz HELTEC WiFi LoRA 32 V2"};
+  _boards[i++] = {0x3c, 4, 15, 16, 0, 2, RADIO_SX1278, 18, 26, UNUSED_PIN, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433Mhz TTGO LoRa 32 v1"};
+  _boards[i++] = {0x3c, 4, 15, 16, 0, 2, RADIO_SX1276, 18, 26, UNUSED_PIN, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz TTGO LoRa 32 v1"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 22, RADIO_SX1278, 18, 26, 33, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433MHz TTGO LoRA 32 v2"};
+  _boards[i++] = {0x3c, 21, 22, 16, 0, 22, RADIO_SX1276, 18, 26, 33, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz TTGO LoRA 32 v2"};
+  _boards[i++] = {0x3c, 21, 22, 16, 39, 22, RADIO_SX1278, 18, 26, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433MHz T-BEAM + OLED"};
+  _boards[i++] = {0x3c, 21, 22, 16, 39, 22, RADIO_SX1276, 18, 26, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz T-BEAM + OLED"};
+  _boards[i++] = {0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED_PIN, 27, 26, 14, 19, 23, 18, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32 Wroom + SX126x (Crystal)"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 25, RADIO_SX1268, 18, UNUSED_PIN, 33, 32, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "TTGO LoRa 32 V2 Modified with module SX126x (crystal)"};
+  _boards[i++] = {0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED_PIN, 2, 13, 26, 19, 23, 18, 1.6f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 2, 26, 13)"};
+  _boards[i++] = {0x3c, 21, 22, 16, 0, 25, RADIO_SX1268, 5, UNUSED_PIN, 26, 12, 14, 19, 23, 18, 1.6f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 26, 14, 12)"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 38, 22, RADIO_SX1278, 18, 26, 33, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433MHz T-BEAM V1.0 + OLED"};
+  _boards[i++] = {0x3c, 21, 22, 16, 0, 2, RADIO_SX1268, 5, UNUSED_PIN, 34, 32, 14, 19, 27, 18, 1.6f, UNUSED_PIN, UNUSED_PIN, "433MHz FOSSA 1W Ground Station"};
+  _boards[i++] = {0x3c, 21, 22, 16, 0, 2, RADIO_SX1276, 5, UNUSED_PIN, 34, 32, 14, 19, 27, 18, 1.6f, UNUSED_PIN, UNUSED_PIN, "868-915MHz FOSSA 1W Ground Station"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 22, RADIO_SX1280, 5, 26, 34, 32, 14, 19, 27, 18, 0.0f, UNUSED_PIN, UNUSED_PIN, "2.4GHz ESP32 + SX1280"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 38, 22, RADIO_SX1276, 18, 26, 33, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz T-BEAM V1.0 + OLED"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 25, RADIO_SX1278, 18, 26, 33, UNUSED_PIN, 23, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433MHz LILYGO T3_V1.6.1"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 25, RADIO_SX1276, 18, 26, 33, UNUSED_PIN, 23, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz LILYGO T3_V1.6.1"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 0, 25, RADIO_SX1276, 18, 26, UNUSED_PIN, 32, 23, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "868-915MHz LILYGO T3_V1.6.1 TCXO"};
+  _boards[i++] = {0x3c, 21, 22, UNUSED_PIN, 38, 4, RADIO_SX1268, 18, 26, 33, 32, 23, 19, 27, 5, 1.6f, UNUSED_PIN, UNUSED_PIN, "433 Mhz T-Beam SX1268 V1.0"};
   // WT32-ETH01/02: no OLED, no radio — LAN8720 Internal EMAC
-  _boards[i] = {0,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                0,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                0.0f,
-                UNUSED_PIN,
-                UNUSED_PIN,
-                "WT32-ETH01/02 (LAN8720)"};
+  _boards[i] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0.0f, UNUSED_PIN, UNUSED_PIN, "WT32-ETH01/02 (LAN8720)"};
   _boards[i].ethEN = true;
   _boards[i].ethPHY = 0xFF; // Internal EMAC
   _boards[i].ethMDC = 23;
@@ -927,8 +334,7 @@ bool ConfigStore::init() {
 
 // Helper: copy a field from the EEPROM blob into a destination buffer,
 // ensuring null-termination.  Copies min(fieldLen, destSize-1) bytes.
-static void readEepromField(const uint8_t *blob, int offset, int fieldLen,
-                            char *dest, size_t destSize) {
+static void readEepromField(const uint8_t *blob, int offset, int fieldLen, char *dest, size_t destSize) {
   size_t n = ((size_t)fieldLen < destSize) ? (size_t)fieldLen : destSize - 1;
   memcpy(dest, blob + offset, n);
   dest[n] = '\0';
@@ -1019,7 +425,8 @@ bool ConfigStore::migrateFromEEPROM() {
   if ((int)blobLen < MIN_BLOB) {
     LOG_CONSOLE(PSTR("[Migration] Blob too small (%d bytes, need %d). Skipping "
                      "migration."),
-                (int)blobLen, MIN_BLOB);
+                (int)blobLen,
+                MIN_BLOB);
     free(blob);
     return false;
   }
@@ -1169,7 +576,8 @@ bool ConfigStore::migrateFromEEPROM() {
     if (savedVer.length() > 0) {
       LOG_CONSOLE(PSTR("[Migration] NVS write verified: cfgVer=\"%s\", "
                        "wifiSSID=\"%s\"."),
-                  savedVer.c_str(), savedSSID.c_str());
+                  savedVer.c_str(),
+                  savedSSID.c_str());
     } else {
       LOG_CONSOLE(PSTR("[Migration] ERROR: NVS write FAILED — cfgVer not found "
                        "after saveToNVS()!"));
@@ -1377,7 +785,8 @@ bool ConfigStore::parseBoardTemplate(board_t &board) {
   if (error.code() != DeserializationError::Ok || !doc.containsKey("radio")) {
     LOG_CONSOLE(
         PSTR("Error: Board template parse failed (%s). Template: %.80s"),
-        error.c_str(), _boardTemplate);
+        error.c_str(),
+        _boardTemplate);
     return false;
   }
 
@@ -1403,8 +812,10 @@ bool ConfigStore::parseBoardTemplate(board_t &board) {
 
   // Restore the board name from the template — parseBoardTemplate is called
   // every time getBoardConfig() needs to rebuild _currentBoard, so BOARD must
-  // be populated here or it will be an empty string and display as "(not configured)".
-  board.BOARD = doc.containsKey("bNAME") ? doc["bNAME"].as<String>() : String("");
+  // be populated here or it will be an empty string and display as "(not
+  // configured)".
+  board.BOARD =
+      doc.containsKey("bNAME") ? doc["bNAME"].as<String>() : String("");
 
   // Ethernet extension keys
   board.ethEN = doc.containsKey("ethEN") ? doc["ethEN"].as<bool>() : false;
@@ -1523,8 +934,7 @@ bool ConfigStore::isBoardTemplateModified() const {
 // Probe a W5500 on the given SPI pins.  Reads the VERSIONR common register
 // (address 0x0039) and checks for the expected value 0x04.
 // Performs a hardware reset via the RST pin first (if provided).
-static bool probeW5500Spi(uint8_t cs, uint8_t miso, uint8_t mosi, uint8_t sck,
-                          uint8_t rst) {
+static bool probeW5500Spi(uint8_t cs, uint8_t miso, uint8_t mosi, uint8_t sck, uint8_t rst) {
   // Hardware reset — W5500 needs ~150 ms after RST de-assert to be ready
   if (rst != UNUSED_PIN) {
     pinMode(rst, OUTPUT);
@@ -1582,9 +992,14 @@ static bool probeRadio(const board_t &b) {
   bool found = false;
   int16_t err = RADIOLIB_ERR_UNKNOWN;
   const char *name = "?";
-  LOG_CONSOLE(PSTR("[Radio] Probing for radio on SPI%d (SCK=%u, MISO=%u, MOSI=%u, "
-                   "NSS=%u)..."),
-              b.L_SPI, b.L_SCK, b.L_MISO, b.L_MOSI, b.L_NSS);
+  LOG_CONSOLE(
+      PSTR("[Radio] Probing for radio on SPI%d (SCK=%u, MISO=%u, MOSI=%u, "
+           "NSS=%u)..."),
+      b.L_SPI,
+      b.L_SCK,
+      b.L_MISO,
+      b.L_MOSI,
+      b.L_NSS);
   switch (b.L_radio) {
   case RADIO_SX1278: {
     Module mod(b.L_NSS, b.L_DI00, b.L_RST, b.L_DI01, spi);
@@ -1609,7 +1024,7 @@ static bool probeRadio(const board_t &b) {
     Module mod(b.L_NSS, b.L_DI01, b.L_RST, b.L_BUSSY, spi);
     SX1262 r(&mod);
     err = r.begin();
-    LOG_CONSOLE(  PSTR("[Radio] SX126x begin() returned %d"), err);
+    LOG_CONSOLE(PSTR("[Radio] SX126x begin() returned %d"), err);
     name = (b.L_radio == RADIO_SX1262) ? "SX1262" : "SX1268";
     if (err == RADIOLIB_ERR_NONE)
       r.sleep();
@@ -1640,8 +1055,7 @@ static bool probeRadio(const board_t &b) {
 
   spi.end();
   found = (err == RADIOLIB_ERR_NONE);
-  LOG_CONSOLE(PSTR("[Radio] %s err=%d \u2192 %s"), name, err,
-              found ? "OK" : "FAIL");
+  LOG_CONSOLE(PSTR("[Radio] %s err=%d \u2192 %s"), name, err, found ? "OK" : "FAIL");
   return found;
 }
 
@@ -1649,16 +1063,13 @@ static bool probeRadio(const board_t &b) {
 // Minimal no-op mediator stubs — MAC init() requires a non-NULL mediator
 // (it calls eth->on_state_changed() internally).  For a probe-only flow we
 // don't route frames or PHY interrupts so all callbacks can be no-ops.
-static esp_err_t _probe_state_cb(esp_eth_mediator_t *, esp_eth_state_t,
-                                 void *) {
+static esp_err_t _probe_state_cb(esp_eth_mediator_t *, esp_eth_state_t, void *) {
   return ESP_OK;
 }
-static esp_err_t _probe_phy_read(esp_eth_mediator_t *, uint32_t, uint32_t,
-                                 uint32_t *) {
+static esp_err_t _probe_phy_read(esp_eth_mediator_t *, uint32_t, uint32_t, uint32_t *) {
   return ESP_OK;
 }
-static esp_err_t _probe_phy_write(esp_eth_mediator_t *, uint32_t, uint32_t,
-                                  uint32_t) {
+static esp_err_t _probe_phy_write(esp_eth_mediator_t *, uint32_t, uint32_t, uint32_t) {
   return ESP_OK;
 }
 static esp_err_t _probe_stack_rx(esp_eth_mediator_t *, uint8_t *, uint32_t) {
@@ -1675,11 +1086,15 @@ static esp_eth_mediator_t s_probe_mediator = {
 // Enables the oscillator, initialises just the MAC (not a full ETH stack),
 // reads PHY ID register 2 (PHYID1) and then immediately tears down the MAC.
 // Returns true when the PHY responds with a valid (non-trivial) ID value.
-static bool probeInternalEmac(uint8_t mdcPin, uint8_t mdioPin, uint8_t phyAddr,
-                              uint8_t refClkPin, bool clkExt, uint8_t oscEN) {
+static bool probeInternalEmac(uint8_t mdcPin, uint8_t mdioPin, uint8_t phyAddr, uint8_t refClkPin, bool clkExt, uint8_t oscEN) {
   LOG_CONSOLE(PSTR("[ETH probe] EMAC probe: MDC=%u MDIO=%u PHY=%u refClk=%u "
                    "clkExt=%d oscEN=%u"),
-              mdcPin, mdioPin, phyAddr, refClkPin, (int)clkExt, oscEN);
+              mdcPin,
+              mdioPin,
+              phyAddr,
+              refClkPin,
+              (int)clkExt,
+              oscEN);
 
   // 1. Enable oscillator; give the PLL ~100 ms to lock before EMAC init
   if (oscEN != UNUSED_PIN) {
@@ -1750,7 +1165,8 @@ static bool probeInternalEmac(uint8_t mdcPin, uint8_t mdioPin, uint8_t phyAddr,
   esp_err_t readRet = mac->read_phy_reg(mac, phyAddr, 2, &phyId);
   bool found = (readRet == ESP_OK) && (phyId != 0x0000 && phyId != 0xFFFF);
   LOG_CONSOLE(PSTR("[ETH probe] read_phy_reg ret=0x%x phyId=0x%04X → %s"),
-              (unsigned)readRet, (unsigned)phyId,
+              (unsigned)readRet,
+              (unsigned)phyId,
               found ? "FOUND" : "NOT FOUND");
 
   // Log BEFORE deinit/del: mac->deinit() temporarily stalls the UART DMA
@@ -1927,8 +1343,7 @@ void ConfigStore::boardDetection() {
   esp_log_level_set("i2c.master", ESP_LOG_WARN); // restore normal log level
 
   if (oledAddr != 0) {
-    LOG_CONSOLE(PSTR("OLED found: 0x%02X (SDA=%u SCL=%u)"), oledAddr, oledSda,
-                oledScl);
+    LOG_CONSOLE(PSTR("OLED found: 0x%02X (SDA=%u SCL=%u)"), oledAddr, oledSda, oledScl);
   } else {
     LOG_CONSOLE(PSTR("OLED probe: no display found"));
   }
@@ -1949,8 +1364,7 @@ void ConfigStore::boardDetection() {
       if (probeRadio(_boards[ite])) {
         LOG_CONSOLE(PSTR("Board confirmed: %s"), _boards[ite].BOARD.c_str());
         itoa(ite, _board, 10);
-        boardToTemplateJson(_boards[ite], _boardTemplate,
-                            sizeof(_boardTemplate));
+        boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
         save();
         return;
       }
@@ -1960,8 +1374,7 @@ void ConfigStore::boardDetection() {
       LOG_CONSOLE(PSTR("Radio probe inconclusive — fallback: %s"),
                   _boards[firstCandidate].BOARD.c_str());
       itoa(firstCandidate, _board, 10);
-      boardToTemplateJson(_boards[firstCandidate], _boardTemplate,
-                          sizeof(_boardTemplate));
+      boardToTemplateJson(_boards[firstCandidate], _boardTemplate, sizeof(_boardTemplate));
       save();
     }
     return;
@@ -1977,23 +1390,26 @@ void ConfigStore::boardDetection() {
     if (_boards[ite].ethPHY != 0xFF) {
       // SPI ethernet (W5500, etc.)
 #if CONFIG_IDF_TARGET_ESP32S3
-      LOG_CONSOLE(PSTR("Probing %s (SPI CS=%u SCK=%u MOSI=%u MISO=%u RST=%u)..."),
-                  _boards[ite].BOARD.c_str(), _boards[ite].ethCS, _boards[ite].ethSCK,
-                  _boards[ite].ethMOSI, _boards[ite].ethMISO, _boards[ite].ethRST);
-      detected = probeW5500Spi(_boards[ite].ethCS, _boards[ite].ethMISO,
-                               _boards[ite].ethMOSI, _boards[ite].ethSCK,
-                               _boards[ite].ethRST);
+      LOG_CONSOLE(
+          PSTR("Probing %s (SPI CS=%u SCK=%u MOSI=%u MISO=%u RST=%u)..."),
+          _boards[ite].BOARD.c_str(),
+          _boards[ite].ethCS,
+          _boards[ite].ethSCK,
+          _boards[ite].ethMOSI,
+          _boards[ite].ethMISO,
+          _boards[ite].ethRST);
+      detected = probeW5500Spi(_boards[ite].ethCS, _boards[ite].ethMISO, _boards[ite].ethMOSI, _boards[ite].ethSCK, _boards[ite].ethRST);
 #endif
     } else {
       // Internal EMAC (LAN8720, etc.)
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
       LOG_CONSOLE(PSTR("Probing %s (EMAC MDC=%u MDIO=%u PHYaddr=%d)..."),
-                  _boards[ite].BOARD.c_str(), _boards[ite].ethMDC,
-                  _boards[ite].ethMDIO, _boards[ite].ethPhyAddr);
+                  _boards[ite].BOARD.c_str(),
+                  _boards[ite].ethMDC,
+                  _boards[ite].ethMDIO,
+                  _boards[ite].ethPhyAddr);
       detected =
-          probeInternalEmac(_boards[ite].ethMDC, _boards[ite].ethMDIO,
-                            _boards[ite].ethPhyAddr, _boards[ite].ethRefClk,
-                            _boards[ite].ethClkExt, _boards[ite].ethOscEN);
+          probeInternalEmac(_boards[ite].ethMDC, _boards[ite].ethMDIO, _boards[ite].ethPhyAddr, _boards[ite].ethRefClk, _boards[ite].ethClkExt, _boards[ite].ethOscEN);
 #endif
     }
 
@@ -2130,13 +1546,14 @@ void ConfigStore::parseModemStartup() {
 void ConfigStore::printConfig() {
   LOG_DEBUG(PSTR("MQTT Port: %u\nMQTT Server: %s\nMQTT User: %s\nLatitude: "
                  "%f\nLongitude: %f"),
-            getMqttPort(), getMqttServer(), getMqttUser(), getLatitude(),
+            getMqttPort(),
+            getMqttServer(),
+            getMqttUser(),
+            getLatitude(),
             getLongitude());
-  LOG_DEBUG(PSTR("tz: %s\nOLED Bright: %u\nTX %s"), getTZ(), getOledBright(),
-            getAllowTx() ? "Enable" : "Disable");
+  LOG_DEBUG(PSTR("tz: %s\nOLED Bright: %u\nTX %s"), getTZ(), getOledBright(), getAllowTx() ? "Enable" : "Disable");
   if (_boardTemplate[0] != '\0')
     LOG_DEBUG(PSTR("board_template: %s"), _boardTemplate);
   else
-    LOG_DEBUG(PSTR("board: %u --> %s"), getBoard(),
-              _boards[getBoard()].BOARD.c_str());
+    LOG_DEBUG(PSTR("board: %u --> %s"), getBoard(), _boards[getBoard()].BOARD.c_str());
 }
