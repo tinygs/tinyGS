@@ -313,20 +313,23 @@ static const BoardDef boards[] = {
     // idx 3  LILYGO SX1280       SX1280  NSS=7 MISO=3 MOSI=6 SCK=5  ← unique
     { 0x3c, 17, 18, UNUSED_PIN, false, RT_SX1280,  7,  3,  6, 5,
       "2.4GHz LILYGO SX1280"                                               },
+    // idx 4  Custom S3 LR2021   LR2021  NSS=8 MISO=11 MOSI=10 SCK=9  ← LR11XX family on this bus
+    { 0x3c, 17, 18, UNUSED_PIN, false, RT_LR2021,  8, 11, 10, 9,
+      "Custom ESP32-S3 433MHz + LR2021"                                    },
 
     // ── No OLED, no ETH — radio-only boards (cannot be auto-detected) ───
-    // idx 4  Heltec WSL V3  SX1262  same radio SPI as idx 0, no OLED
+    // idx 5  Heltec WSL V3  SX1262  same radio SPI as idx 0, no OLED
     { 0,    UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, false, RT_SX1262,  8, 11, 10, 9,
       "150-960Mhz - HELTEC WSL V3 SX1262"                                  },
 
     // ── Ethernet-only (no OLED) ─────────────────────────────────────────
-    // idx 5  Waveshare ETH
+    // idx 6  Waveshare ETH
     { 0,    UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, true,
       RT_NONE, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN,
       "Waveshare ESP32-S3-ETH (W5500)"                                     },
 
-    // ── OLED bus (addr=0x3C, SDA=18, SCL=17) ← SDA/SCL swapped vs idx 0-3
-    // idx 6  EoRa-HUB LR1121   LR1121  NSS=8 MISO=11 MOSI=10 SCK=9  ← unique LR11xx family
+    // ── OLED bus (addr=0x3C, SDA=18, SCL=17) ← SDA/SCL swapped vs idx 0-4
+    // idx 7  EoRa-HUB LR1121   LR1121  NSS=8 MISO=11 MOSI=10 SCK=9  ← unique LR11xx family
     { 0x3c, 18, 17, 21,         false, RT_LR1121,  8, 11, 10, 9,
       "EBYTE EoRa-HUB ESP32S3 + LR1121"                                    },
 };

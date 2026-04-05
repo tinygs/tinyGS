@@ -28,7 +28,7 @@ const char TZ_NAMES[][TZ_NAME_LENGTH] PROGMEM = {"Africa/Abidjan", "Africa/Accra
 constexpr auto BOARD_LENGTH = 3;  // max chars for board index string (e.g. "23")
 
 #if CONFIG_IDF_TARGET_ESP32S3
-const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1", "2", "3", "4", "5", "6" };
+const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1", "2", "3", "4", "5", "6", "7"};
 #elif CONFIG_IDF_TARGET_ESP32C3
 const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1"  };
 #else 
@@ -266,6 +266,7 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "return;}"
   "}}"
   "document.getElementById('board_template').value=JSON.stringify(o);"
+  "document.getElementById('tpl_dirty').value='1';"
   "document.getElementById('bt-dlg').close();}"
   "</script>";
 

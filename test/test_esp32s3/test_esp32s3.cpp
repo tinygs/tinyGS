@@ -58,7 +58,7 @@ static void check_board(int board_idx)
 // ---------------------------------------------------------------------------
 void test_esp32s3_table_size_consistent()
 {
-    TEST_ASSERT_EQUAL_INT(7, esp32s3::NUM_BOARDS);
+    TEST_ASSERT_EQUAL_INT(8, esp32s3::NUM_BOARDS);
 }
 
 void test_esp32s3_all_boards_have_names()
@@ -85,7 +85,7 @@ void test_esp32s3_sda_scl_differ()
 }
 
 // ---------------------------------------------------------------------------
-//  Tests por placa — ESP32-S3 (7 placas)
+//  Tests por placa — ESP32-S3 (8 placas)
 // ---------------------------------------------------------------------------
 // idx 0 — HELTEC LORA32 V3, OLED SDA=17/SCL=18, SX1262 NSS=8
 //         Fase 1: primera en ese bus + SX126X → detectada directamente.
@@ -102,17 +102,21 @@ void test_esp32s3_TTGO_TBeam_SX1262()   { check_board(2); }
 // idx 3 — LILYGO SX1280, mismo bus OLED, familia SX1280 única.
 void test_esp32s3_LILYGO_SX1280()       { check_board(3); }
 
-// idx 4 — HELTEC WSL V3, sin OLED → Fase 2b radio-only.
+// idx 4 — Custom S3 LR2021, mismo bus OLED SDA=17/SCL=18, familia LR11XX.
+//         Única placa LR11XX en ese bus → diferenciable de SX126X/SX127X/SX1280.
+void test_esp32s3_Custom_S3_LR2021()    { check_board(4); }
+
+// idx 5 — HELTEC WSL V3, sin OLED → Fase 2b radio-only.
 //         Única placa radio-only en la tabla → detectada.
-void test_esp32s3_HELTEC_WSL_V3()       { check_board(4); }
+void test_esp32s3_HELTEC_WSL_V3()       { check_board(5); }
 
-// idx 5 — Waveshare ESP32-S3-ETH, sin OLED → Fase 2 ETH.
+// idx 6 — Waveshare ESP32-S3-ETH, sin OLED → Fase 2 ETH.
 //         Única placa ETH en la tabla → detectada.
-void test_esp32s3_Waveshare_ETH_W5500() { check_board(5); }
+void test_esp32s3_Waveshare_ETH_W5500() { check_board(6); }
 
-// idx 6 — EBYTE EoRa-HUB LR1121, OLED con SDA=18/SCL=17 (bus invertido).
+// idx 7 — EBYTE EoRa-HUB LR1121, OLED con SDA=18/SCL=17 (bus invertido).
 //         Bus único en la tabla → detectada.
-void test_esp32s3_EBYTE_EoRa_LR1121()  { check_board(6); }
+void test_esp32s3_EBYTE_EoRa_LR1121()  { check_board(7); }
 
 // ---------------------------------------------------------------------------
 //  Fixtures Unity
@@ -134,6 +138,7 @@ int main(int /*argc*/, char** /*argv*/)
     RUN_TEST(test_esp32s3_Custom_S3_SX1278);     // Fase 1 — OLED+SX127X  → PASS
     RUN_TEST(test_esp32s3_TTGO_TBeam_SX1262);    // Fase 1 — pines únicos  → PASS
     RUN_TEST(test_esp32s3_LILYGO_SX1280);        // Fase 1 — familia única  → PASS
+    RUN_TEST(test_esp32s3_Custom_S3_LR2021);     // Fase 1 — LR11XX único  → PASS
     RUN_TEST(test_esp32s3_HELTEC_WSL_V3);        // Fase 2b — radio-only   → PASS
     RUN_TEST(test_esp32s3_Waveshare_ETH_W5500);  // Fase 2  — ETH          → PASS
     RUN_TEST(test_esp32s3_EBYTE_EoRa_LR1121);   // Fase 1 — bus invertido  → PASS

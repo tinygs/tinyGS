@@ -637,7 +637,7 @@ String TinyGSWebServer::buildConfigPage() {
   // ---- Board config ----
   s += F("<fieldset id='Board config'><legend>Board config</legend>");
   s += F("<div><label for='board'>Board type</label>");
-  s += F("<select id='board' name='board'>");
+  s += F("<select id='board' name='board' onchange=\"document.getElementById('tpl_dirty').value='0'\">");
   for (uint8_t i = 0; i < cfg.getBoardCount(); i++) {
     bool selected = (cfg.getBoard() == i);
     s += "<option value='" + String(i) + "'" + (selected ? " selected" : "") + ">" + cfg.getBoardName(i) + "</option>";
@@ -703,9 +703,13 @@ String TinyGSWebServer::buildConfigPage() {
   s += F("<fieldset><legend>Advanced Config (do not modify unless you know what you are doing)</legend>");
   s += F("<div><label for='board_template'>Board Template (requires manual restart)</label>");
   s += F("<div style='display:flex;align-items:flex-start;gap:6px'>");
-  s += "<textarea id='board_template' name='board_template' maxlength='511' rows='4' style='flex:1;font-family:monospace;font-size:0.85em;resize:vertical'>" + String(cfg.getBoardTemplate()) + "</textarea>";
+  s += "<textarea id='board_template' name='board_template' maxlength='511' rows='4' style='flex:1;font-family:monospace;font-size:0.85em;resize:vertical' oninput=\"document.getElementById('tpl_dirty').value='1'\">" + String(cfg.getBoardTemplate()) + "</textarea>";
   s += F("<button type='button' onclick='btWzOpen()' style='white-space:nowrap;padding:3px 10px;width:auto;background:#555;color:#fff;font-size:0.82em;border-radius:4px;border:none;cursor:pointer;flex-shrink:0'>&#128295; Wizard</button>");
   s += F("</div></div>");
+  // tpl_dirty: starts 1 if a custom template is already stored, 0 otherwise.
+  // Changing the board dropdown resets it to 0; editing the textarea or applying
+  // the Wizard sets it to 1.  The server only saves the template when it is 1.
+  s += String("<input type='hidden' id='tpl_dirty' name='tpl_dirty' value='") + (cfg.getBoardTemplate()[0] ? "1" : "0") + "'>";
   s += F("<div><label for='modem_startup'>Modem startup</label>");
   s += "<input type='text' id='modem_startup' name='modem_startup' maxlength='255' placeholder='' value='" + String(cfg.getModemStartup()) + "'></div>";
   s += F("<div><label for='advanced_config'>Advanced parameters</label>");
@@ -836,8 +840,11 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
     cfg.setInterfaceMode((InterfaceMode)atoi(ifaceStr.c_str()));
   }
 
-  // Advanced
-  cfg.setBoardTemplate(getFormVal("board_template").c_str());
+  // Advanced — only persist the board template when the user explicitly edited
+  // it (tpl_dirty=1).  Merely changing the board dropdown must not make the
+  // firmware think a custom template exists.
+  bool tplDirty = getFormVal("tpl_dirty") == "1";
+  cfg.setBoardTemplate(tplDirty ? getFormVal("board_template").c_str() : "");
   cfg.setModemStartup(getFormVal("modem_startup").c_str());
   cfg.setAdvancedConfig(getFormVal("advanced_config").c_str());
 
