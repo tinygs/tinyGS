@@ -141,7 +141,7 @@ String TinyGSWebServer::buildRootPage() {
   s += "<style>" + String(FPSTR(HTML_STYLE_INNER)) + "</style>";
   s += FPSTR(HTML_HEAD_END);
   s += FPSTR(HTML_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
 
   if (cfg.getMqttServer()[0] == '\0' || cfg.getMqttUser()[0] == '\0' || cfg.getMqttPass()[0] == '\0') {
     s += F("<div>Device is not connected to tinyGS:</div>");
@@ -193,8 +193,10 @@ esp_err_t TinyGSWebServer::handleDashboard(httpd_req_t* req) {
 }
 
 String TinyGSWebServer::buildWorldMapSVG() {
-  String svg = "<div class='map-wrap'><svg width=\"262\" height=\"auto\" viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
-  svg += "<rect x=\"1\" y=\"1\" width=\"262\" height=\"134\" stroke=\"gray\" fill=\"none\" stroke-width=\"2\" />";
+  String svg = "<div class='map-wrap'><svg viewBox=\"0 0 262 134\" xmlns=\"http://www.w3.org/2000/svg\">";
+  svg += "<style>.mb{fill:var(--map-bg)}.md{stroke:var(--map-border);fill:none}.ml{fill:var(--map-land)}</style>";
+  svg += "<rect class=\"mb\" x=\"0\" y=\"0\" width=\"262\" height=\"134\" rx=\"4\"/>";
+  svg += "<rect class=\"md\" x=\"1\" y=\"1\" width=\"260\" height=\"132\" stroke-width=\"1\" rx=\"3\"/>";
 
   uint ix = 0;
   uint sx;
@@ -208,7 +210,7 @@ String TinyGSWebServer::buildWorldMapSVG() {
         }
         if (!((earth_bits[ix] >> i) & 1) || ((x == earth_width / 8 - 1) && (i == 7))) {
           if (n > 0) {
-            svg += "<rect x=\"" + String(sx * 2 + 3) + "\" y=\"" + String(y * 2 + 3) + "\" width=\"" + String(n * 2) + "\" height=\"2\" />";
+            svg += "<rect class=\"ml\" x=\"" + String(sx * 2 + 3) + "\" y=\"" + String(y * 2 + 3) + "\" width=\"" + String(n * 2) + "\" height=\"2\"/>"; 
             n = 0;
           }
         }
@@ -217,9 +219,12 @@ String TinyGSWebServer::buildWorldMapSVG() {
     }
   }
 
-  svg += "<circle id=\"wmsatpos\" cx=\"" + String(status.satPos[0] * 2 + 3) + "\" cy=\"" + String(status.satPos[1] * 2 + 3) + "\" stroke=\"red\" fill=\"none\" stroke-width=\"2\">";
-  svg += "  <animate attributeName=\"r\" values=\"2;4;6\" dur=\"0.75s\" repeatCount=\"indefinite\" />";
-  svg += "</circle></svg></div>";
+  svg += "<circle id=\"wmsatpos\" cx=\"" + String(status.satPos[0] * 2 + 3) + "\" cy=\"" + String(status.satPos[1] * 2 + 3) + "\" stroke=\"#3b82f6\" fill=\"none\" stroke-width=\"1.5\">";
+  svg += "  <animate attributeName=\"r\" values=\"2;5;8\" dur=\"1s\" repeatCount=\"indefinite\" />";
+  svg += "  <animate attributeName=\"opacity\" values=\"1;0.4;0\" dur=\"1s\" repeatCount=\"indefinite\" />";
+  svg += "</circle>";
+  svg += "<circle cx=\"" + String(status.satPos[0] * 2 + 3) + "\" cy=\"" + String(status.satPos[1] * 2 + 3) + "\" r=\"2\" fill=\"#3b82f6\"/>";
+  svg += "</svg></div>";
   return svg;
 }
 
@@ -233,38 +238,40 @@ String TinyGSWebServer::buildDashboardPage() {
   s += "<script>" + String(FPSTR(IOTWEBCONF_WORLDMAP_SCRIPT)) + "</script>";
   s += FPSTR(HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_DASHBOARD_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+  s += "<div style='text-align:center;margin-bottom:0.75rem;'><img class='logo' src=\"" + String(LOGO_URL) + "\" style='max-width:160px;'></div>";
 
   s += buildWorldMapSVG();
 
   if (cfg.getMqttServer()[0] == '\0' || cfg.getMqttUser()[0] == '\0' || cfg.getMqttPass()[0] == '\0') {
-    s += F("Device is not connected to tinyGS.<br /> OTP code:");
-    s += "<div style=\"color:blue;\"><h3><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></h3></div>";
+    s += F("<div style='background:rgba(239,68,68,0.08);border:1px solid var(--danger);border-radius:var(--radius);padding:0.8rem;margin:0.5rem auto;max-width:560px;text-align:center;'>");
+    s += F("<span style='font-size:0.85rem;'>Device not connected to TinyGS &mdash; OTP: </span>");
+    s += "<a href='https://tinygs.com/user/addstation' style='font-weight:700;font-size:1.1rem;'>" + String(mqttCredentials.getOTPCode()) + "</a>";
+    s += F("</div>");
   }
 
   // Ground Station Status
-  s += F("<div class='cards'><div class=\"card\"><h3>Groundstation Status</h3><table id=\"gsstatus\">");
+  s += F("<div class='cards'><div class='card'><h3>Ground Station</h3><table id=\"gsstatus\">");
   s += "<tr><td>Name </td><td>" + String(cfg.getThingName()) + "</td></tr>";
   s += "<tr><td>Version </td><td>" + String(status.version) + "</td></tr>";
-  s += "<tr><td>MQTT Server </td><td>" + String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
+  s += "<tr><td>MQTT</td><td>" + String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
 
   ConnectionManager& cm = ConnectionManager::getInstance();
   if (cm.isConnected()) {
     if (cm.getActiveInterface() == ActiveInterface::WIFI) {
-      s += "<tr><td>Network </td><td><span class='G'>" + cm.getActiveInterfaceName() + " (" + String(cm.getNetworkRSSI()) + " dBm)" + "</span></td></tr>";
+      s += "<tr><td>WiFi</td><td>" + String(cm.getNetworkRSSI()) + "</td></tr>";
     } else {
-      s += "<tr><td>Network </td><td><span class='G'>" + cm.getActiveInterfaceName() + "</span></td></tr>";
+      s += "<tr><td>Network</td><td><span class='G'>" + cm.getActiveInterfaceName() + "</span></td></tr>";
     }
   } else {
-    s += "<tr><td>Network </td><td><span class='R'>NOT CONNECTED</span></td></tr>";
+    s += "<tr><td>WiFi</td><td><span class='R'>NOT CONNECTED</span></td></tr>";
   }
 
   s += "<tr><td>Radio </td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
-  s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>";
+  s += "<tr><td>Noise Floor</td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>";
   s += F("</table></div>");
 
   // Modem Configuration
-  s += F("<div class=\"card\"><h3>Modem Configuration</h3><table id=\"modemconfig\">");
+  s += F("<div class='card'><h3>Modem Config</h3><table id=\"modemconfig\">");
   s += "<tr><td>Modulation </td><td>" + String(status.modeminfo.modem_mode) + "</td></tr>";
   s += "<tr><td>Frequency </td><td>" + String(status.modeminfo.frequency) + "</td></tr>";
   s += "<tr><td>Freq. Offset </td><td>" + String(status.modeminfo.freqOffset) + "</td></tr>";
@@ -289,7 +296,7 @@ String TinyGSWebServer::buildDashboardPage() {
   }
 
   // Satellite Tracking
-  s += F("</table></div><div class=\"card\"><h3>Satellite Tracking Data</h3><table id=\"satdata\">");
+  s += F("</table></div><div class='card'><h3>Satellite Tracking</h3><table id=\"satdata\">");
   s += "<tr><td>Listening to </td><td>" + String(status.modeminfo.satellite) + "</td></tr>";
   if (status.modeminfo.tle[0] != 0) {
     s += "<tr><td>Lat / Lon </td><td>" + String(status.tle.dSatLAT) + "° / " + String(status.tle.dSatLON) + "° </td></tr>";
@@ -312,11 +319,11 @@ String TinyGSWebServer::buildDashboardPage() {
   s += F("</table></div>");
 
   // Last Packet
-  s += F("<div class=\"card\"><h3>Last Packet Received</h3><table id=\"lastpacket\">");
+  s += F("<div class='card'><h3>Last Packet</h3><table id=\"lastpacket\">");
   s += "<tr><td>Received at </td><td>" + String(status.lastPacketInfo.time) + "</td></tr>";
   s += "<tr><td>Signal RSSI </td><td>" + String(status.lastPacketInfo.rssi) + "</td></tr>";
   s += "<tr><td>Signal SNR </td><td>" + String(status.lastPacketInfo.snr) + "</td></tr>";
-  s += "<tr><td>Frequency error </td><td>" + String(status.lastPacketInfo.frequencyerror) + "</td></tr>";
+  s += "<tr><td>Freq. Error</td><td>" + String(status.lastPacketInfo.frequencyerror) + "</td></tr>";
   s += "<tr><td colspan=\"2\" style=\"text-align:center;\">" + String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "") + "</td></tr>";
   s += F("</table></div></div>"); // close last card + .cards grid
 
