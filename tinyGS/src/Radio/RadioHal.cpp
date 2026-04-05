@@ -631,5 +631,131 @@ template<> int16_t RadioHal<SX1278>::setRxBoostedGainMode(bool enable) { return 
 template<> int16_t RadioHal<SX1276>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
 template<> int16_t RadioHal<SX1280>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
 // LR1121: supported
-//template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return radio->setRxBoostedGainMode(enable); }
-template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
+template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return radio->setRxBoostedGainMode(enable); }
+//template<> int16_t RadioHal<LR1121>::setRxBoostedGainMode(bool enable) { return RADIOLIB_ERR_NONE; }
+
+
+// ─── LR2021 ────────────────────────────────────────────────────────────────
+
+template<>
+int16_t RadioHal<LR2021>::begin(float freq, float bw, uint8_t sf, uint8_t cr, uint8_t syncWord, int8_t power, uint16_t preambleLength, uint8_t gain, float tcxoVoltage)
+{
+    radio->irqDioNum =8;
+    if (power > 22) power = 22;  // LR2021 HP PA max is +22 dBm
+
+    if      (bw <= 31.25f)    bw = 31.25f;
+    else if (bw <= 41.67f)    bw = 41.67f;
+    else if (bw <= 62.5f)     bw = 62.5f;
+    else if (bw <= 83.34f)    bw = 83.34f;
+    else if (bw <= 101.5625f) bw = 101.5625f;
+    else if (bw <= 125.0f)    bw = 125.0f;
+    else if (bw <= 203.125f)  bw = 203.125f;
+    else if (bw <= 250.0f)    bw = 250.0f;
+    else if (bw <= 406.25f)   bw = 406.25f;
+    else if (bw <= 500.0f)    bw = 500.0f;
+    else if (bw <= 812.5f)    bw = 812.5f;
+    else                      bw = 1000.0f;
+
+    return radio->begin(freq, bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage);
+}
+
+template<>
+int16_t RadioHal<LR2021>::begin()
+{
+    radio->irqDioNum =8;
+    return radio->begin();
+}
+
+template<>
+int16_t RadioHal<LR2021>::beginFSK(float freq, float br, float freqDev, float rxBw, int8_t power, uint16_t preambleLength, bool enableOOK, float tcxoVoltage, bool useRegulatorLDO)
+{
+      radio->irqDioNum =8;
+    if (power > 22) power = 22;
+    return radio->beginGFSK(freq, br, freqDev, rxBw, power, preambleLength, tcxoVoltage);
+}
+
+template<>
+int16_t RadioHal<LR2021>::autoLDRO()
+{
+    return 0; // LR2021 manages this internally
+}
+
+template<>
+int16_t RadioHal<LR2021>::forceLDRO(bool enable)
+{
+    return 0;
+}
+
+template<>
+int16_t RadioHal<LR2021>::setCRC(uint8_t len, uint16_t initial, uint16_t polynomial, bool inverted)
+{
+    return radio->setCRC(len, initial, polynomial, inverted);
+}
+
+template<>
+void RadioHal<LR2021>::setPacketReceivedAction(void (*func)(void))
+{
+    radio->setPacketReceivedAction(func);
+}
+
+template<>
+int16_t RadioHal<LR2021>::startReceive()
+{
+    return radio->startReceive();
+}
+
+template<>
+float RadioHal<LR2021>::getRSSI(bool packet, bool skipReceive)
+{
+    return radio->getRSSI(packet, skipReceive);
+}
+
+template<>
+float RadioHal<LR2021>::getFrequencyError(bool autoCorrect)
+{
+    return 0.0f; // not available in LR2021
+}
+
+template<>
+int16_t RadioHal<LR2021>::fixedPacketLengthMode(uint8_t len)
+{
+    return radio->fixedPacketLengthMode(len);
+}
+
+template<>
+int16_t RadioHal<LR2021>::setEncoding(uint8_t encoding)
+{
+    if (encoding == 10)
+        encoding = 1;
+    return radio->setEncoding(encoding);
+}
+
+template<>
+int16_t RadioHal<LR2021>::setWhitening(bool enabled, uint16_t initial)
+{
+    return radio->setWhitening(enabled, initial);
+}
+
+template<>
+int16_t RadioHal<LR2021>::invertIQ(bool enable)
+{
+    return radio->invertIQ(enable);
+}
+
+template<>
+int16_t RadioHal<LR2021>::explicitHeader()
+{
+    return radio->explicitHeader();
+}
+
+template<>
+int16_t RadioHal<LR2021>::implicitHeader(size_t len)
+{
+    return radio->implicitHeader(len);
+}
+
+template<>
+int16_t RadioHal<LR2021>::setRxBoostedGainMode(bool enable)
+{
+    return radio->setRxBoostedGainMode(enable ? 7 : 0);
+}
