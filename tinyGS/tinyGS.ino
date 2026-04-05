@@ -198,7 +198,11 @@ void setup()
   {
     Power& power = Power::getInstance();
     power.checkAXP();
-    if (!configStore.getDisableOled()) {
+    // Only re-establish Wire if the board physically has an OLED on an I2C bus.
+    // For ethernet-only boards (OLED__address == 0) both SDA and SCL are
+    // UNUSED_PIN (255); calling Wire.begin(255, 255) on a fresh Wire instance
+    // crashes the ESP32 via gpio_matrix_out() with an invalid pin number.
+    if (!configStore.getDisableOled() && board.OLED__address != 0) {
       Wire.begin(board.OLED__SDA, board.OLED__SCL);
       Wire.setClock(700000);
       Wire.setTimeOut(50);
@@ -230,7 +234,7 @@ void setup()
           Log::console(PSTR("[SX12xx] Init timeout after %ds - no radio chip detected"), RADIO_INIT_TIMEOUT_MS / 1000);
           vTaskDelete(s_radioInitTask);
         } else {
-          Log::console(PSTR("[SX12xx] No radio configured for this board"));
+          Log::console(PSTR("[SX12xx] No radio configured for this board. Please configure via the console."));
         }
         s_radioInitTask = nullptr;
       }

@@ -20,6 +20,7 @@
 
 #include "Power.h"
 #include "../Logger/Logger.h"
+#include <esp_log.h>
 
 
 byte AXPchip = 0;
@@ -69,10 +70,20 @@ void Power::checkAXP()
    board_t board;
    if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
-  LOG_CONSOLE(PSTR("AXPxxx chip?"));   
+  // AXP power chips are always on the same I2C bus as the OLED.
+  // Boards with no OLED (e.g. ethernet-only) have no I2C bus and no AXP.
+  // Attempting Wire.begin() with UNUSED_PIN (255) for both SDA and SCL on a
+  // fresh Wire instance triggers gpio_matrix_out(255) which crashes the ESP32.
+  if (board.OLED__address == 0)
+    return;
+  LOG_CONSOLE(PSTR("AXPxxx chip?"));
+  // Suppress expected I2C NACKs — on boards without AXP, address 0x34 will
+  // not ACK and that is normal.  The errors are not real failures.
+  esp_log_level_set("i2c.master", ESP_LOG_NONE);
   byte regV = 0;
-  Wire.begin(board.OLED__SDA, board.OLED__SCL);                     // I2C_SDA, I2C_SCL on all new boards
-  byte ChipID = I2CreadByte(0x34, 0x03);                            // read byte from xxx_IC_TYPE register
+  Wire.begin(board.OLED__SDA, board.OLED__SCL);
+  byte ChipID = I2CreadByte(0x34, 0x03);
+  esp_log_level_set("i2c.master", ESP_LOG_WARN);
   // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
   if (ChipID == XPOWERS_AXP192_CHIP_ID) { // 0x03
     AXPchip = 1;
