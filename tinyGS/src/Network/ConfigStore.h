@@ -273,6 +273,7 @@ public:
   // ---- Board list (drives web UI dropdown) ----
   uint8_t     getBoardCount()           const { return NUM_BOARDS; }
   const char* getBoardName(uint8_t idx) const { return (idx < NUM_BOARDS) ? _boards[idx].BOARD.c_str() : ""; }
+  const board_t* getBoardDef(uint8_t idx) const { return (idx < NUM_BOARDS) ? &_boards[idx] : nullptr; }
 
   // ---- Board config resolution ----
   bool getBoardConfig(board_t& board);

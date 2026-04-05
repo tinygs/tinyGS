@@ -719,6 +719,34 @@ String TinyGSWebServer::buildConfigPage() {
   s += F("<br/><button type='submit'>Save</button>");
   s += F("</form>");
   s += FPSTR(BOARD_WIZARD_HTML);
+  // Inject board defaults so the Wizard can pre-fill when the template textarea is empty.
+  {
+    String bds = F("<script>var boardDefaults=[");
+    for (uint8_t i = 0; i < cfg.getBoardCount(); i++) {
+      const board_t* b = cfg.getBoardDef(i);
+      if (!b) continue;
+      if (i) bds += ',';
+      char buf[512];
+      snprintf(buf, sizeof(buf),
+        "{aADDR:%u,oSDA:%u,oSCL:%u,oRST:%u,pBut:%u,led:%u,"
+        "radio:%u,lNSS:%u,lDIO0:%u,lDIO1:%u,lBUSSY:%u,lRST:%u,"
+        "lMISO:%u,lMOSI:%u,lSCK:%u,lTCXOV:%.4f,RXEN:%u,TXEN:%u,lSPI:%u,"
+        "ethEN:%s,ethPHY:%u,ethSPI:%u,ethCS:%u,ethINT:%u,ethRST:%u,"
+        "ethMISO:%u,ethMOSI:%u,ethSCK:%u,"
+        "ethMDC:%u,ethMDIO:%u,ethPhyAddr:%d,ethPhyType:%u,ethRefClk:%u,ethClkExt:%s,ethPhyRST:%u,ethOscEN:%u}",
+        b->OLED__address, b->OLED__SDA, b->OLED__SCL, b->OLED__RST,
+        b->PROG__BUTTON, b->BOARD_LED,
+        b->L_radio, b->L_NSS, b->L_DI00, b->L_DI01, b->L_BUSSY, b->L_RST,
+        b->L_MISO, b->L_MOSI, b->L_SCK, b->L_TCXO_V, b->RX_EN, b->TX_EN, b->L_SPI,
+        b->ethEN ? "true" : "false", b->ethPHY, b->ethSPI, b->ethCS, b->ethINT, b->ethRST,
+        b->ethMISO, b->ethMOSI, b->ethSCK,
+        b->ethMDC, b->ethMDIO, b->ethPhyAddr, b->ethPhyType, b->ethRefClk,
+        b->ethClkExt ? "true" : "false", b->ethPhyRST, b->ethOscEN);
+      bds += buf;
+    }
+    bds += F("];</script>");
+    s += bds;
+  }
   s += "<br /><button onclick=\"window.location.href='" + String(ROOT_URL) + "';\">Go Back</button><br /><br />";
   s += FPSTR(HTML_END);
   s.replace("{v}", FPSTR(TITLE_TEXT));

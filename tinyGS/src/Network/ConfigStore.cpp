@@ -1191,59 +1191,6 @@ static bool probeInternalEmac(uint8_t mdcPin, uint8_t mdioPin, uint8_t phyAddr, 
 #endif // !ESP32S3 && !ESP32C3
 
 // ---------------------------------------------------------------------------
-// boardToTemplateJson() — serializes a board_t to the JSON template format
-// so the user can see and edit it in the web UI "Board Template" field.
-// ---------------------------------------------------------------------------
-static void boardToTemplateJson(const board_t &b, char *buf, size_t bufLen) {
-  StaticJsonDocument<1024> doc;
-  doc["aADDR"] = b.OLED__address;
-  doc["oSDA"] = b.OLED__SDA;
-  doc["oSCL"] = b.OLED__SCL;
-  doc["oRST"] = b.OLED__RST;
-  doc["pBut"] = b.PROG__BUTTON;
-  doc["led"] = b.BOARD_LED;
-  doc["radio"] = b.L_radio;
-  doc["lNSS"] = b.L_NSS;
-  doc["lDIO0"] = b.L_DI00;
-  doc["lDIO1"] = b.L_DI01;
-  doc["lBUSSY"] = b.L_BUSSY;
-  doc["lRST"] = b.L_RST;
-  doc["lMISO"] = b.L_MISO;
-  doc["lMOSI"] = b.L_MOSI;
-  doc["lSCK"] = b.L_SCK;
-  doc["lTCXOV"] = b.L_TCXO_V;
-  doc["RXEN"] = b.RX_EN;
-  doc["TXEN"] = b.TX_EN;
-  doc["lSPI"] = b.L_SPI;
-  doc["bNAME"] = b.BOARD;
-  if (b.ethEN) {
-    doc["ethEN"] = true;
-    doc["ethPHY"] = b.ethPHY;
-    if (b.ethPHY != 0xFF) {
-      // SPI ethernet (W5500, DM9051, KSZ8851SNL)
-      doc["ethSPI"] = b.ethSPI;
-      doc["ethCS"] = b.ethCS;
-      doc["ethINT"] = b.ethINT;
-      doc["ethRST"] = b.ethRST;
-      doc["ethMISO"] = b.ethMISO;
-      doc["ethMOSI"] = b.ethMOSI;
-      doc["ethSCK"] = b.ethSCK;
-    } else {
-      // Internal EMAC (LAN8720, etc.)
-      doc["ethMDC"] = b.ethMDC;
-      doc["ethMDIO"] = b.ethMDIO;
-      doc["ethPhyAddr"] = b.ethPhyAddr;
-      doc["ethPhyType"] = b.ethPhyType;
-      doc["ethRefClk"] = b.ethRefClk;
-      doc["ethClkExt"] = b.ethClkExt;
-      doc["ethPhyRST"] = b.ethPhyRST;
-      doc["ethOscEN"] = b.ethOscEN;
-    }
-  }
-  serializeJson(doc, buf, bufLen);
-}
-
-// ---------------------------------------------------------------------------
 // boardDetection() — probes hardware to auto-select the board configuration.
 //
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -1281,6 +1228,12 @@ static void boardToTemplateJson(const board_t &b, char *buf, size_t bufLen) {
 // ---------------------------------------------------------------------------
 void ConfigStore::boardDetection() {
   LOG_CONSOLE(PSTR("Automatic board detection running..."));
+
+  // Auto-detection writes only the board index (_board), never the template.
+  // The template field is reserved exclusively for user-edited overrides.
+  // Clear any stale template that may have been left by an older firmware.
+  _boardTemplate[0] = '\0';
+  _currentBoardDirty = true;
 
 #if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
   if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") == 0)
@@ -1367,7 +1320,6 @@ void ConfigStore::boardDetection() {
       if (probeRadio(_boards[ite])) {
         LOG_CONSOLE(PSTR("Board confirmed: %s"), _boards[ite].BOARD.c_str());
         itoa(ite, _board, 10);
-        boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
         save();
         return;
       }
@@ -1377,7 +1329,6 @@ void ConfigStore::boardDetection() {
       LOG_CONSOLE(PSTR("Radio probe inconclusive — fallback: %s"),
                   _boards[firstCandidate].BOARD.c_str());
       itoa(firstCandidate, _board, 10);
-      boardToTemplateJson(_boards[firstCandidate], _boardTemplate, sizeof(_boardTemplate));
       save();
     }
     return;
@@ -1418,9 +1369,7 @@ void ConfigStore::boardDetection() {
 
     if (detected) {
       LOG_CONSOLE(PSTR("Ethernet detected: %s"), _boards[ite].BOARD.c_str());
-      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
       itoa(ite, _board, 10);
-      _currentBoardDirty = true;
       _ifaceMode = InterfaceMode::BOTH;
       save();
       return;
@@ -1440,7 +1389,6 @@ void ConfigStore::boardDetection() {
     if (probeRadio(_boards[ite])) {
       LOG_CONSOLE(PSTR("Board confirmed: %s"), _boards[ite].BOARD.c_str());
       itoa(ite, _board, 10);
-      boardToTemplateJson(_boards[ite], _boardTemplate, sizeof(_boardTemplate));
       save();
       return;
     }
