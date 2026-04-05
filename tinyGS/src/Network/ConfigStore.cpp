@@ -45,14 +45,18 @@ ConfigStore::ConfigStore() {
 void ConfigStore::initBoardTable() {
   uint8_t i = 0;
 #if CONFIG_IDF_TARGET_ESP32S3
-  _boards[i++] = {0x3c, 17, 18, 21, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC LORA32 V3 SX1262"};
+  // ── Indices 0-5 must match beta exactly for backward compatibility ────────
+  _boards[i++] = {0x3c, 17, 18, 21, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC LORA32 V3 SX1262"};                          // 0: HELTEC_LORA32_V3
+  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 35, RADIO_SX1278, 8, 6, 14, UNUSED_PIN, 12, 11, 10, 9, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-S3 433MHz SX1278"};                           // 1: ESP32S3_SX1278_LF
+  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 3, RADIO_SX1262, 10, UNUSED_PIN, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED_PIN, UNUSED_PIN, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"};                     // 2: TTGO_TBEAM_SX1262
+  _boards[i++] = {0x3c, 18, 17, 21, 0, 35, RADIO_LR1121, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.8f, UNUSED_PIN, UNUSED_PIN, "EBYTE EoRa-HUB ESP32S3 + LR1121"};                              // 3: ESP32S3_LR1121
+  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 37, RADIO_SX1280, 7, UNUSED_PIN, 9, UNUSED_PIN, 8, 3, 6, 5, 0.0f, 21, 10, "2.4Ghz LILYGO SX1280"};                                             // 4: LILYGO_T3S3_SX1280
+  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 35, RADIO_LR2021, 8, 6, 14, 13, 12, 11, 10, 9, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-S3 433MHz + LR2021"};                                // 5: ESP32S3_LR2021
+  // ── New boards appended (indices 6+) — safe to extend ────────────────────
   // Heltec Wireless Stick Lite V3: no OLED, same radio SPI as LORA32 V3
-  _boards[i++] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC WSL V3 SX1262"};
-  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 35, RADIO_SX1278, 8, 6, 14, UNUSED_PIN, 12, 11, 10, 9, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-S3 433MHz SX1278"};
-  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 3, RADIO_SX1262, 10, UNUSED_PIN, 1, 4, 5, 13, 11, 12, 1.6f, UNUSED_PIN, UNUSED_PIN, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"};
-  _boards[i++] = {0x3c, 17, 18, UNUSED_PIN, 0, 37, RADIO_SX1280, 7, UNUSED_PIN, 9, UNUSED_PIN, 8, 3, 6, 5, 0.0f, 21, 10, "2.4Ghz LILYGO SX1280"};
+  _boards[i++] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, 35, RADIO_SX1262, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.6f, UNUSED_PIN, UNUSED_PIN, "150-960Mhz - HELTEC WSL V3 SX1262"};       // 6: HELTEC_WSL_V3
   // Waveshare ESP32-S3-ETH: no OLED, no radio — W5500 SPI ethernet
-  _boards[i] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, UNUSED_PIN, 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0.0f, UNUSED_PIN, UNUSED_PIN, "Waveshare ESP32-S3-ETH (W5500)"};
+  _boards[i] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, UNUSED_PIN, 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0.0f, UNUSED_PIN, UNUSED_PIN, "Waveshare ESP32-S3-ETH (W5500)"};  // 7: WAVESHARE_ESP32S3_ETH
   _boards[i].ethEN = true;
   _boards[i].ethPHY = 0; // W5500
   _boards[i].ethSPI = 2; // HSPI
@@ -63,7 +67,6 @@ void ConfigStore::initBoardTable() {
   _boards[i].ethMOSI = 11;
   _boards[i].ethSCK = 13;
   i++;
-  _boards[i++] = {0x3c, 18, 17, 21, 0, 35, RADIO_LR1121, 8, UNUSED_PIN, 14, 13, 12, 11, 10, 9, 1.8f, UNUSED_PIN, UNUSED_PIN, "EBYTE EoRa-HUB ESP32S3 + LR1121"};
 #elif CONFIG_IDF_TARGET_ESP32C3
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1262, 8, UNUSED_PIN, 3, 4, 5, 6, 7, 10, 1.6f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC LORA32 HT-CT62 SX1262"};
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1278, 8, 4, UNUSED_PIN, UNUSED_PIN, 5, 6, 7, 10, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-C3 433MHz SX1278"};

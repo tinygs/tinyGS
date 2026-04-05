@@ -66,13 +66,16 @@ enum RadioModelNum_t {
 
 enum boardNum {
 #if CONFIG_IDF_TARGET_ESP32S3
-  HELTEC_LORA32_V3 = 0,
-  HELTEC_WSL_V3,           // Heltec Wireless Stick Lite V3 (no OLED, same radio as LORA32 V3)
-  ESP32S3_SX1278_LF,
-  TTGO_TBEAM_SX1262,
-  LILYGO_T3S3_SX1280,
-  WAVESHARE_ESP32S3_ETH,
-  ESP32S3_LR1121,
+  // ── Indices 0-5 match beta exactly – DO NOT reorder ──────────────────────
+  HELTEC_LORA32_V3 = 0,    // 0
+  ESP32S3_SX1278_LF,        // 1
+  TTGO_TBEAM_SX1262,        // 2
+  ESP32S3_LR1121,            // 3
+  LILYGO_T3S3_SX1280,        // 4
+  ESP32S3_LR2021,            // 5
+  // ── New boards appended – safe to extend ─────────────────────────────────
+  HELTEC_WSL_V3,             // 6  Heltec Wireless Stick Lite V3 (no OLED)
+  WAVESHARE_ESP32S3_ETH,     // 7  Waveshare ESP32-S3-ETH W5500
 #elif CONFIG_IDF_TARGET_ESP32C3
   HELTEC_LORA32_HTCT62 = 0,
   ESP32C3_SX1278_LF,
