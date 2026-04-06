@@ -45,7 +45,7 @@ const char IOTWEBCONF_DASHBOARD_STYLE_INNER[] PROGMEM =
     ".card td{padding:0.25rem 0.4rem;font-size:0.82rem;border:none;}"
     ".card td:first-child{color:var(--text2);white-space:nowrap;width:45%;}"
     ".card td:last-child{color:var(--text);font-weight:500;}"
-    ".map-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem;margin:0.75rem auto;max-width:560px;}"
+    ".map-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem;margin:0.75rem auto;max-width:460px;}"
     ".map-wrap svg{width:100%;height:auto;}"
     "textarea{resize:vertical;width:100%;height:300px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.6rem;font-family:'Courier New',monospace;font-size:0.78rem;line-height:1.5;}"
     "html.dark textarea{background:#0d1117;color:#22c55e;}"
