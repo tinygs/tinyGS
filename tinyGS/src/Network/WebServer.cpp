@@ -633,7 +633,7 @@ String TinyGSWebServer::buildConfigPage() {
   s += F("</fieldset>");
 
   // ---- MQTT ----
-  s += F("<fieldset><legend>MQTT credentials</legend>");
+  s += F("<fieldset><legend>MQTT credentials (<a href='https://t.me/+VlqGIoyJ8SmgJuWe' target='_blank'>Join this group</a>)<br>Then open a private chat with <a href='https://t.me/tinygs_personal_bot' target='_blank'>@tinygs_personal_bot</a> and ask &#47;mqtt</legend>");
   s += F("<div><label for='mqtt_server'>Server address</label>");
   s += "<input type='text' id='mqtt_server' name='mqtt_server' maxlength='30' value='" + String(cfg.getMqttServer()) + "'></div>";
   s += F("<div><label for='mqtt_port'>Server Port</label>");
