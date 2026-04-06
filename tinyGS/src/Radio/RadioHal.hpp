@@ -41,7 +41,14 @@ class RadioHal : public IRadioHal {
 public:
   RadioHal(Module* mod)
   {
+    _mod = mod;
     radio = new T(mod);
+  }
+
+  ~RadioHal()
+  {
+    delete radio;
+    delete _mod;
   }
 
   int16_t begin(float freq, float bw, uint8_t sf, uint8_t cr, uint8_t syncWord, int8_t power, uint16_t preambleLength, uint8_t gain, float tcxoVoltage);
@@ -125,7 +132,8 @@ public:
   int16_t setRxBoostedGainMode(bool enable);
 
 private:
-  T* radio;
+  T* radio = nullptr;
+  Module* _mod = nullptr;
 };
 
 

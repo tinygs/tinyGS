@@ -83,6 +83,15 @@ void Radio::init()
 
   spi.begin(board.L_SCK, board.L_MISO, board.L_MOSI, board.L_NSS);
 
+  // Free the previous radio instance before creating a new one.
+  // Without this, every call to begin() (satellite switch) leaks the
+  // RadioHal<T> object and its associated Module, exhausting the heap.
+  if (radioHal) {
+    radioHal->sleep();
+    delete radioHal;
+    radioHal = nullptr;
+  }
+
  switch (board.L_radio) {
     case RADIO_SX1278:
       radioHal = new RadioHal<SX1278>(new Module(board.L_NSS, board.L_DI00, board.L_RST, board.L_DI01, spi, SPISettings(2000000, MSBFIRST, SPI_MODE0)));
