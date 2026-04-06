@@ -140,32 +140,35 @@ String TinyGSWebServer::buildRootPage() {
   String s = String(FPSTR(HTML_HEAD));
   s += "<style>" + String(FPSTR(HTML_STYLE_INNER)) + "</style>";
   s += FPSTR(HTML_HEAD_END);
-  s += FPSTR(HTML_BODY_INNER);
+  s += "<div class='home-wrap'>";
   s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
 
   if (cfg.getMqttServer()[0] == '\0' || cfg.getMqttUser()[0] == '\0' || cfg.getMqttPass()[0] == '\0') {
-    s += F("<div>Device is not connected to tinyGS:</div>");
-    s += F("<table style=\"width:75%;\">");
-    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b>" + String(mqttCredentials.getOTPCode()) + "</b></td></tr>";
-    s += "</table><br />";
+    s += F("<div class='otp-box'>");
+    s += F("<div style='font-size:0.82rem;color:var(--text2);margin-bottom:0.3rem;'>Device not connected to TinyGS</div>");
+    s += "<div class='otp-code'>" + String(mqttCredentials.getOTPCode()) + "</div>";
+    s += F("</div>");
   }
 
-  s += "<button onclick=\"window.location.href='" + String(DASHBOARD_URL) + "';\">Station dashboard</button><br /><br />";
-  s += "<button onclick=\"window.location.href='" + String(CONFIG_URL) + "';\">Configure parameters</button><br /><br />";
-  s += "<button onclick=\"window.location.href='" + String(UPDATE_URL) + "';\">Upload new version</button><br /><br />";
-  s += "<button onclick=\"window.location.href='" + String(RESTART_URL) + "';\">Restart Station</button><br /><br />";
+  s += "<a class='nav-btn' href='" + String(DASHBOARD_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/></svg>Station Dashboard</a>";
+  s += "<a class='nav-btn' href='" + String(CONFIG_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z'/></svg>Configure Parameters</a>";
+  s += "<a class='nav-btn' href='" + String(UPDATE_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4'/><polyline points='17 8 12 3 7 8'/><line x1='12' y1='3' x2='12' y2='15'/></svg>Upload Firmware</a>";
+  s += "<a class='nav-btn' href='" + String(RESTART_URL) + "'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><polyline points='23 4 23 10 17 10'/><path d='M20.49 15a9 9 0 11-2.12-9.36L23 10'/></svg>Restart Station</a>";
 
   if (cfg.getThingName()[0] == 'M' && cfg.getThingName()[2] == ' ' && cfg.getMqttPass()[0] == '\0') {
-    s += F("<table style=\"width:75%;\">");
-    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></b></td></tr>";
-    s += "</table><br />";
-    s += F("<div>Default local dashboard credentials:</div>");
-    s += F("<table style=\"width:75%;\">");
-    s += F("<tr><td style=\"text-align:left;\">user:</td><td style=\"text-align:left;\"><b>admin</b></td></tr>");
-    s += "<tr><td style=\"text-align:left;\">password:</td><td style=\"text-align:left;\"><b>" + String(cfg.getApPassword()) + "</b></td></tr>";
-    s += "</table>";
+    s += F("<div class='otp-box'>");
+    s += F("<div style='font-size:0.82rem;color:var(--text2);margin-bottom:0.3rem;'>OTP Code</div>");
+    s += "<div class='otp-code'><a href='https://tinygs.com/user/addstation'>" + String(mqttCredentials.getOTPCode()) + "</a></div>";
+    s += F("</div>");
+    s += F("<div style='background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.8rem;margin:0.5rem 0;'>");
+    s += F("<div style='font-size:0.8rem;color:var(--text2);margin-bottom:0.4rem;'>Default dashboard credentials</div>");
+    s += F("<table class='info-table'>");
+    s += F("<tr><td>User:</td><td>admin</td></tr>");
+    s += "<tr><td>Password:</td><td>" + String(cfg.getApPassword()) + "</td></tr>";
+    s += F("</table></div>");
   }
 
+  s += "</div>";
   s += FPSTR(HTML_END);
   s.replace("{v}", FPSTR(TITLE_TEXT));
   return s;
