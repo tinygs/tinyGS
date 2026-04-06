@@ -570,179 +570,293 @@ String TinyGSWebServer::buildRestartPage() {
 
 // =====================================================================
 // ---- GET /config ---- (Configuration form)
+// Streamed via HTTP chunked transfer to avoid allocating the full page
+// (~100 KB with 460-entry TZ dropdown) in a single heap block, which
+// would fragment the ESP32 heap and lose WiFi connectivity.
 // =====================================================================
+
+// Send a PROGMEM string in small stack-buffered pieces; no heap needed.
+static void sendPgmChunked(httpd_req_t* req, PGM_P pgm) {
+  char buf[256];
+  size_t total = strlen_P(pgm);
+  size_t sent  = 0;
+  while (sent < total) {
+    size_t n = (total - sent < 255) ? (total - sent) : 255;
+    memcpy_P(buf, pgm + sent, n);
+    httpd_resp_send_chunk(req, buf, (ssize_t)n);
+    sent += n;
+  }
+}
+
 esp_err_t TinyGSWebServer::handleConfig(httpd_req_t* req) {
   if (!authenticate(req)) return sendAuthRequired(req);
 
-  String s = buildConfigPage();
-  httpd_resp_set_type(req, "text/html");
-  httpd_resp_sendstr(req, s.c_str());
-  return ESP_OK;
-}
-
-String TinyGSWebServer::buildConfigPage() {
   ConfigStore& cfg = ConfigStore::getInstance();
+  httpd_resp_set_type(req, "text/html");
 
-  String s = String(FPSTR(HTML_HEAD));
-  s += "<style>" + String(FPSTR(HTML_STYLE_INNER)) + "</style>";
-  s += "<style>" + String(FPSTR(IOTWEBCONF_CONFIG_STYLE_INNER)) + "</style>";
-  s += "<script>" + String(FPSTR(ADVANCED_CONFIG_SCRIPT)) + "</script>";
-  s += FPSTR(HTML_HEAD_END);
-  s += FPSTR(HTML_BODY_INNER);
-  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
-
-  s += "<form action=\"" + String(CONFIG_URL) + "\" method=\"post\">";
-
-  // ---- Station identity ----
-  s += F("<fieldset><legend>Station</legend>");
-  s += F("<div><label for='thing_name'>GroundStation Name (will be seen on the map)</label>");
-  s += "<input type='text' id='thing_name' name='thing_name' maxlength='20' value='" + String(cfg.getThingName()) + "'></div>";
-  s += F("<div><label for='ap_pwd'>Password for this dashboard (user is <b>admin</b>)</label>");
-  s += "<input type='password' id='ap_pwd' name='ap_pwd' maxlength='31' value='" + String(cfg.getApPassword()) + "'></div>";
-  s += F("</fieldset>");
-
-  // ---- WiFi ----
-  s += F("<fieldset><legend>WiFi</legend>");
-  s += F("<div><label for='wifi_ssid'>WiFi SSID</label>");
-  s += "<input type='text' id='wifi_ssid' name='wifi_ssid' maxlength='32' value='" + String(cfg.getWifiSSID()) + "'></div>";
-  s += F("<div><label for='wifi_pass'>WiFi Password</label>");
-  s += "<input type='password' id='wifi_pass' name='wifi_pass' maxlength='64' value='" + String(cfg.getWifiPassword()) + "'></div>";
-  s += F("</fieldset>");
-
-  // ---- Location ----
-  s += F("<fieldset><legend>Location</legend>");
-  s += F("<div><label for='lat'>Latitude (3 decimals, will be public)</label>");
-  s += "<input type='number' id='lat' name='lat' min='-180' max='180' step='0.001' value='" + String(cfg.getLatitudeStr()) + "'></div>";
-  s += F("<div><label for='lng'>Longitude (3 decimals, will be public)</label>");
-  s += "<input type='number' id='lng' name='lng' min='-180' max='180' step='0.001' value='" + String(cfg.getLongitudeStr()) + "'></div>";
-
-  // Timezone selector
-  s += F("<div><label for='tz'>Time Zone</label>");
-  s += F("<select id='tz' name='tz'>");
-  size_t tzCount = sizeof(TZ_VALUES) / TZ_LENGTH;
-  for (size_t i = 0; i < tzCount; i++) {
-    char tzVal[TZ_LENGTH];
-    char tzName[TZ_NAME_LENGTH];
-    strncpy_P(tzVal, TZ_VALUES[i], TZ_LENGTH);
-    strncpy_P(tzName, TZ_NAMES[i], TZ_NAME_LENGTH);
-    bool selected = strcmp(tzVal, cfg.getTZRaw()) == 0;
-    s += "<option value='" + String(tzVal) + "'" + (selected ? " selected" : "") + ">" + String(tzName) + "</option>";
-  }
-  s += F("</select></div>");
-  s += F("</fieldset>");
-
-  // ---- MQTT ----
-  s += F("<fieldset><legend>MQTT credentials (<a href='https://t.me/+VlqGIoyJ8SmgJuWe' target='_blank'>Join this group</a>)<br>Then open a private chat with <a href='https://t.me/tinygs_personal_bot' target='_blank'>@tinygs_personal_bot</a> and ask &#47;mqtt</legend>");
-  s += F("<div><label for='mqtt_server'>Server address</label>");
-  s += "<input type='text' id='mqtt_server' name='mqtt_server' maxlength='30' value='" + String(cfg.getMqttServer()) + "'></div>";
-  s += F("<div><label for='mqtt_port'>Server Port</label>");
-  s += "<input type='number' id='mqtt_port' name='mqtt_port' min='0' max='65536' step='1' value='" + String(cfg.getMqttPort()) + "'></div>";
-  s += F("<div><label for='mqtt_user'>MQTT Username</label>");
-  s += "<input type='text' id='mqtt_user' name='mqtt_user' maxlength='30' value='" + String(cfg.getMqttUser()) + "'></div>";
-  s += F("<div><label for='mqtt_pass'>MQTT Password</label>");
-  s += "<input type='text' id='mqtt_pass' name='mqtt_pass' maxlength='30' value='" + String(cfg.getMqttPass()) + "'></div>";
-  s += F("</fieldset>");
-
-  // ---- Board config ----
-  s += F("<fieldset id='Board config'><legend>Board config</legend>");
-  s += F("<div><label for='board'>Board type</label>");
-  s += F("<select id='board' name='board' onchange=\"document.getElementById('tpl_dirty').value='0'\">");
-  for (uint8_t i = 0; i < cfg.getBoardCount(); i++) {
-    bool selected = (cfg.getBoard() == i);
-    s += "<option value='" + String(i) + "'" + (selected ? " selected" : "") + ">" + cfg.getBoardName(i) + "</option>";
-  }
-  s += F("</select></div>");
-
-  s += F("<div><label for='oled_bright'>OLED Bright</label>");
-  s += "<input type='number' id='oled_bright' name='oled_bright' min='0' max='100' step='1' value='" + String(cfg.getOledBright()) + "'></div>";
-
-  auto addCheckbox = [&](const char* id, const char* label, bool checked) {
-    s += "<div><label for='" + String(id) + "'>" + String(label) + "</label>";
-    s += "<input type='checkbox' id='" + String(id) + "' name='" + String(id) + "'" + (checked ? " checked" : "") + "></div>";
+  // Helper: send an Arduino String as one chunk.
+  auto sc = [&](const String& chunk) {
+    if (chunk.length())
+      httpd_resp_send_chunk(req, chunk.c_str(), (ssize_t)chunk.length());
   };
 
-  addCheckbox("tx", "Enable TX (HAM licence / no preamp)", cfg.getAllowTx());
-  addCheckbox("remote_tune", "Allow Automatic Tuning", cfg.getRemoteTune());
-  addCheckbox("telemetry3rd", "Allow sending telemetry to third party", cfg.getTelemetry3rd());
-  addCheckbox("test", "Test mode", cfg.getTestMode());
-  addCheckbox("auto_update", "Automatic Firmware Update", cfg.getAutoUpdate());
-  addCheckbox("disable_oled", "Disable OLED display", cfg.getDisableOled());
-  addCheckbox("disable_radio", "Disable Radio (dev mode, no LoRa module)", cfg.getDisableRadio());
-  addCheckbox("always_ap", "Always keep WiFi AP active (same channel/BW as STA)", cfg.getAlwaysAP());
-  s += F("</fieldset>");
+  // ---- HEAD (styles + scripts) ----
+  {
+    String s;
+    s.reserve(4096);
+    s += FPSTR(HTML_HEAD);
+    s += F("<style>");
+    s += FPSTR(HTML_STYLE_INNER);
+    s += F("</style><style>");
+    s += FPSTR(IOTWEBCONF_CONFIG_STYLE_INNER);
+    s += F("</style><script>");
+    s += FPSTR(ADVANCED_CONFIG_SCRIPT);
+    s += F("</script>");
+    s += FPSTR(HTML_HEAD_END);
+    s += FPSTR(HTML_BODY_INNER);
+    s += F("<div class='logo-wrap'><img class='logo' src=\"");
+    s += LOGO_URL;
+    s += F("\"></div><form action=\"");
+    s += CONFIG_URL;
+    s += F("\" method=\"post\">");
+    s.replace("{v}", FPSTR(TITLE_TEXT));
+    sc(s);
+  }
+
+  // ---- Station identity ----
+  {
+    String s;
+    s.reserve(512);
+    s += F("<fieldset><legend>Station</legend>");
+    s += F("<div><label for='thing_name'>GroundStation Name (will be seen on the map)</label>");
+    s += F("<input type='text' id='thing_name' name='thing_name' maxlength='20' value='");
+    s += cfg.getThingName();
+    s += F("'></div>");
+    s += F("<div><label for='ap_pwd'>Password for this dashboard (user is <b>admin</b>)</label>");
+    s += F("<input type='password' id='ap_pwd' name='ap_pwd' maxlength='31' value='");
+    s += cfg.getApPassword();
+    s += F("'></div></fieldset>");
+    sc(s);
+  }
+
+  // ---- WiFi ----
+  {
+    String s;
+    s.reserve(512);
+    s += F("<fieldset><legend>WiFi</legend>");
+    s += F("<div><label for='wifi_ssid'>WiFi SSID</label>");
+    s += F("<input type='text' id='wifi_ssid' name='wifi_ssid' maxlength='32' value='");
+    s += cfg.getWifiSSID();
+    s += F("'></div>");
+    s += F("<div><label for='wifi_pass'>WiFi Password</label>");
+    s += F("<input type='password' id='wifi_pass' name='wifi_pass' maxlength='64' value='");
+    s += cfg.getWifiPassword();
+    s += F("'></div></fieldset>");
+    sc(s);
+  }
+
+  // ---- Location: lat/lng ----
+  {
+    String s;
+    s.reserve(512);
+    s += F("<fieldset><legend>Location</legend>");
+    s += F("<div><label for='lat'>Latitude (3 decimals, will be public)</label>");
+    s += F("<input type='number' id='lat' name='lat' min='-180' max='180' step='0.001' value='");
+    s += cfg.getLatitudeStr();
+    s += F("'></div>");
+    s += F("<div><label for='lng'>Longitude (3 decimals, will be public)</label>");
+    s += F("<input type='number' id='lng' name='lng' min='-180' max='180' step='0.001' value='");
+    s += cfg.getLongitudeStr();
+    s += F("'></div>");
+    sc(s);
+  }
+
+  // ---- Timezone selector — streamed in ~2 KB batches to avoid large alloc ----
+  {
+    static const char TZ_OPEN[] = "<div><label for='tz'>Time Zone</label><select id='tz' name='tz'>";
+    httpd_resp_send_chunk(req, TZ_OPEN, strlen(TZ_OPEN));
+
+    const size_t tzCount = sizeof(TZ_VALUES) / TZ_LENGTH;
+    String batch;
+    batch.reserve(2048);
+    for (size_t i = 0; i < tzCount; i++) {
+      char tzVal[TZ_LENGTH];
+      char tzName[TZ_NAME_LENGTH];
+      strncpy_P(tzVal,  TZ_VALUES[i], TZ_LENGTH);
+      strncpy_P(tzName, TZ_NAMES[i],  TZ_NAME_LENGTH);
+      tzVal[TZ_LENGTH - 1]   = '\0';
+      tzName[TZ_NAME_LENGTH - 1] = '\0';
+      bool selected = strcmp(tzVal, cfg.getTZRaw()) == 0;
+      batch += F("<option value='");
+      batch += tzVal;
+      batch += '\'';
+      if (selected) batch += F(" selected");
+      batch += '>';
+      batch += tzName;
+      batch += F("</option>");
+      if (batch.length() > 1800 || i == tzCount - 1) {
+        sc(batch);
+        batch = "";
+      }
+    }
+    static const char TZ_CLOSE[] = "</select></div></fieldset>";
+    httpd_resp_send_chunk(req, TZ_CLOSE, strlen(TZ_CLOSE));
+  }
+
+  // ---- MQTT ----
+  {
+    String s;
+    s.reserve(1024);
+    s += F("<fieldset><legend>MQTT credentials (<a href='https://t.me/+VlqGIoyJ8SmgJuWe' target='_blank'>Join this group</a>)<br>Then open a private chat with <a href='https://t.me/tinygs_personal_bot' target='_blank'>@tinygs_personal_bot</a> and ask &#47;mqtt</legend>");
+    s += F("<div><label for='mqtt_server'>Server address</label>");
+    s += F("<input type='text' id='mqtt_server' name='mqtt_server' maxlength='30' value='");
+    s += cfg.getMqttServer();
+    s += F("'></div>");
+    s += F("<div><label for='mqtt_port'>Server Port</label>");
+    s += F("<input type='number' id='mqtt_port' name='mqtt_port' min='0' max='65536' step='1' value='");
+    s += cfg.getMqttPort();
+    s += F("'></div>");
+    s += F("<div><label for='mqtt_user'>MQTT Username</label>");
+    s += F("<input type='text' id='mqtt_user' name='mqtt_user' maxlength='30' value='");
+    s += cfg.getMqttUser();
+    s += F("'></div>");
+    s += F("<div><label for='mqtt_pass'>MQTT Password</label>");
+    s += F("<input type='text' id='mqtt_pass' name='mqtt_pass' maxlength='30' value='");
+    s += cfg.getMqttPass();
+    s += F("'></div></fieldset>");
+    sc(s);
+  }
+
+  // ---- Board config ----
+  {
+    String s;
+    s.reserve(1024);
+    s += F("<fieldset id='Board config'><legend>Board config</legend>");
+    s += F("<div><label for='board'>Board type</label>");
+    s += F("<select id='board' name='board' onchange=\"document.getElementById('tpl_dirty').value='0'\">");
+    for (uint8_t i = 0; i < cfg.getBoardCount(); i++) {
+      bool selected = (cfg.getBoard() == i);
+      s += F("<option value='");
+      s += i;
+      s += '\'';
+      if (selected) s += F(" selected");
+      s += '>';
+      s += cfg.getBoardName(i);
+      s += F("</option>");
+    }
+    s += F("</select></div>");
+    s += F("<div><label for='oled_bright'>OLED Bright</label>");
+    s += F("<input type='number' id='oled_bright' name='oled_bright' min='0' max='100' step='1' value='");
+    s += cfg.getOledBright();
+    s += F("'></div>");
+
+    auto addCheckbox = [&](const char* id, const char* lbl, bool checked) {
+      s += F("<div><label for='");
+      s += id;
+      s += F("'>");
+      s += lbl;
+      s += F("</label><input type='checkbox' id='");
+      s += id;
+      s += F("' name='");
+      s += id;
+      s += '\'';
+      if (checked) s += F(" checked");
+      s += F("></div>");
+    };
+    addCheckbox("tx",           "Enable TX (HAM licence / no preamp)",              cfg.getAllowTx());
+    addCheckbox("remote_tune",  "Allow Automatic Tuning",                           cfg.getRemoteTune());
+    addCheckbox("telemetry3rd", "Allow sending telemetry to third party",           cfg.getTelemetry3rd());
+    addCheckbox("test",         "Test mode",                                        cfg.getTestMode());
+    addCheckbox("auto_update",  "Automatic Firmware Update",                        cfg.getAutoUpdate());
+    addCheckbox("disable_oled", "Disable OLED display",                             cfg.getDisableOled());
+    addCheckbox("disable_radio","Disable Radio (dev mode, no LoRa module)",         cfg.getDisableRadio());
+    addCheckbox("always_ap",    "Always keep WiFi AP active (same channel/BW as STA)", cfg.getAlwaysAP());
+    s += F("</fieldset>");
+    sc(s);
+  }
 
   // ---- Network Interface ----
   {
     board_t brd;
     cfg.getBoardConfig(brd);
     ConnectionManager& cm2 = ConnectionManager::getInstance();
-    bool ethEffective = brd.ethEN && !cm2.isEthFailed();
-    if (ethEffective) {
-      // Ethernet hardware present and working: show the selector.
+    String s;
+    s.reserve(512);
+    if (brd.ethEN) {
+      bool failed = cm2.isEthFailed();
       s += F("<fieldset><legend>Network Interface</legend>");
-      s += F("<div><label for='iface_mode'>Interface Mode</label>");
+      if (failed)
+        s += F("<div style='color:#c0392b;font-size:0.88em;margin-bottom:6px'>&#9888; Ethernet hardware init failed &mdash; running as WiFi Only.</div>");
+      s += failed
+           ? F("<div><label for='iface_mode'>Interface Mode (saved for next boot)</label>")
+           : F("<div><label for='iface_mode'>Interface Mode</label>");
       s += F("<select id='iface_mode' name='iface_mode'>");
       InterfaceMode curMode = cfg.getInterfaceMode();
       s += String("<option value='0'") + (curMode == InterfaceMode::WIFI_ONLY ? " selected" : "") + ">WiFi Only</option>";
-      s += String("<option value='1'") + (curMode == InterfaceMode::ETH_ONLY ? " selected" : "") + ">Ethernet Only</option>";
-      s += String("<option value='2'") + (curMode == InterfaceMode::BOTH ? " selected" : "") + ">Both (failover)</option>";
-      s += F("</select></div>");
-      s += F("</fieldset>");
-    } else if (brd.ethEN && cm2.isEthFailed()) {
-      // Board template enables Ethernet but hardware init failed at runtime.
-      // Show the selector so the user can change the setting, but pre-select
-      // WiFi Only to reflect the forced runtime behaviour.
-      s += F("<fieldset><legend>Network Interface</legend>");
-      s += F("<div style='color:#c0392b;font-size:0.88em;margin-bottom:6px'>&#9888; Ethernet hardware init failed &mdash; running as WiFi Only.</div>");
-      s += F("<div><label for='iface_mode'>Interface Mode (saved for next boot)</label>");
-      s += F("<select id='iface_mode' name='iface_mode'>");
-      InterfaceMode curMode = cfg.getInterfaceMode();
-      s += String("<option value='0'") + (curMode == InterfaceMode::WIFI_ONLY ? " selected" : "") + ">WiFi Only</option>";
-      s += String("<option value='1'") + (curMode == InterfaceMode::ETH_ONLY ? " selected" : "") + ">Ethernet Only</option>";
-      s += String("<option value='2'") + (curMode == InterfaceMode::BOTH ? " selected" : "") + ">Both (failover)</option>";
-      s += F("</select></div>");
-      s += F("</fieldset>");
+      s += String("<option value='1'") + (curMode == InterfaceMode::ETH_ONLY  ? " selected" : "") + ">Ethernet Only</option>";
+      s += String("<option value='2'") + (curMode == InterfaceMode::BOTH      ? " selected" : "") + ">Both (failover)</option>";
+      s += F("</select></div></fieldset>");
     } else {
-      // No Ethernet in board template — force WiFi Only silently
+      // No Ethernet in board template — force WiFi Only silently.
       s += F("<input type='hidden' name='iface_mode' value='0'>");
     }
+    sc(s);
   }
 
-  // ---- Advanced ----
-  s += F("<fieldset><legend>Advanced Config (do not modify unless you know what you are doing)</legend>");
-  s += F("<div><label for='board_template'>Board Template (requires manual restart)</label>");
-  s += F("<div style='display:flex;align-items:flex-start;gap:6px'>");
-  s += "<textarea id='board_template' name='board_template' maxlength='511' rows='4' style='flex:1;font-family:monospace;font-size:0.85em;resize:vertical' oninput=\"document.getElementById('tpl_dirty').value='1'\">" + String(cfg.getBoardTemplate()) + "</textarea>";
-  s += F("<button type='button' onclick='btWzOpen()' style='white-space:nowrap;padding:3px 10px;width:auto;background:#555;color:#fff;font-size:0.82em;border-radius:4px;border:none;cursor:pointer;flex-shrink:0'>&#128295; Wizard</button>");
-  s += F("</div></div>");
-  // tpl_dirty: starts 1 if a custom template is already stored, 0 otherwise.
-  // Changing the board dropdown resets it to 0; editing the textarea or applying
-  // the Wizard sets it to 1.  The server only saves the template when it is 1.
-  s += String("<input type='hidden' id='tpl_dirty' name='tpl_dirty' value='") + (cfg.getBoardTemplate()[0] ? "1" : "0") + "'>";
-  s += F("<div><label for='modem_startup'>Modem startup</label>");
-  s += "<input type='text' id='modem_startup' name='modem_startup' maxlength='255' placeholder='' value='" + String(cfg.getModemStartup()) + "'></div>";
-  s += F("<div><label for='advanced_config'>Advanced parameters</label>");
-  s += "<input type='text' id='advanced_config' name='advanced_config' maxlength='255' placeholder='' value='" + String(cfg.getAdvancedConfig()) + "'></div>";
-  s += F("</fieldset>");
-
-  s += F("<br/><button type='submit'>Save</button>");
-  s += F("</form>");
-  s += FPSTR(BOARD_WIZARD_HTML);
-  // Inject board defaults so the Wizard can pre-fill when the template textarea is empty.
+  // ---- Advanced Config ----
   {
-    String bds = F("<script>var boardDefaults=[");
+    String s;
+    s.reserve(1024);
+    s += F("<fieldset><legend>Advanced Config (do not modify unless you know what you are doing)</legend>");
+    s += F("<div><label for='board_template'>Board Template (requires manual restart)</label>");
+    s += F("<div style='display:flex;align-items:flex-start;gap:6px'>");
+    s += F("<textarea id='board_template' name='board_template' maxlength='511' rows='4'"
+           " style='flex:1;font-family:monospace;font-size:0.85em;resize:vertical'"
+           " oninput=\"document.getElementById('tpl_dirty').value='1'\">");
+    s += cfg.getBoardTemplate();
+    s += F("</textarea>");
+    s += F("<button type='button' onclick='btWzOpen()' style='white-space:nowrap;padding:3px 10px;"
+           "width:auto;background:#555;color:#fff;font-size:0.82em;border-radius:4px;"
+           "border:none;cursor:pointer;flex-shrink:0'>&#128295; Wizard</button>");
+    s += F("</div></div>");
+    // tpl_dirty: 1 if a custom template is stored; 0 when using a preset board.
+    s += String("<input type='hidden' id='tpl_dirty' name='tpl_dirty' value='")
+         + (cfg.getBoardTemplate()[0] ? "1" : "0") + "'>";
+    s += F("<div><label for='modem_startup'>Modem startup</label>");
+    s += F("<input type='text' id='modem_startup' name='modem_startup' maxlength='255' placeholder='' value='");
+    s += cfg.getModemStartup();
+    s += F("'></div>");
+    s += F("<div><label for='advanced_config'>Advanced parameters</label>");
+    s += F("<input type='text' id='advanced_config' name='advanced_config' maxlength='255' placeholder='' value='");
+    s += cfg.getAdvancedConfig();
+    s += F("'></div></fieldset>");
+    s += F("<br/><button type='submit'>Save</button></form>");
+    sc(s);
+  }
+
+  // ---- Board Wizard HTML (large PROGMEM block — sent without heap copy) ----
+  sendPgmChunked(req, (PGM_P)BOARD_WIZARD_HTML);
+
+  // ---- Board Defaults script (one entry per chunk — no large String) ----
+  {
+    static const char BD_OPEN[] = "<script>var boardDefaults=[";
+    httpd_resp_send_chunk(req, BD_OPEN, strlen(BD_OPEN));
+    bool first = true;
     for (uint8_t i = 0; i < cfg.getBoardCount(); i++) {
       const board_t* b = cfg.getBoardDef(i);
       if (!b) continue;
-      if (i) bds += ',';
-      char buf[512];
-      snprintf(buf, sizeof(buf),
+      char buf[600];
+      size_t off = 0;
+      if (!first) { buf[0] = ','; off = 1; }
+      first = false;
+      snprintf(buf + off, sizeof(buf) - off,
         "{aADDR:%u,oSDA:%u,oSCL:%u,oRST:%u,pBut:%u,led:%u,"
         "radio:%u,lNSS:%u,lDIO0:%u,lDIO1:%u,lBUSSY:%u,lRST:%u,"
         "lMISO:%u,lMOSI:%u,lSCK:%u,lTCXOV:%.4f,RXEN:%u,TXEN:%u,lSPI:%u,"
         "ethEN:%s,ethPHY:%u,ethSPI:%u,ethCS:%u,ethINT:%u,ethRST:%u,"
         "ethMISO:%u,ethMOSI:%u,ethSCK:%u,"
-        "ethMDC:%u,ethMDIO:%u,ethPhyAddr:%d,ethPhyType:%u,ethRefClk:%u,ethClkExt:%s,ethPhyRST:%u,ethOscEN:%u}",
+        "ethMDC:%u,ethMDIO:%u,ethPhyAddr:%d,ethPhyType:%u,ethRefClk:%u,"
+        "ethClkExt:%s,ethPhyRST:%u,ethOscEN:%u}",
         b->OLED__address, b->OLED__SDA, b->OLED__SCL, b->OLED__RST,
         b->PROG__BUTTON, b->BOARD_LED,
         b->L_radio, b->L_NSS, b->L_DI00, b->L_DI01, b->L_BUSSY, b->L_RST,
@@ -751,15 +865,25 @@ String TinyGSWebServer::buildConfigPage() {
         b->ethMISO, b->ethMOSI, b->ethSCK,
         b->ethMDC, b->ethMDIO, b->ethPhyAddr, b->ethPhyType, b->ethRefClk,
         b->ethClkExt ? "true" : "false", b->ethPhyRST, b->ethOscEN);
-      bds += buf;
+      httpd_resp_send_chunk(req, buf, (ssize_t)strlen(buf));
     }
-    bds += F("];</script>");
-    s += bds;
+    static const char BD_CLOSE[] = "];</script>";
+    httpd_resp_send_chunk(req, BD_CLOSE, strlen(BD_CLOSE));
   }
-  s += "<br /><button onclick=\"window.location.href='" + String(ROOT_URL) + "';\">Go Back</button><br /><br />";
-  s += FPSTR(HTML_END);
-  s.replace("{v}", FPSTR(TITLE_TEXT));
-  return s;
+
+  // ---- Footer ----
+  {
+    String s;
+    s += F("<br /><button onclick=\"window.location.href='");
+    s += ROOT_URL;
+    s += F("';\">Go Back</button><br /><br />");
+    s += FPSTR(HTML_END);
+    sc(s);
+  }
+
+  // Terminate HTTP chunked response.
+  httpd_resp_send_chunk(req, nullptr, 0);
+  return ESP_OK;
 }
 
 // =====================================================================

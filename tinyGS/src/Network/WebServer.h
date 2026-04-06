@@ -181,7 +181,6 @@ private:
   // ---- HTML builders ----
   static String buildRootPage();
   static String buildDashboardPage();
-  static String buildConfigPage();
   static String buildRestartPage();
   static String buildFirmwarePage();
   static String buildWorldMapSVG();
