@@ -1044,17 +1044,51 @@ esp_err_t TinyGSWebServer::handleFirmware(httpd_req_t* req) {
 String TinyGSWebServer::buildFirmwarePage() {
   String s = String(FPSTR(HTML_HEAD));
   s += "<style>" + String(FPSTR(HTML_STYLE_INNER)) + "</style>";
+  s += "<style>"
+    ".fw-card{max-width:360px;margin:4rem auto;padding:2rem 2rem 1.5rem;"
+    "background:var(--surface);border:1px solid var(--border);"
+    "border-radius:calc(var(--radius)*2);text-align:center;}"
+    ".fw-card h2{font-size:1.2rem;font-weight:700;margin:0.75rem 0 0.3rem;}"
+    ".fw-card p{font-size:0.82rem;color:var(--text2);margin-bottom:1.2rem;}"
+    ".fw-drop{border:2px dashed var(--border);border-radius:var(--radius);"
+    "padding:1.5rem 1rem;margin-bottom:1rem;cursor:pointer;"
+    "display:flex;align-items:center;justify-content:center;"
+    "transition:border-color .2s,background .2s;}"
+    ".fw-drop:hover,.fw-drop.drag{border-color:var(--accent);background:var(--accent-glow);}"
+    ".fw-drop input[type=file]{display:none;}"
+    ".fw-drop label{cursor:pointer;color:var(--accent);font-weight:500;font-size:0.9rem;display:block;}"
+    "#fw-name{font-size:0.78rem;color:var(--text2);margin-top:0.4rem;min-height:1em;}"
+    ".fw-back{display:block;margin-top:1rem;font-size:0.82rem;color:var(--text2);text-decoration:none;}"
+    ".fw-back:hover{color:var(--accent);}"
+    "</style>";
   s += FPSTR(HTML_HEAD_END);
-  s += FPSTR(HTML_BODY_INNER);
-  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
-  s += F("<h3>Firmware Update</h3>");
-  s += F("<form method='POST' action='/firmware' enctype='multipart/form-data'>");
-  s += F("<input type='file' name='update' accept='.bin'><br/><br/>");
-  s += F("<button type='submit'>Upload</button>");
-  s += F("</form><br/>");
-  s += "<button onclick=\"window.location.href='" + String(ROOT_URL) + "';\">Go Back</button><br /><br />";
-  s += FPSTR(HTML_END);
-  s.replace("{v}", FPSTR(TITLE_TEXT));
+  s += "<body style='background:var(--bg);min-height:100vh;'>";
+  s += "<div class='fw-card'>";
+  s += "<div class='logo-wrap' style='margin-bottom:0.5rem;'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
+  s += F("<h2>Upload Firmware</h2>");
+  s += F("<p>Select a <code>.bin</code> firmware file and press <strong>Flash</strong>.</p>");
+  s += F("<form id='fw-form' method='POST' action='/firmware' enctype='multipart/form-data'>");
+  s += F("<div class='fw-drop' id='fw-drop' onclick='document.getElementById(\"fw-file\").click()'>");
+  s += F("<label for='fw-file'>&#128190; Choose file</label>");
+  s += F("<input type='file' id='fw-file' name='update' accept='.bin'"
+         " onchange='document.getElementById(\"fw-name\").textContent=this.files[0]?this.files[0].name:\"\"'>");
+  s += F("<div id='fw-name'></div></div>");
+  s += F("<button type='submit'>Flash</button>");
+  s += F("</form>");
+  s += "<a class='fw-back' href='" + String(ROOT_URL) + "'>&larr; Back to home</a>";
+  s += F("</div>");
+  s += F("<script>"
+    "var dz=document.getElementById('fw-drop');"
+    "dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('drag');});"
+    "dz.addEventListener('dragleave',function(){dz.classList.remove('drag');});"
+    "dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('drag');"
+    "var f=e.dataTransfer.files[0];if(f){"
+    "var dt=new DataTransfer();dt.items.add(f);"
+    "document.getElementById('fw-file').files=dt.files;"
+    "document.getElementById('fw-name').textContent=f.name;}});"
+    "</script>");
+  s += F("</body></html>");
+  s.replace("{v}", "Firmware Update");
   return s;
 }
 
