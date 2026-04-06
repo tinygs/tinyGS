@@ -241,8 +241,7 @@ String TinyGSWebServer::buildDashboardPage() {
   s += "<script>" + String(FPSTR(IOTWEBCONF_WORLDMAP_SCRIPT)) + "</script>";
   s += FPSTR(HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_DASHBOARD_BODY_INNER);
-  s += "<div style='text-align:center;margin-bottom:0.75rem;'><img class='logo' src=\"" + String(LOGO_URL) + "\" style='max-width:160px;'></div>";
-
+  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
   s += buildWorldMapSVG();
 
   if (cfg.getMqttServer()[0] == '\0' || cfg.getMqttUser()[0] == '\0' || cfg.getMqttPass()[0] == '\0') {
@@ -541,7 +540,7 @@ String TinyGSWebServer::buildRestartPage() {
   s += "<style>" + String(FPSTR(HTML_STYLE_INNER)) + "</style>";
   s += FPSTR(HTML_HEAD_END);
   s += FPSTR(HTML_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
   s += "<strong>Configuration saved.</strong><br/><br/>";
   s += "Ground Station is restarting&hellip;<br/><br/>";
   s += "<span id='msg'>Waiting for the board to come back online&hellip;</span><br/><br/>";
@@ -590,7 +589,7 @@ String TinyGSWebServer::buildConfigPage() {
   s += "<script>" + String(FPSTR(ADVANCED_CONFIG_SCRIPT)) + "</script>";
   s += FPSTR(HTML_HEAD_END);
   s += FPSTR(HTML_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
 
   s += "<form action=\"" + String(CONFIG_URL) + "\" method=\"post\">";
 
@@ -923,7 +922,7 @@ String TinyGSWebServer::buildFirmwarePage() {
   s += "<style>" + String(FPSTR(HTML_STYLE_INNER)) + "</style>";
   s += FPSTR(HTML_HEAD_END);
   s += FPSTR(HTML_BODY_INNER);
-  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+  s += "<div class='logo-wrap'><img class='logo' src=\"" + String(LOGO_URL) + "\"></div>";
   s += F("<h3>Firmware Update</h3>");
   s += F("<form method='POST' action='/firmware' enctype='multipart/form-data'>");
   s += F("<input type='file' name='update' accept='.bin'><br/><br/>");
