@@ -17,29 +17,29 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Cache pip
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
       - name: Cache PlatformIO
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.platformio
-          key: ${{ runner.os }}-platformio-${{ hashFiles('**/lockfiles') }}
+          key: ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: '3.x'
       - name: Install PlatformIO
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade platformio
+          pip install --upgrade platformio esptool
       - name: Run PlatformIO
         run: pio run -e ${{ matrix.env }}
       - name: Determine tag
@@ -54,13 +54,15 @@ jobs:
       - name: Create merged binary
         run: |
           CHIP=esp32
-          if [[ "${{ matrix.env }}" == *"S3"* ]]; then CHIP=esp32s3; fi
-          if [[ "${{ matrix.env }}" == *"C3"* ]]; then CHIP=esp32c3; fi
-          python ~/.platformio/packages/tool-esptoolpy/esptool.py --chip "$CHIP" merge_bin -o .pio/build/${{ matrix.env }}/firmware-full.bin \
+          BOOT_ADDR=0x1000
+          if [[ "${{ matrix.env }}" == *"S3"* ]]; then CHIP=esp32s3; BOOT_ADDR=0x0; fi
+          if [[ "${{ matrix.env }}" == *"C3"* ]]; then CHIP=esp32c3; BOOT_ADDR=0x0; fi
+          BOOT_APP0=$(find ~/.platformio/packages -name "boot_app0.bin" -path "*/partitions/*" | head -1)
+          python -m esptool --chip "$CHIP" merge_bin -o .pio/build/${{ matrix.env }}/firmware-full.bin \
             --flash_mode dio --flash_freq 40m --flash_size 4MB \
-            0x1000 .pio/build/${{ matrix.env }}/bootloader.bin \
+            "$BOOT_ADDR" .pio/build/${{ matrix.env }}/bootloader.bin \
             0x8000 .pio/build/${{ matrix.env }}/partitions.bin \
-            0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+            0xe000 "$BOOT_APP0" \
             0x10000 .pio/build/${{ matrix.env }}/firmware.bin
       - name: Rename binaries
         run: |
@@ -68,29 +70,16 @@ jobs:
           mv .pio/build/${{ matrix.env }}/firmware-full.bin .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
       - name: Archive build artifacts
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: firmware-${{ matrix.env }}
           path: |
             .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
             .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
-      - name: Upload OTA firmware to release
+      - name: Upload firmware to release
         if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
-          asset_name: tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
-          asset_content_type: application/octet-stream
-      - name: Upload full firmware to release
-        if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
-          asset_name: tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
-          asset_content_type: application/octet-stream
+          files: |
+            .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
+            .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
