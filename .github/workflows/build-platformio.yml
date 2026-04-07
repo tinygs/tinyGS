@@ -1,0 +1,96 @@
+name: Build Firmware
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [ESP32, ESP32-S3, ESP32-S3-USB, ESP32-C3, ESP32-LILYGO_SX1280]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Cache pip
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Cache PlatformIO
+        uses: actions/cache@v3
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-platformio-${{ hashFiles('**/lockfiles') }}
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade platformio
+      - name: Run PlatformIO
+        run: pio run -e ${{ matrix.env }}
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            TAG=$(git describe --tags --always)
+            echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          fi
+      - name: Create merged binary
+        run: |
+          CHIP=esp32
+          if [[ "${{ matrix.env }}" == *"S3"* ]]; then CHIP=esp32s3; fi
+          if [[ "${{ matrix.env }}" == *"C3"* ]]; then CHIP=esp32c3; fi
+          python ~/.platformio/packages/tool-esptoolpy/esptool.py --chip "$CHIP" merge_bin -o .pio/build/${{ matrix.env }}/firmware-full.bin \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+            0x1000 .pio/build/${{ matrix.env }}/bootloader.bin \
+            0x8000 .pio/build/${{ matrix.env }}/partitions.bin \
+            0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+            0x10000 .pio/build/${{ matrix.env }}/firmware.bin
+      - name: Rename binaries
+        run: |
+          mv .pio/build/${{ matrix.env }}/firmware.bin .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
+          mv .pio/build/${{ matrix.env }}/firmware-full.bin .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
+      - name: Archive build artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.env }}
+          path: |
+            .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
+            .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
+      - name: Upload OTA firmware to release
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
+          asset_name: tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-ota.bin
+          asset_content_type: application/octet-stream
+      - name: Upload full firmware to release
+        if: github.event_name == 'release'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: .pio/build/${{ matrix.env }}/tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
+          asset_name: tinygs-${{ matrix.env }}-${{ steps.tag.outputs.TAG }}-full.bin
+          asset_content_type: application/octet-stream
