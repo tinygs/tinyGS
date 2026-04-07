@@ -1,0 +1,195 @@
+name: Deploy to Web Installer
+
+on:
+  workflow_run:
+    workflows: ["Build Firmware"]
+    types: [completed]
+    branches: [beta]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to deploy (e.g. v1.2.3)'
+        required: true
+      dry_run:
+        description: 'Dry run — build manifest and print changes without pushing'
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    # Only run when the build succeeded AND it was triggered by a release
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'release')
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get release tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
+          fi
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          DIR=$(echo "$TAG" | tr '/ ' '__')
+          echo "DIR=release_${DIR}" >> $GITHUB_OUTPUT
+          echo "DRY_RUN=${{ inputs.dry_run || 'false' }}" >> $GITHUB_OUTPUT
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          mkdir -p bin_staging
+
+          # Download only the *-full.bin assets (merged binaries ready to flash from 0x0)
+          gh release download "$TAG" \
+            --repo ${{ github.repository }} \
+            --pattern "*-full.bin" \
+            --dir bin_staging
+
+          ls -la bin_staging/
+
+      - name: Rename binaries to web installer convention
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          DIR="${{ steps.tag.outputs.DIR }}"
+          mkdir -p "web_bin/${DIR}"
+
+          # Map PlatformIO env names → chipFamily names used in manifest.json
+          # Convention: esp32_<tag>_merged.bin  (matching existing releases)
+          declare -A CHIP_MAP=(
+            ["ESP32"]="esp32"
+            ["ESP32-S3"]="esp32_s3"
+            ["ESP32-S3-USB"]="esp32_s3_usb"
+            ["ESP32-C3"]="esp32_c3"
+            ["ESP32-LILYGO_SX1280"]="esp32_lilygo_sx1280"
+          )
+
+          for ENV in "${!CHIP_MAP[@]}"; do
+            SRC="bin_staging/tinygs-${ENV}-${TAG}-full.bin"
+            DST="web_bin/${DIR}/${CHIP_MAP[$ENV]}_${TAG}_merged.bin"
+            if [[ -f "$SRC" ]]; then
+              cp "$SRC" "$DST"
+              echo "Copied: $SRC → $DST"
+            else
+              echo "WARNING: $SRC not found, skipping"
+            fi
+          done
+
+          ls -la "web_bin/${DIR}/"
+
+      - name: Generate manifest.json
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          DIR="${{ steps.tag.outputs.DIR }}"
+
+          # Map env name → ESP Web Tools chipFamily string
+          # https://esphome.github.io/esp-web-tools/
+          declare -A FAMILY_MAP=(
+            ["ESP32"]="ESP32"
+            ["ESP32-S3"]="ESP32-S3"
+            ["ESP32-S3-USB"]="ESP32-S3"
+            ["ESP32-C3"]="ESP32-C3"
+            ["ESP32-LILYGO_SX1280"]="ESP32-S3"
+          )
+          declare -A CHIP_MAP=(
+            ["ESP32"]="esp32"
+            ["ESP32-S3"]="esp32_s3"
+            ["ESP32-S3-USB"]="esp32_s3_usb"
+            ["ESP32-C3"]="esp32_c3"
+            ["ESP32-LILYGO_SX1280"]="esp32_lilygo_sx1280"
+          )
+
+          # Build the builds array, only for binaries that actually exist
+          BUILDS="["
+          FIRST=true
+          for ENV in ESP32 ESP32-S3 ESP32-S3-USB ESP32-C3 ESP32-LILYGO_SX1280; do
+            BIN="${CHIP_MAP[$ENV]}_${TAG}_merged.bin"
+            if [[ -f "web_bin/${DIR}/${BIN}" ]]; then
+              [[ "$FIRST" == "false" ]] && BUILDS+=","
+              BUILDS+="{\"chipFamily\":\"${FAMILY_MAP[$ENV]}\",\"parts\":[{\"path\":\"${BIN}\",\"offset\":0}]}"
+              FIRST=false
+            fi
+          done
+          BUILDS+="]"
+
+          cat > "web_bin/${DIR}/manifest.json" <<EOF
+          {
+            "name": "tinyGS",
+            "version": "${TAG}",
+            "new_install_prompt_erase": true,
+            "builds": ${BUILDS}
+          }
+          EOF
+
+          echo "Generated manifest:"
+          cat "web_bin/${DIR}/manifest.json"
+
+      - name: Checkout web installer repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.WEB_INSTALLER_REPO }}
+          token: ${{ secrets.WEB_INSTALLER_TOKEN }}
+          path: web_installer_repo
+
+      - name: Copy new release into web installer
+        run: |
+          DIR="${{ steps.tag.outputs.DIR }}"
+          mkdir -p "web_installer_repo/bin/${DIR}"
+          cp -r "web_bin/${DIR}/." "web_installer_repo/bin/${DIR}/"
+
+      - name: Update index.html with new release option
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          DIR="${{ steps.tag.outputs.DIR }}"
+          INDEX="web_installer_repo/index.html"
+
+          # Insert new <option> after the <optgroup label="Release"> line
+          # Uses the same format as existing entries
+          NEW_OPTION="      <option data-manifest=\"/bin/${DIR}/manifest.json\"\n        data-ethernet=\"/bin/${DIR}/manifest.json\"\n        value=\"${TAG}\">${TAG}</option>"
+
+          # Only insert if not already present
+          if ! grep -q "${DIR}" "$INDEX"; then
+            sed -i "s|<optgroup label=\"Release\">|<optgroup label=\"Release\">\n${NEW_OPTION}|" "$INDEX"
+            echo "Inserted option for ${TAG} into index.html"
+          else
+            echo "Option for ${TAG} already present in index.html"
+          fi
+
+      - name: Commit and push to web installer
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          DIR="${{ steps.tag.outputs.DIR }}"
+          cd web_installer_repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "bin/${DIR}/" index.html
+          git diff --cached --quiet || git commit -m "chore: add firmware release ${TAG}"
+          if [[ "${{ steps.tag.outputs.DRY_RUN }}" == "true" ]]; then
+            echo "DRY RUN: skipping git push"
+            git show --stat HEAD
+          else
+            git push
+          fi
+
+      - name: Create release in web installer repository
+        env:
+          GH_TOKEN: ${{ secrets.WEB_INSTALLER_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          if [[ "${{ steps.tag.outputs.DRY_RUN }}" == "true" ]]; then
+            echo "DRY RUN: skipping release creation for ${TAG} in tinygs/tinygs_web_installer"
+          else
+            gh release create "$TAG" \
+              --repo "${{ secrets.WEB_INSTALLER_REPO }}" \
+              --title "TinyGS ${TAG}" \
+              --notes "Automated firmware release ${TAG} from [tinyGS](https://github.com/${{ github.repository }}/releases/tag/${TAG})." \
+              || echo "Release ${TAG} already exists in web installer, skipping"
+          fi
