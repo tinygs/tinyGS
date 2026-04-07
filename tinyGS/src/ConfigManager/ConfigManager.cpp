@@ -17,11 +17,12 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "ConfigManager.h"
+#include "./ConfigManager.h"
 #include "../Mqtt/MQTT_Client.h"
 #include "../Logger/Logger.h"
 #include "../Radio/Radio.h"
 #include "../Display/graphics.h"
+#include "../Mqtt/MQTT_credentials.h"
 #include "ArduinoJson.h"
 #if ARDUINOJSON_USE_LONG_LONG == 0 && !PLATFORMIO
 #error "Using Arduino IDE is not recommended, please follow this guide https://github.com/G4lile0/tinyGS/wiki/Arduino-IDE or edit /ArduinoJson/src/ArduinoJson/Configuration.hpp and amend to #define ARDUINOJSON_USE_LONG_LONG 1 around line 68"
@@ -43,17 +44,22 @@ na   SX1277    137–1020    158       11              300           1.7–40   
 na   SX1279    137–960     168       11              300          0.018–40           -148              +20
 na   SX1261    150–960     163       4.6             300         0.018–62.5          -148              +15
 na   SX1281    2.4–2.5Ghz  130       5.5            2000         0.476-202           -132              +12.5
+10   LR1121    150–960     163       4.6             300         0.018–62.5          -148              +15
 
 
 */
 
 ConfigManager::ConfigManager()
-    : IotWebConf2(thingName, &dnsServer, &server, initialApPassword, configVersion), server(80), gsConfigHtmlFormatProvider(*this), boards({
+    : IotWebConf2(thingName, &dnsServer, &server, initialApPassword, configVersion), server(80), gsConfigHtmlFormatProvider(*this), boards{
   //OLED_add, OLED_SDA,  OLED_SCL, OLED_RST, PROG_BUTTON, BOARD_LED,      L_SX127X?,   L_NSS, L_DI00, L_DI01, L_BUSSY, L_RST,  L_MISO, L_MOSI, L_SCK, L_TCXO_V, RX_EN, TX_EN,   BOARD
 #if CONFIG_IDF_TARGET_ESP32S3
   {      0x3c,       17,        18,       21,           0,        35,      RADIO_SX1262,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.6f,   UNUSED, UNUSED, "150–960Mhz - HELTEC LORA32 V3 SX1262"    },  // SX1262
   {      0x3c,       17,        18,     UNUSED,         0,        35,      RADIO_SX1278,    8,      6,     14,   UNUSED,  12,      11,     10,     9,     0.0f,   UNUSED, UNUSED, "Custom ESP32-S3 433MHz SX1278"     },  // SX1278 @g4lile0
-#elif CONFIG_IDF_TARGET_ESP32C3
+  {      0x3c,       17,        18,     UNUSED,         0,         3,      RADIO_SX1262,   10,   UNUSED,    1,       4,    5,      13,     11,    12,     1.6f,   UNUSED, UNUSED, "433 Mhz TTGO T-Beam Sup SX1262 V1.0"    }, // SX1268 @ Stephen
+  {      0x3c,       18,        17,       21,           0,        35,      RADIO_LR1121,    8,   UNUSED,   14,      13,   12,      11,     10,     9,     1.8f,   UNUSED, UNUSED, "EBYTE EoRa-HUB ESP32S3 + LR1121"    }, // LR1121 @ G4lile0
+  {      0x3c,       17,        18,     UNUSED,         0,        37,      RADIO_SX1280,    7,   UNUSED,    9,   UNUSED,   8,       3,      6,     5,     0.0f,       21,     10, "2.4Ghz LILYGO SX1280"    }, // SX1280 @ K4KDR
+
+  #elif CONFIG_IDF_TARGET_ESP32C3
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1262,    8,   UNUSED,    3,      4,     5,       6,      7,    10,     1.6f,    UNUSED, UNUSED, "433MHz HELTEC LORA32 HT-CT62 SX1262" },  // SX1262  @gargomoma
   {      0x3c,        0,        1,       UNUSED,        20,       21,      RADIO_SX1278,    8,     4,   UNUSED,  UNUSED,   5,       6,      7,    10,     0.0f,    UNUSED, UNUSED, "Custom ESP32-C3 433MHz SX1278"     },  // SX1278 @gargomoma
 #else
@@ -78,12 +84,16 @@ ConfigManager::ConfigManager()
   {      0x3c,       21,        22,     UNUSED,        38,        22,      RADIO_SX1276,    18,     26,     33,   UNUSED,  14,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz T-BEAM V1.0 + OLED"     },   // SX1276 @fafu
   {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1278,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz LILYGO T3_V1.6.1"     },         // SX1278
   {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1"     },     // SX1276
-  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,   UNUSED,   32,    23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1 TCXO"    }, // SX1262
+  {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,   UNUSED,   32,    23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1 TCXO"    }, // SX1276
+  {      0x3c,       21,        22,     UNUSED,        38,         4,      RADIO_SX1268,    18,     26,     33,     32,    23,      19,     27,     5,     1.6f,   UNUSED, UNUSED, "433 Mhz T-Beam SX1268 V1.0"    }, // SX1268 @ Antonio 
+  
 
  #endif
-  })
+  }
 {
   server.on(ROOT_URL, [this] { handleRoot(); });
+  server.on(LOGO_URL, [this] { handleImage(LOGO_PNG, sizeof(LOGO_PNG)); });
+ // server.on(FAVICON_URL, [this] { handleImage(FAVICON_PNG, sizeof(FAVICON_PNG)); });
   server.on(CONFIG_URL, [this] { handleConfig(); });
   server.on(DASHBOARD_URL, [this] { handleDashboard(); });
   server.on(RESTART_URL, [this] { handleRestart(); });
@@ -137,20 +147,45 @@ void ConfigManager::handleRoot()
   }
 
   String s = String(FPSTR(IOTWEBCONF_HTML_HEAD));
+//  s += "<link rel=\"icon\" href=\"" + String(FAVICON_URL) + "\"/>";
   s += "<style>" + String(FPSTR(IOTWEBCONF_HTML_STYLE_INNER)) + "</style>";
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_HTML_BODY_INNER);
-  s += String(FPSTR(LOGO)) + "<br />";
+  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
+    s += F("<div>Device is not connected to tinyGS:</div>"); 
+    s += F("<table style=\"width:75%;\">");
+    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b>" + String(mqttCredentials.getOTPCode()) + "</b></td></tr>";
+    s += "</table><br />";
+}
   s += "<button onclick=\"window.location.href='" + String(DASHBOARD_URL) + "';\">Station dashboard</button><br /><br />";
   s += "<button onclick=\"window.location.href='" + String(CONFIG_URL) + "';\">Configure parameters</button><br /><br />";
   s += "<button onclick=\"window.location.href='" + String(UPDATE_URL) + "';\">Upload new version</button><br /><br />";
   s += "<button onclick=\"window.location.href='" + String(RESTART_URL) + "';\">Restart Station</button><br /><br />";
+  
+ if ((getThingName()[0] == 'M') && (getThingName()[2] == ' ')  && (getMqttPass()[0] == '\0')) {
+    s += F("<table style=\"width:75%;\">");
+    s += "<tr><td style=\"text-align:left;\">OTP code:</td><td style=\"text-align:left;\"><b><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></b></td></tr>"; 
+    s += "</table><br />";
+    s += F("<div>Default local dashboard credentials:</div>"); 
+    s += F("<table style=\"width:75%;\">");
+    s += F("<tr><td style=\"text-align:left;\">user:</td><td style=\"text-align:left;\"><b>admin</b></td></tr>");
+    s += "<tr><td style=\"text-align:left;\">password:</td><td style=\"text-align:left;\"><b>" + String(getApPasswordParameter()->valueBuffer) + "</b></td></tr>";
+    s += "</table>";
+}
+
+  
   s += FPSTR(IOTWEBCONF_HTML_END);
 
   s.replace("{v}", FPSTR(TITLE_TEXT));
 
   server.sendHeader("Content-Length", String(s.length()));
   server.send(200, "text/html; charset=UTF-8", s);
+}
+
+void ConfigManager::handleImage(const char *data, size_t size)
+{
+  server.send_P(200, "image/png", data, size);
 }
 
 void ConfigManager::handleDashboard()
@@ -174,9 +209,8 @@ void ConfigManager::handleDashboard()
   s += "<script>" + String(FPSTR(IOTWEBCONF_WORLDMAP_SCRIPT)) + "</script>";
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_DASHBOARD_BODY_INNER);
-  s += String(FPSTR(LOGO)) + "<br />";
-
-  // build svg of world map with animated satellite position
+  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
+    // build svg of world map with animated satellite position
   uint ix = 0;
   uint sx;
   String svg = "<div style=""margin-left:35px""><svg width""100%"" height=""auto"" viewBox=""0 0 262 134"" xmlns=""http://www.w3.org/2000/svg"">";
@@ -216,22 +250,29 @@ void ConfigManager::handleDashboard()
   svg += "</svg></div>";
   s += svg;
 
+
+
+  if ((getMqttServer()[0] == '\0') || (getMqttUser()[0] == '\0') || (getMqttPass()[0] == '\0')) {
+    s += F("Device is not connected to tinyGS.<br /> OTP code:"); 
+    s += "<div style=\"color:blue;\"><h3><a href=\"https://tinygs.com/user/addstation\">" + String(mqttCredentials.getOTPCode()) + "</a></h3></div>";
+    }
+
   s += F("</table></div><div class=\"card\"><h3>Groundstation Status</h3><table id=""gsstatus"">");
   s += "<tr><td>Name </td><td>" + String(getThingName()) + "</td></tr>";
   s += "<tr><td>Version </td><td>" + String(status.version) + "</td></tr>";
   s += "<tr><td>MQTT Server </td><td>" + String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
-  if (WiFi.isConnected() ){
-      s += "<tr><td>WiFi RSSI </td><td>" + String(WiFi.RSSI()) + "</td></tr>";
-  }
-
+  s += "<tr><td>WiFi RSSI </td><td>" + String(WiFi.isConnected() ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + "</td></tr>";
   s += "<tr><td>Radio </td><td>" + String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + "</td></tr>";
-   s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>"; 
+  s += "<tr><td>Noise floor </td><td>" + String(status.modeminfo.currentRssi) + "</td></tr>"; 
   s += F("</table></div>");
+
+
   s += F("<div class=\"card\"><h3>Modem Configuration</h3><table id=""modemconfig"">");
-  s += "<tr><td>Listening to </td><td>" + String(status.modeminfo.satellite) + "</td></tr>";
   s += "<tr><td>Modulation </td><td>" + String(status.modeminfo.modem_mode) + "</td></tr>";
   s += "<tr><td>Frequency </td><td>" + String(status.modeminfo.frequency) + "</td></tr>";
-  if (status.modeminfo.modem_mode == "LoRa")
+  s += "<tr><td>Freq. Offset </td><td>" + String(status.modeminfo.freqOffset) + "</td></tr>";
+
+  if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
     s += "<tr><td>Spreading Factor </td><td>" + String(status.modeminfo.sf) + "</td></tr>";
     s += "<tr><td>Coding Rate </td><td>" + String(status.modeminfo.cr) + "</td></tr>";
@@ -243,6 +284,51 @@ void ConfigManager::handleDashboard()
     s += "<tr><td>Frequency dev </td><td>" + String(status.modeminfo.freqDev) + "</td></tr>";
     s += "<tr><td>Bandwidth </td><td>" + String(status.modeminfo.bw) + "</td></tr>";
   }
+
+  char timeStr[10];  // "13:45:21 "
+  time_t currentTime = time (NULL);
+  if (currentTime > 0) {
+      struct tm *timeinfo = gmtime (&currentTime);
+      snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  }
+  else {
+      timeStr[0] = '\0';
+  }
+
+  s += F("</table></div><div class=\"card\"><h3>Satellite Tracking Data</h3><table id=""satdata"">");
+  s += "<tr><td>Listening to </td><td>" + String(status.modeminfo.satellite) + "</td></tr>";
+  if (status.modeminfo.tle[0] != 0) {
+    s += "<tr><td>Lat / Lon </td><td>" + String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º </td></tr>";
+    s += "<tr><td>Az  / El  </td><td>" + String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º </td></tr>";
+      if (status.tle.freqComp) {
+      s += "<tr><td>Doppler </td><td>" + String(status.tle.new_freqDoppler) + " Hz </td></tr>";
+      } else {
+        s += "<tr><td>Doppler </td><td> - </td></tr>";
+      } 
+    }
+  else 
+  {
+    s += "<tr><td>Lat / Lon </td><td> - / - </td></tr>";
+    s += "<tr><td>Az  / El  </td><td> - / - </td></tr>";
+    s += "<tr><td>Doppler </td><td>  -  </td></tr>";
+  }
+  
+  
+
+  s += "<tr><td>UTC Time </td><td>" + String(timeStr) + "</td></tr>";
+  if (currentTime > 0) {
+    struct tm *timeinfo = localtime (&currentTime);
+    snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  }
+  else {
+      timeStr[0] = '\0';
+  }
+  s += "<tr><td>Local Time </td><td>" + String(timeStr) + "</td></tr>";
+
+  s += F("</table></div>");
+
+
+
   s += F("</table></div><div class=\"card\"><h3>Last Packet Received</h3><table id=""lastpacket"">");
   s += "<tr><td>Received at </td><td>" + String(status.lastPacketInfo.time) + "</td></tr>";
   s += "<tr><td>Signal RSSI </td><td>" + String(status.lastPacketInfo.rssi) + "</td></tr>";
@@ -278,33 +364,39 @@ void ConfigManager::handleRefreshConsole()
   String svalue = server.arg("c1");
   if (svalue.length())
   {
-    Log::console(PSTR("COMMAND: %s"), svalue.c_str());
+    Log::consoleAsync(PSTR("COMMAND: %s"), svalue.c_str());
 
-    if (strcmp(svalue.c_str(), "p") == 0)
+    if (strcmp(svalue.c_str(), "!p") == 0)
     {
       if (!getAllowTx())
       {
-        Log::console(PSTR("Radio transmission is not allowed by config! Check your config on the web panel and make sure transmission is allowed by local regulations"));
+        Log::consoleAsync(PSTR("Radio transmission is not allowed by config! Check your config on the web panel and make sure transmission is allowed by local regulations"));
       }
       else
       {
         static long lastTestPacketTime = 0;
         if (millis() - lastTestPacketTime < 20 * 1000)
         {
-          Log::console(PSTR("Please wait a few seconds to send another test packet."));
+          Log::consoleAsync(PSTR("Please wait a few seconds to send another test packet."));
         }
         else
         {
           Radio &radio = Radio::getInstance();
           radio.sendTestPacket();
           lastTestPacketTime = millis();
-          Log::console(PSTR("Sending test packet to nearby stations!"));
+          Log::consoleAsync(PSTR("Sending test packet to nearby stations!"));
         }
       }
-    }
-    else
-    {
-      Log::console(PSTR("%s"), F("Command still not supported in web serial console!"));
+    } else if (strcmp (svalue.c_str (), "!w") == 0) {
+        Log::consoleAsync (PSTR ("Getting weblogin"));
+        askForWeblogin = true;
+    } else if (strcmp (svalue.c_str (), "!e") == 0) {
+        resetAllConfig ();
+        ESP.restart ();
+    } else if (strcmp (svalue.c_str (), "!o") == 0) {
+        Log::consoleAsync ("OTP Code: %s", mqttCredentials.getOTPCode ());
+    } else {
+      Log::consoleAsync(PSTR("%s"), F("Command still not supported in web serial console!"));
     }
   }
 
@@ -315,7 +407,13 @@ void ConfigManager::handleRefreshConsole()
   {
     counter = atoi(stmp);
   }
+
+#if CONFIG_IDF_TARGET_ESP32S3  
+  server.client().clear();
+#else
   server.client().flush();
+#endif
+
   server.sendHeader(F("Cache-Control"), F("no-cache, no-store, must-revalidate"));
   server.sendHeader(F("Pragma"), F("no-cache"));
   server.sendHeader(F("Expires"), F("-1"));
@@ -367,7 +465,11 @@ void ConfigManager::handleRefreshWorldmap()
     }
   }
 
+#if CONFIG_IDF_TARGET_ESP32S3  
+  server.client().clear();
+#else
   server.client().flush();
+#endif
   server.sendHeader(F("Cache-Control"), F("no-cache, no-store, must-revalidate"));
   server.sendHeader(F("Pragma"), F("no-cache"));
   server.sendHeader(F("Expires"), F("-1"));
@@ -380,10 +482,9 @@ void ConfigManager::handleRefreshWorldmap()
   String data_string = cx + "," + cy + ",";
 
   // modem configuration (for modemconfig id table data)
-  data_string += String(status.modeminfo.satellite) + "," +
-                 String(status.modeminfo.modem_mode) + "," +
-                 String(status.modeminfo.frequency) + ",";
-  if (status.modeminfo.modem_mode == "LoRa")
+  data_string += String(status.modeminfo.modem_mode) + "," +
+                 String(status.modeminfo.frequency) + "," + String(status.modeminfo.freqOffset) + ",";
+  if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
     data_string += String(status.modeminfo.sf) + ",";
     data_string += String(status.modeminfo.cr) + ",";
@@ -395,24 +496,83 @@ void ConfigManager::handleRefreshWorldmap()
   }
   data_string += String(status.modeminfo.bw) + ",";
 
+
+
   // ground station status (for gsstatus id table data)
   data_string += String(getThingName()) + ",";
   data_string += String(status.version) + ",";
   data_string += String(status.mqtt_connected ? "<span class='G'>CONNECTED</span>" : "<span class='R'>NOT CONNECTED</span>") + ",";
-  if (WiFi.isConnected() ){
+  if (WiFi.isConnected())  
+  {
     data_string += String(WiFi.RSSI()) + ",";
+  }  
+  else  
+  {
+    data_string += String("<span class='R'>NOT CONNECTED</span>") + ",";
   }
   data_string += String(Radio::getInstance().isReady() ? "<span class='G'>READY</span>" : "<span class='R'>NOT READY</span>") + ",";
-  Radio &radio = Radio::getInstance();
-  radio.currentRssi();
+  Radio& radio = Radio::getInstance ();
+  if (status.radio_ready)
+    radio.currentRssi ();
   data_string += String(status.modeminfo.currentRssi) + ",";
-  
+
+ 
+   // sat_info
+   char timeStr[10];  // "13:45:21 "
+   time_t currentTime = time (NULL);
+   if (currentTime > 0) {
+       struct tm *timeinfo = gmtime (&currentTime);
+       snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+   }
+   else {
+       timeStr[0] = '\0';
+   }
+
+   data_string += String(status.modeminfo.satellite) + "," ;
+   if (status.modeminfo.tle[0] != 0) {
+   data_string += String(status.tle.dSatLAT)+"º / "+  String(status.tle.dSatLON)+ "º ," ;
+   data_string += String(status.tle.dSatAZ)+"º / "+  String(status.tle.dSatEL)+ "º ," ;
+
+
+      if (status.tle.freqComp)  {
+      	data_string += String( status.tle.new_freqDoppler) + " Hz," ; 
+          } else {
+    	  data_string += " - ," ;
+      }  
+   
+  } else    {
+   data_string += " - / - ," ;
+   data_string += " - / - ," ;
+   data_string += " - ," ;
+   }
+ 
+   if (currentTime > 0) {
+    struct tm *timeinfo = gmtime (&currentTime);
+    snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+}
+else {
+    timeStr[0] = '\0';
+}
+   data_string += String(timeStr) + "," ;
+   
+   if (currentTime > 0) {
+    struct tm *timeinfo = localtime (&currentTime);
+    snprintf_P (timeStr, sizeof (timeStr), "%02d:%02d:%02d ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+}
+else {
+    timeStr[0] = '\0';
+}
+   data_string += String(timeStr) + "," ;
+ 
+
   // last packet received data (for lastpacket id table data)
   data_string += String(status.lastPacketInfo.time) + ",";
   data_string += String(status.lastPacketInfo.rssi) + ",";
   data_string += String(status.lastPacketInfo.snr) + ",";
   data_string += String(status.lastPacketInfo.frequencyerror) + ",";
   data_string += String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "");
+
+
   server.sendContent(data_string + "\n");
 
   server.sendContent("");
@@ -437,7 +597,7 @@ void ConfigManager::handleRestart()
   s += "<meta http-equiv=\"refresh\" content=\"8; url=/\">";
   s += FPSTR(IOTWEBCONF_HTML_HEAD_END);
   s += FPSTR(IOTWEBCONF_HTML_BODY_INNER);
-  s += String(FPSTR(LOGO)) + "<br />";
+  s += "<div><img src=\"" + String(LOGO_URL) + "\"></div><br/>";
   s += "Ground Station is restarting...<br /><br/>";
   s += FPSTR(IOTWEBCONF_HTML_END);
 
@@ -501,7 +661,7 @@ void ConfigManager::resetAllConfig()
   mqttPassParam.valueBuffer[0] = '\0';
   latitude[0] = '\0';
   longitude[0] = '\0';
-  oledBright[0] = '\0';
+  //oledBright[0] = '\0'; // Disabled to avoid turining display off
   allowTx[0] = '\0';
   remoteTune[0] = '\0';
   telemetry3rd[0] = '\0';
@@ -612,6 +772,68 @@ void ConfigManager::printConfig()
     Log::debug(PSTR("board: %u --> %s\n:"),getBoard(), boards[getBoard()].BOARD.c_str());
 }
 
+// void ConfigManager::setMqttServer(const char *server)
+// {
+//   // check if server is valid
+//   if (strlen(server) < MQTT_SERVER_LENGTH)
+//   {
+//     strncpy(mqttServer, server, MQTT_SERVER_LENGTH);
+//     this->saveConfig();
+//   }
+// }
+
+// void ConfigManager::setMqttPort (uint16_t port)
+// {
+//   if (port > 0 && port < 65535)
+//   {
+//     itoa(port, mqttPort, 10);
+//     this->saveConfig();
+//   }
+// }
+
+// void ConfigManager::setMqttUser(const char *user)
+// {
+//   if (strlen(user) < MQTT_USER_LENGTH)
+//   {
+//     strncpy(mqttUser, user, MQTT_USER_LENGTH);
+//     this->saveConfig();
+//   }
+// }
+
+// void ConfigManager::setMqttPass(const char *pass)
+// {
+//   if (strlen(pass) < MQTT_PASS_LENGTH)
+//   {
+//       strncpy (mqttPass, pass, MQTT_PASS_LENGTH);
+//       this->saveConfig ();
+//   }
+// }
+
+// void ConfigManager::setLatitude (const char* lat) {
+//     if (strlen (lat) < MIN_COORDINATE_LENGTH) {
+//         if (!isnan (atof (lat))) {
+//             strncpy (latitude, lat, COORDINATE_LENGTH);
+//             this->saveConfig ();
+//         }
+//     }
+// }
+
+// void ConfigManager::setLongitude (const char* lon) {
+//     if (strlen (lon) < MIN_COORDINATE_LENGTH) {
+//         if (!isnan (atof (lon))) {
+//             strncpy (longitude, lon, COORDINATE_LENGTH);
+//             this->saveConfig ();
+//         }
+//     }
+// }
+
+// void ConfigManager::setTZ (const char* tz) {
+//     if (strlen (tz) < TZ_LENGTH) {
+//         strncpy (this->tz, tz, TZ_LENGTH);
+//         this->saveConfig ();
+//     }
+// }
+
 void ConfigManager::configSavedCallback()
 {
   // If the station name changes we have to restart as it is considered a different station
@@ -670,8 +892,7 @@ void ConfigManager::parseAdvancedConf()
   if (!strlen(advancedConfig))
     return;
 
-  size_t size = 512;
-  DynamicJsonDocument doc(size);
+  StaticJsonDocument<512> doc;
   deserializeJson(doc, (const char *)advancedConfig);
 
   if (doc.containsKey(F("dmode")))
@@ -700,8 +921,7 @@ void ConfigManager::parseModemStartup()
   if (modemStartup[0] == '\0')
     return; // no modem configured yet
   
-  size_t size = JSON_ARRAY_SIZE(10) + 10 * JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(16) + JSON_ARRAY_SIZE(8) + JSON_ARRAY_SIZE(8) + 64;
-  DynamicJsonDocument doc(size);
+  StaticJsonDocument<768> doc;
   DeserializationError error = deserializeJson(doc, (const char *)modemStartup);
 
   if (error.code() != DeserializationError::Ok || !doc.containsKey("mode"))
@@ -713,11 +933,13 @@ void ConfigManager::parseModemStartup()
   }
 
   ModemInfo &m = status.modeminfo;
-  m.modem_mode = doc["mode"].as<String>();
+  const char* mode = doc["mode"].as<const char*>();
+  strncpy(m.modem_mode, mode ? mode : "", sizeof(m.modem_mode) - 1);
+  m.modem_mode[sizeof(m.modem_mode) - 1] = '\0';
   strcpy(m.satellite, doc["sat"].as<char *>());
   m.NORAD = doc["NORAD"];
 
-  if (m.modem_mode == "LoRa")
+  if (strcmp(m.modem_mode, "LoRa") == 0)
   {
     m.frequency = doc["freq"];
     m.bw = doc["bw"];
@@ -729,6 +951,8 @@ void ConfigManager::parseModemStartup()
     m.gain = doc["gain"];
     m.crc = doc["crc"];
     m.fldro = doc["fldro"];
+    m.iIQ = doc["iIQ"] ? doc["iIQ"].as<bool>() : false; // default to false if not set
+    m.len = doc["len"] ? doc["len"].as<int>() : 0;      // default to 0 if not set
   }
   else
   {
@@ -749,6 +973,16 @@ void ConfigManager::parseModemStartup()
         m.fsw[i] = 0;
     }
     m.enc= doc["enc"];
+    /////////////////////////////////////
+    m.whitening_seed= doc["ws"];
+    m.framing= doc["fr"];
+    m.crc_by_sw= doc["cSw"];
+    m.crc_nbytes= doc["cB"];
+    m.crc_init= doc["cI"];
+    m.crc_poly= doc["cP"];
+    m.crc_finalxor= doc["cF"];
+    m.crc_refIn= doc["cRI"];
+    m.crc_refOut= doc["cRO"];
   }
 
   // packets Filter
@@ -767,8 +1001,7 @@ void ConfigManager::parseModemStartup()
 
 bool ConfigManager::parseBoardTemplate(board_t &board)
 {
-  size_t size = 512;
-  DynamicJsonDocument doc(size);
+  StaticJsonDocument<512> doc;
   DeserializationError error = deserializeJson(doc, ConfigManager::getInstance().getBoardTemplate());
 
   if (error.code() != DeserializationError::Ok || !doc.containsKey("radio"))

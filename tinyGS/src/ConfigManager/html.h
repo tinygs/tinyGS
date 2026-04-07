@@ -28,10 +28,13 @@ const char BOARD_NAMES[][BOARD_NAME_LENGTH] PROGMEM =
 {
   #if CONFIG_IDF_TARGET_ESP32S3
   "433MHz HELTEC LORA32 V3",
-  "Custom ESP32-S3 433MHz SX1278", 
+  "Custom ESP32-S3 433MHz SX1278",
+  "433 Mhz TTGO T-Beam Sup SX1262 V1.0",
+  "EBYTE EoRa-HUB ESP32S3 + LR1121",
+  "2.4Ghz LILYGO SX1280",
   #elif CONFIG_IDF_TARGET_ESP32C3  
   "433MHz HELTEC LORA32 HT-CT62 SX1262",
-  "Custom ESP32-C3 433MHz SX1278" ,
+  "Custom ESP32-C3 433MHz SX1278",
   #else 
   "433MHz HELTEC WiFi LoRA 32 V1", 
   "863-928MHz HELTEC WiFi LoRA 32 V1", 
@@ -47,25 +50,26 @@ const char BOARD_NAMES[][BOARD_NAME_LENGTH] PROGMEM =
   "TTGO LoRa 32 V2 Modified with module SX126x (crystal)", 
   "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 2, 26, 13)", 
   "Custom ESP32 Wroom + SX126x DRF1268T (TCX0) (5, 26, 14, 12)",
-  "433MHz T-BEAM V1.0 + OLED" ,
+  "433MHz T-BEAM V1.0 + OLED",
   "433MHz FOSSA 1W Ground Station",
   "868-915MHz FOSSA 1W Ground Station",
   "2.4GHz ESP32 + SX1280",
   "868-915MHzT-BEAM V1.0 + OLED",
   "433MHz LILYGO T3_V1.6.1",
-  "868-915MHz LILYGO T3_V1.6.1" ,
-  "868-915MHz LILYGO T3_V1.6.1 TCXO" ,
+  "868-915MHz LILYGO T3_V1.6.1",
+  "868-915MHz LILYGO T3_V1.6.1 TCXO",
+  "433 Mhz T-Beam SX1268 V1.0",
 #endif
 };
 
 constexpr auto BOARD_LENGTH = 3;
 
 #if CONFIG_IDF_TARGET_ESP32S3
-const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1" };
+const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1", "2","3","4" };
 #elif CONFIG_IDF_TARGET_ESP32C3
 const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1"  };
 #else 
-const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20" , "21"};
+const char BOARD_VALUES[][BOARD_LENGTH] PROGMEM = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20" , "21", "22"};
 #endif
 
 const char IOTWEBCONF_DASHBOARD_STYLE_INNER[] PROGMEM = "table{margin:20px auto;}h3{text-align:center;}.card{height:12em;margin:10px;text-align:left;font-family:Arial;border:3px groove;border-radius:0.3rem;display:inline-block;padding:10px;min-width:260px;}td{padding:0 10px;}textarea{resize:vertical;width:100%;margin:0;height:318px;padding:5px;overflow:auto;}#c1{width:98%;padding:5px;}#t1{width:98%}.console{display:inline-block;text-align:center;margin:10px 0;width:98%;max-width:1080px;}.G{color:green;}.R{color:red}";
@@ -79,6 +83,5 @@ const char ADVANCED_CONFIG_SCRIPT[] PROGMEM =
     "function tableDoneHandler(btn){var tbd=document.getElementById('current-table'); var ds=tableDictString(tbd); current_ctrl.value=ds; document.getElementById('dt-' + current_id).remove(); current_ctrl=null; current_id=null; }" 
     "function editElementDict(ed){if (current_ctrl===null){var ph=ed.getAttribute('placeholder'); var dstring = ed.value!='' ? ed.value : ph; if(dstring !== ''){ current_id=ed.id; var dict = JSON.parse(dstring); var tblhtml = '<div id=""dt-' + current_id + '"">' + dictTable(dict) + '<input type=""button"" value=""Done ' + current_id + '"" onclick=""tableDoneHandler()"" style=""height:35px;width:100px;background-color:lightblue;""></div>'; ed.insertAdjacentHTML('afterend', tblhtml); current_ctrl=ed; } } }"
     "var current_id, current_ctrl=null; window.addEventListener('load', function() {setup_click('board_template'); setup_click('modem_startup');});";
-const char IOTWEBCONF_WORLDMAP_SCRIPT[] PROGMEM  = "var wmx=null,wmt;function wmf(p){var sp,mc,gs,lp;clearTimeout(wmt);wmx=new XMLHttpRequest();wmx.onreadystatechange=function() {if(wmx.readyState==4&&x.status==200){var wma=wmx.responseText;var wmp = wma.split(',');sp=document.getElementById('wmsatpos');sp.setAttribute('cx', wmp[0]);sp.setAttribute('cy', wmp[1]);mc=document.getElementById('modemconfig');for(let r=0;r<6;r++){mc.rows[r].cells[1].innerHTML=wmp[r+2]};if(wmp[3]=='LoRa'){mc.rows[3].cells[0].innerHTML='Spreading Factor ';mc.rows[4].cells[0].innerHTML='Coding Rate ';}else{mc.rows[3].cells[0].innerHTML='Bitrate ';mc.rows[4].cells[0].innerHTML='Frequency dev ';};gs=document.getElementById('gsstatus');for(let r=0;r<6;r++){gs.rows[r].cells[1].innerHTML=wmp[r+8];};lp=document.getElementById('lastpacket');for(let r=0;r<4;r++){lp.rows[r].cells[1].innerHTML=wmp[r+14];};lp.rows[4].cells[0].innerHTML=wmp[18];}};wmx.open('GET','wm',true);wmx.send();wmt=setTimeout(wmf,5000);return false;}window.addEventListener('load', wmf);";
+const char IOTWEBCONF_WORLDMAP_SCRIPT[] PROGMEM  ="var wmx=null,wmt;function wmf(p){var sp,mc,gs,lp;clearTimeout(wmt);wmx=new XMLHttpRequest();wmx.onreadystatechange=function() {if(wmx.readyState==4&&x.status==200){var wma=wmx.responseText;var wmp = wma.split(',');sp=document.getElementById('wmsatpos');sp.setAttribute('cx', wmp[0]);sp.setAttribute('cy', wmp[1]);mc=document.getElementById('modemconfig');for(let r=0;r<6;r++){mc.rows[r].cells[1].innerHTML=wmp[r+2]};if(wmp[2]=='LoRa'){mc.rows[3].cells[0].innerHTML='Spreading Factor ';mc.rows[4].cells[0].innerHTML='Coding Rate ';}else{mc.rows[3].cells[0].innerHTML='Bitrate ';mc.rows[4].cells[0].innerHTML='Frequency dev ';};gs=document.getElementById('gsstatus');for(let r=0;r<6;r++){gs.rows[r].cells[1].innerHTML=wmp[r+8];};sd=document.getElementById('satdata');for(let r=0;r<6;r++){sd.rows[r].cells[1].innerHTML=wmp[r+14];};lp=document.getElementById('lastpacket');for(let r=0;r<4;r++){lp.rows[r].cells[1].innerHTML=wmp[r+20];};lp.rows[4].cells[0].innerHTML=wmp[24];}};wmx.open('GET','wm',true);wmx.send();wmt=setTimeout(wmf,5000);return false;}window.addEventListener('load', wmf);";
 const char IOTWEBCONF_CONFIG_STYLE_INNER[] PROGMEM = " fieldset[id='Board config'] div:nth-of-type(3) ~ div { display:none}";
-

@@ -17,7 +17,19 @@
   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#include "OTA.h"
+
+
+
+
+
+#include "./OTA.h"
+
+#if !defined(CONFIG_IDF_TARGET_ESP32)
+  #include <Arduino.h>
+  #include <WiFiClientSecure.h>
+#endif
+
+
 #include "../ConfigManager/ConfigManager.h"
 #include "../Status.h"
 #include "../Logger/Logger.h"
@@ -30,10 +42,10 @@ void OTA::update()
 {
 #ifdef SECURE_OTA
   WiFiClientSecure client;
-  if (usingNewCert)
+//  if (usingNewCert)
     client.setCACert(newRoot_CA);
-  else
-    client.setCACert(DSTroot_CA);
+//  else
+//    client.setCACert(DSTroot_CA);
 #else
   WiFiClient client;
 #endif

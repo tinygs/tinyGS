@@ -78,9 +78,11 @@
 #include "src/OTA/OTA.h"
 #include "src/Logger/Logger.h"
 #include "time.h"
+#include "src/Mqtt/MQTT_credentials.h"
+#include "src/Improv/tinygs_improv.h"
 
 
-#if  RADIOLIB_VERSION_MAJOR != (0x06) || RADIOLIB_VERSION_MINOR != (0x04) || RADIOLIB_VERSION_PATCH != (0x00) || RADIOLIB_VERSION_EXTRA != (0x00)
+#if  RADIOLIB_VERSION_MAJOR != (0x07) || RADIOLIB_VERSION_MINOR != (0x06) || RADIOLIB_VERSION_PATCH != (0x00) || RADIOLIB_VERSION_EXTRA != (0x00)
 #error "You are not using the correct version of RadioLib please copy TinyGS/lib/RadioLib on Arduino/libraries"
 #endif
 
@@ -92,7 +94,8 @@
 
 ConfigManager& configManager = ConfigManager::getInstance();
 MQTT_Client& mqtt = MQTT_Client::getInstance();
-Radio& radio = Radio::getInstance();
+Radio& radio = Radio::getInstance ();
+//TinyGSImprov improvWiFi = TinyGSImprov ();
 
 const char* ntpServer = "time.cloudflare.com";
 
@@ -102,7 +105,9 @@ Status status;
 void printControls();
 void switchTestmode();
 void checkButton();
-void setupNTP();
+void setupNTP ();
+void handleSerial ();
+void handleRawSerial ();
 
 void configured()
 {
@@ -113,12 +118,13 @@ void configured()
 
 void wifiConnected()
 {
-  configManager.setWifiConnectionCallback(NULL);
-  setupNTP();
+  configManager.setWifiConnectionCallback (NULL);
+  //improvWiFi.onConnected (NULL);
+  setupNTP ();
   displayShowConnected();
   arduino_ota_setup();
   configManager.delay(100); // finish animation
-
+  
   if (configManager.getLowPower())
   {
     Log::debug(PSTR("Set low power CPU=80Mhz"));
@@ -136,9 +142,17 @@ void setup()
   setCpuFrequencyMhz(240);
 #endif
   Serial.begin(115200);
-  delay(100);
-  Log::console(PSTR("TinyGS Version %d - %s"), status.version, status.git_version);
+  delay (100);
+  
+  // Initialize async logging early
+  Log::initAsync();
+  
+  improvWiFi.setVersion (status.version);
+  Log::console (PSTR ("TinyGS Version %d - %s"), status.version, status.git_version);
   Log::console(PSTR("Chip  %s - %d"),  ESP.getChipModel(),ESP.getChipRevision());
+  if ((configManager.getMqttServer ()[0] == '\0') || (configManager.getMqttUser ()[0] == '\0') || (configManager.getMqttPass ()[0] == '\0')) {
+      mqttCredentials.generateOTPCode ();
+  }
   configManager.setWifiConnectionCallback(wifiConnected);
   configManager.setConfiguredCallback(configured);
   configManager.init();
@@ -157,7 +171,7 @@ void setup()
   displayInit();
   displayShowInitialCredits();
   configManager.delay(1000);
-  mqtt.begin();
+  mqtt.begin ();
 
   if (configManager.getOledBright() == 0)
   {
@@ -167,9 +181,102 @@ void setup()
   printControls();
 }
 
+bool mqttAutoconf () {
+    const time_t AUTOCONFIG_TIMEOUT = 30 * 60 * 1000;
+    if (configManager.getState () == IOTWEBCONF_STATE_ONLINE) {
+        static time_t started_autoconf = millis ();
+        if (millis () - started_autoconf > AUTOCONFIG_TIMEOUT) {
+            Log::console (PSTR ("Autoconfig timeout, please check your internet connection and restart the board"));
+            delay (500);
+            esp_deep_sleep_start ();
+            return false;
+        }
+        String result = mqttCredentials.fetchCredentials ();
+        if (result == "") {
+          //Log::console(PSTR("Error fetching credentials, please check your internet connection and try again"));
+            return false;
+        }
+        Log::debug ("result: %s", result.c_str ());
+        delay (1000);
+        StaticJsonDocument<1024> doc;
+        DeserializationError error = deserializeJson (doc, result);
+        if (error) {
+            Log::console ("deserializeJson() failed: %s", error.c_str ());
+            return false;
+        }
+
+        if (doc.containsKey ("mqtt") &&
+            doc["mqtt"].containsKey ("user") &&
+            doc["mqtt"].containsKey ("pass") &&
+            doc["mqtt"].containsKey ("server") &&
+            doc["mqtt"].containsKey ("port")) {
+            const char* mqttUser = doc["mqtt"]["user"];
+            const char* mqttPass = doc["mqtt"]["pass"];
+            const char* mqttServer = doc["mqtt"]["server"];
+            const char* mqttPort = doc["mqtt"]["port"];
+
+            Log::debug ("MQTT User: %s", mqttUser);
+            Log::debug ("MQTT Pass: %s", mqttPass);
+            Log::debug ("MQTT Server: %s", mqttServer);
+            Log::debug ("MQTT Port: %s", mqttPort);
+
+            strncpy (configManager.getMqttServerParameter ()->valueBuffer, mqttServer, configManager.getMqttServerParameter ()->getLength ());
+            strncpy (configManager.getMqttUserParameter ()->valueBuffer, mqttUser, configManager.getMqttUserParameter ()->getLength ());
+            strncpy (configManager.getMqttPassParameter ()->valueBuffer, mqttPass, configManager.getMqttPassParameter ()->getLength ());
+            strncpy (configManager.getMqttPortParameter ()->valueBuffer, mqttPort, configManager.getMqttPortParameter ()->getLength ());
+        } else {
+            Log::console (PSTR ("Invalid JSON format"));
+            return false;
+        }
+
+        if (doc.containsKey ("config")) {
+            if (doc["config"].containsKey ("stationName")) {
+                const char* stationName = doc["config"]["stationName"];
+                Log::console ("Station Name: %s", stationName);
+                strncpy (configManager.getThingNameParameter ()->valueBuffer, stationName, configManager.getThingNameParameter ()->getLength ());
+            }
+
+            if (doc["config"].containsKey ("adminPw")) {
+                const char* adminPw = doc["config"]["adminPw"];
+                Log::console ("Admin Password: %s", adminPw);
+                strncpy (configManager.getApPasswordParameter ()->valueBuffer, adminPw, configManager.getApPasswordParameter ()->getLength ());
+            }
+            if (doc["config"].containsKey ("latitude") && doc["config"].containsKey ("longitude")) {
+                const char* latitude = doc["config"]["latitude"].as<const char*>();
+                const char* longitude = doc["config"]["longitude"].as<const char*> ();
+                Log::console ("Latitude: %s", latitude);
+                Log::console("Longitude: %s", longitude);
+
+                auto latParam = configManager.getLatitudeParameter();
+                auto lonParam = configManager.getLongitudeParameter();
+
+                if (latParam && lonParam && latitude && longitude) {
+                    // Use snprintf for safety and null-termination
+                    snprintf(latParam->valueBuffer, latParam->getLength(), "%s", latitude);
+                    snprintf(lonParam->valueBuffer, lonParam->getLength(), "%s", longitude);
+                } else {
+                    Log::console("Error: Invalid latitude/longitude or parameter pointer");
+                }
+            }
+
+            if (doc["config"].containsKey ("tz")) {
+                const char* tz = doc["config"]["tz"];
+                Log::console ("Timezone: %s", tz);
+                strncpy (configManager.getTZParameter ()->valueBuffer, tz, configManager.getTZParameter ()->getLength ());
+            }
+        }
+
+        configManager.saveConfig ();
+
+        return true;
+    }
+    return false;
+}
+unsigned long lastTleRefresh = millis();
+
 void loop() {  
-  configManager.doLoop();
-  if (configManager.isFailSafeActive())
+    configManager.doLoop ();
+    if (configManager.isFailSafeActive ())
   {
     static bool updateAttepted = false;
     if (!updateAttepted && configManager.isConnected()) {
@@ -186,12 +293,17 @@ void loop() {
   ArduinoOTA.handle();
   handleSerial();
 
-  if (configManager.getState() < 2) // not ready or not configured
+  if (configManager.getState () < IOTWEBCONF_STATE_AP_MODE) // not ready or not configured
   {
-    displayShowApMode();
-    return;
+      displayShowApMode ();
+      return;
   }
-  
+
+  if ((configManager.getMqttServer ()[0] == '\0') || (configManager.getMqttUser ()[0] == '\0') || (configManager.getMqttPass ()[0] == '\0')) {
+      mqttAutoconf ();
+      return;
+  }
+
   // configured and no connection
   checkButton();
   if (radio.isReady())
@@ -213,8 +325,24 @@ void loop() {
 
   mqtt.loop();
   OTA::loop();
-  if (configManager.getOledBright() != 0) displayUpdate();
+
+  displayUpdate ();
+
+  if (configManager.askedWebLogin () && mqtt.connected ())
+  {
+      Log::debug (PSTR ("Getting weblogin in loop"));
+      mqtt.sendWeblogin ();
+  }
+  
+  // Update TLE
+  unsigned long currentTime = millis();
+  if (currentTime - lastTleRefresh >= status.tle.refresh) {
+      lastTleRefresh = currentTime;
+      radio.tle();
+  }
+
 }
+
 
 void setupNTP()
 {
@@ -254,7 +382,19 @@ void checkButton()
   }
 }
 
-void handleSerial()
+void handleSerial () {
+    while (Serial.available () > 0) {
+        yield ();
+        byte next = Serial.peek ();
+        if (next == 'I') {
+            improvWiFi.handleImprovPacket ();
+        } else {
+            handleRawSerial ();
+        }
+    }
+}
+
+void handleRawSerial()
 {
   if(Serial.available())
   {
@@ -265,7 +405,7 @@ void handleSerial()
     char serialCmd = ' ';
 
     // wait for a bit to receive any trailing characters
-    configManager.delay(50);
+    configManager.delay(500);
     if (serialCmd1 == '!') serialCmd = Serial.read();
     // dump the serial buffer
     while(Serial.available())
@@ -302,6 +442,13 @@ void handleSerial()
         lastTestPacketTime = millis();
         Log::console(PSTR("Sending test packet to nearby stations!"));
         break;
+      case 'w':
+        Log::console (PSTR ("Getting weblogin"));
+        mqtt.sendWeblogin ();
+        break;
+      case 'o':
+          Log::console (PSTR ("OTP Code: %s"), mqttCredentials.getOTPCode ());
+          break;
       default:
         Log::console(PSTR("Unknown command: %c"), serialCmd);
         break;
@@ -314,9 +461,11 @@ void handleSerial()
 // function to print controls
 void printControls()
 {
-  Log::console(PSTR("------------- Controls -------------"));
-  Log::console(PSTR("!e - erase board config and reset"));
-  Log::console(PSTR("!b - reboot the board"));
-  Log::console(PSTR("!p - send test packet to nearby stations (to check transmission)"));
-  Log::console(PSTR("------------------------------------"));
+  Log::console (PSTR ("------------- Controls -------------"));
+  Log::console (PSTR ("!e - erase board config and reset"));
+  Log::console (PSTR ("!b - reboot the board"));
+  Log::console (PSTR ("!p - send test packet to nearby stations (to check transmission)"));
+  Log::console (PSTR ("!w - ask for weblogin link"));
+  Log::console (PSTR ("!o - get OTP code"));
+  Log::console (PSTR ("------------------------------------"));
 }

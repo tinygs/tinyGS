@@ -13,8 +13,9 @@ public:
   virtual int16_t forceLDRO(bool enable) = 0;
   virtual int16_t setCRC(uint8_t len,	uint16_t initial = 0x1D0F, uint16_t polynomial = 0x1021, bool inverted = true ) = 0;
   virtual int16_t setDataShaping(uint8_t sh) = 0;
-  virtual void setDio0Action(void (*func)(void)) = 0;
-  virtual int16_t startReceive(uint8_t len = 0, uint8_t mode = RADIOLIB_SX127X_RXCONTINUOUS) = 0;
+  virtual void setPacketReceivedAction(void (*func)(void)) = 0;
+  virtual void clearPacketReceivedAction() = 0;
+  virtual int16_t startReceive() = 0;
   virtual int16_t transmit(uint8_t* data, size_t len, uint8_t addr = 0) = 0;
   virtual int16_t sleep() = 0;
   virtual size_t getPacketLength(bool update = true) = 0;
@@ -26,7 +27,12 @@ public:
   virtual int16_t setSyncWord(uint8_t* syncWord, uint8_t len) = 0;
   virtual int16_t setFrequency(float freq) = 0;
   virtual int16_t setEncoding(uint8_t encoding) = 0;
-  virtual void setRfSwitchPins(uint8_t rxEnPin, uint8_t txEnPin) = 0;
+  virtual void setRfSwitchTable(const uint32_t (&pins)[5], const Module::RfSwitchMode_t* table) = 0;
+  virtual int16_t setWhitening(bool enabled, uint16_t initial) = 0;  
+  virtual int16_t invertIQ (bool enable) = 0;
+  virtual int16_t explicitHeader() = 0;
+  virtual int16_t implicitHeader(size_t len) = 0;
+  virtual int16_t setRxBoostedGainMode(bool enable) = 0;
 };
 
 
@@ -45,6 +51,9 @@ public:
   int16_t autoLDRO();
 
   int16_t forceLDRO(bool enable);
+  int16_t invertIQ(bool enable);
+  int16_t explicitHeader(); 
+  int16_t implicitHeader(size_t len);
 
   int16_t setCRC(uint8_t len,	uint16_t initial = 0x1D0F, uint16_t polynomial = 0x1021, bool inverted = true );
   
@@ -53,9 +62,14 @@ public:
     return radio->setDataShaping(sh);
   }
 
-  void setDio0Action(void (*func)(void));
-
-  int16_t startReceive(uint8_t len = 0, uint8_t mode = RADIOLIB_SX127X_RXCONTINUOUS);
+  void setPacketReceivedAction(void (*func)(void));
+  
+  void clearPacketReceivedAction()
+  {
+    return radio->clearPacketReceivedAction();
+  }
+ 
+  int16_t startReceive();
 
   int16_t transmit(uint8_t* data, size_t len, uint8_t addr = 0)
   {
@@ -101,11 +115,14 @@ public:
 
   int16_t setEncoding(uint8_t encoding);
 
-  void setRfSwitchPins(uint8_t rxEnPin, uint8_t txEnPin)
+ 
+  void setRfSwitchTable(const uint32_t (&pins)[5], const Module::RfSwitchMode_t* table)
   {
-    radio->setRfSwitchPins(rxEnPin, txEnPin);
+    radio->setRfSwitchTable(pins, table);
   }
 
+  int16_t setWhitening(bool enabled, uint16_t initial);
+  int16_t setRxBoostedGainMode(bool enable);
 
 private:
   T* radio;

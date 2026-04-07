@@ -1,0 +1,35 @@
+#######################################
+# Syntax Coloring Map For AioP13
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+P13DateTime     KEYWORD1
+P13Observer     KEYWORD1
+P13Satellite    KEYWORD1
+P13Sun          KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+add             KEYWORD2
+settime         KEYWORD2
+gettime         KEYWORD2
+ascii           KEYWORD2
+roundup         KEYWORD2
+tle             KEYWORD2
+predict         KEYWORD2
+latlon          KEYWORD2
+elaz            KEYWORD2
+footprint       KEYWORD2
+doppler         KEYWORD2
+latlon2xy       KEYWORD2
+
+#######################################
+# Structures (KEYWORD3)
+#######################################
+
+Vec3            KEYWORD3

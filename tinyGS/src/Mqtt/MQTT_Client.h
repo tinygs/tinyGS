@@ -21,11 +21,47 @@
 #define MQTT_CLIENT_H
 
 #define SECURE_MQTT // Comment this line if you are not using MQTT over SSL
-#define LOG_TAG "MQTT"
 
 #include "../ConfigManager/ConfigManager.h"
 #include "../Status.h"
 #include <PubSubClient.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/queue.h>
+
+// Estructura optimizada para cola de paquetes RX no bloqueante
+// Solo guarda los campos necesarios para reconstruir el mensaje MQTT
+// Base64: ceil(256/3)*4 = 344 chars + null = 345 bytes, redondeamos a 360
+struct RxPacketMessage {
+  char packet[360];           // Base64 encoded packet
+  char raw_packet[360];       // Base64 encoded raw packet  
+  bool noisy;
+  // Info del modem (solo campos necesarios para el JSON)
+  char modem_mode[8];
+  char satellite[25];
+  float frequency;
+  float freqOffset;
+  uint32_t NORAD;
+  // LoRa específicos
+  uint8_t sf;
+  uint8_t cr;
+  float bw;
+  bool iIQ;
+  // FSK específicos
+  float bitrate;
+  float freqDev;
+  // Info del paquete
+  float rssi;
+  float snr;
+  float frequencyerror;
+  float freqDoppler;
+  bool crc_error;
+  // Timestamps captured at reception time
+  time_t unix_time;
+  int64_t usec_time;
+};
+// Tamaño total: ~820 bytes x 10 = ~8.2KB (vs ~1KB x 10 con estructuras completas)
+
 #if MQTT_MAX_PACKET_SIZE != 1000  && !PLATFORMIO
 #error "Using Arduino IDE is not recommended, please follow this guide https://github.com/G4lile0/tinyGS/wiki/Arduino-IDE or edit /PubSubClient/src/PubSubClient.h  and set #define MQTT_MAX_PACKET_SIZE 1000"
 #endif
@@ -48,11 +84,13 @@ public:
   void begin();
   void loop();
   void sendWelcome();
-  void sendRx(String packet, bool noisy);
+  void sendRx(String packet, bool noisy, String raw_packet);  // Solo usado como fallback
+  void queueRx(const String& packet, bool noisy, const String& raw_packet);
   void manageMQTTData(char *topic, uint8_t *payload, unsigned int length);
-  void sendStatus();
-  void sendAdvParameters();
-  void scheduleRestart() { scheduledRestart = true; };
+  void sendStatus ();
+  void sendAdvParameters ();
+  void sendWeblogin ();
+  void scheduleRestart () { scheduledRestart = true; };
 
 protected:
 #ifdef SECURE_MQTT
@@ -63,19 +101,26 @@ protected:
   void reconnect();
 
 private:
-  MQTT_Client();
+  const char* LOG_TAG = "MQTT";
+  MQTT_Client ();
   String buildTopic(const char * baseTopic, const char * cmnd);
   void subscribeToAll();
   void manageSatPosOled(char* payload, size_t payload_len);
+  void manageSetPosParameters(char* payload, size_t payload_len);
+  void manageSetName(char* payload, size_t payload_len);
   void remoteSatCmnd(char* payload, size_t payload_len);
   void remoteSatFilter(char* payload, size_t payload_len);
   void remoteGoToSleep(char* payload, size_t payload_len);
   void remoteGoToSiesta(char* payload, size_t payload_len);
-
+  void processRxQueue();
+  void sendRxFromQueue(const RxPacketMessage& msg);  // Envía paquete desde la cola
 
   int  voltage();
   
-  bool usingNewCert = true;
+  //bool usingNewCert = true;
+  SemaphoreHandle_t radioConfigMutex;
+  QueueHandle_t rxQueue;
+  static const int RX_QUEUE_SIZE = 10;  // Cola de hasta 10 paquetes
   unsigned long lastPing = 0;
   unsigned long lastConnectionAtempt = 0;
   uint8_t connectionAtempts = 0;
@@ -106,23 +151,10 @@ private:
   const char* commandSatPos PROGMEM= "sat_pos_oled";
   const char* commandReset PROGMEM= "reset";
   const char* commandFreq PROGMEM= "freq";
-  const char* commandBw PROGMEM= "bw";
-  const char* commandSf PROGMEM= "sf";
-  const char* commandCr PROGMEM= "cr";
-  const char* commandCrc PROGMEM= "crc";
-  const char* commandLsw PROGMEM= "lsw";
-  const char* commandFldro PROGMEM= "fldro";
-  const char* commandAldro PROGMEM= "aldro";
-  const char* commandPl PROGMEM= "pl";
-  const char* commandBegine PROGMEM= "begine";
+   const char* commandBegine PROGMEM= "begine";
   const char* commandBeginp PROGMEM= "beginp";
   const char* commandBeginLora PROGMEM= "begin_lora";
   const char* commandBeginFSK PROGMEM= "begin_fsk";
-  const char* commandBr PROGMEM= "br";
-  const char* commandFd PROGMEM= "Fd";
-  const char* commandFbw PROGMEM= "fbw";
-  const char* commandFsw PROGMEM= "fsw";
-  const char* commandFook PROGMEM= "fok";
   const char* commandFrame PROGMEM= "frame";
   const char* commandSat PROGMEM= "sat";
   const char* commandStatus PROGMEM= "status";
@@ -133,11 +165,11 @@ private:
   const char* commandGoToSiesta PROGMEM= "siesta";
   const char* commandSetFreqOffset PROGMEM= "foff";
   const char* commandSetAdvParameters PROGMEM= "set_adv_prm";
-  const char* commandGetAdvParameters PROGMEM= "get_adv_prm";
-    // GOD MODE  With great power comes great responsibility!
-  const char* commandSPIsetRegValue PROGMEM= "SPIsetRegValue";
-  const char* commandSPIwriteRegister PROGMEM= "SPIwriteRegister";
-  const char* commandSPIreadRegister PROGMEM= "SPIreadRegister";
+  const char* commandGetAdvParameters PROGMEM = "get_adv_prm";
+  const char* commandWeblogin PROGMEM = "weblogin";
+  const char* commandSetPosParameters PROGMEM= "set_pos_prm"; 
+  const char* commandSetName PROGMEM= "set_name"; 
+
 };
 
 #endif

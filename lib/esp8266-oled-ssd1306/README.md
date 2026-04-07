@@ -1,8 +1,9 @@
-[![Build Status](https://github.com/ThingPulse/esp8266-oled-ssd1306/actions/workflows/main.yml/badge.svg)](https://github.com/ThingPulse/esp8266-oled-ssd1306/actions)
-
 # ThingPulse OLED SSD1306 (ESP8266/ESP32/Mbed-OS)
 
-This is a driver for SSD1306 128x64, 128x32, 64x48 and 64x32 OLED displays running on the Arduino/ESP8266 & ESP32 and mbed-os platforms.
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/thingpulse/library/ESP8266%20and%20ESP32%20OLED%20driver%20for%20SSD1306%20displays.svg)](https://registry.platformio.org/libraries/thingpulse/ESP8266%20and%20ESP32%20OLED%20driver%20for%20SSD1306%20displays)
+[![Build Status](https://github.com/ThingPulse/esp8266-oled-ssd1306/actions/workflows/main.yml/badge.svg)](https://github.com/ThingPulse/esp8266-oled-ssd1306/actions)
+
+This is a driver for SSD1306 and SH1106 128x64, 128x32, 64x48 and 64x32 OLED displays running on the Arduino/ESP8266 & ESP32 and mbed-os platforms.
 Can be used with either the I2C or SPI version of the display.
 
 This library drives the OLED display included in the [ThingPulse IoT starter kit](https://thingpulse.com/product/esp8266-iot-electronics-starter-kit-weatherstation-planespotter-worldclock/) aka classic kit aka weather station kit.
@@ -170,7 +171,7 @@ void normalDisplay(void);
 // normal brightness & contrast:  contrast = 100
 void setContrast(uint8_t contrast, uint8_t precharge = 241, uint8_t comdetect = 64);
 
-// Convenience method to access
+// Convenience method to access setContrast with only brightness parameter
 void setBrightness(uint8_t);
 
 // Turn the display upside down
@@ -260,6 +261,27 @@ void setTextAlignment(OLEDDISPLAY_TEXT_ALIGNMENT textAlignment);
 // Or create one with the font tool at http://oleddisplay.squix.ch
 void setFont(const uint8_t* fontData);
 ```
+
+## Arduino `Print` functionality
+
+Because this class has been "derived" from Arduino's `Print` class, you can use the functions it provides. In plain language, this means that you can use `print`, `println` and `printf` to the display. Internally, a buffer holds the text that was printed to the display previously (that would still fit on the display) and every time you print something, this buffer is put on the screen, using the functions from the previous section.
+
+What that means is that printing using `print` and "manually" putting things on the display are somewhat mutually exclusive: as soon as you print, everything that was on the display already is gone and only what you put there before with `print`, `println` or `printf` remains. Still, using `print` is a very simple way to put something on the display quickly.
+
+One extra function is provided: `cls()`
+```cpp
+// cls() will clear the display immediately and empty the logBuffer, meaning
+// the next print statement will print at the top of the display again.
+// cls() should not be confused with clear(), which only clears the internal
+// graphics buffer, which can then be shown on the display with display().
+void cls();
+
+> _Note that printing to the display, contrary to what you might expect, does not wrap your lines, so everything on a line that doesn't fit on the screen is cut off._
+```
+
+&nbsp;
+
+<hr>
 
 ## Ui Library (OLEDDisplayUi)
 
@@ -401,6 +423,33 @@ OLEDDisplayUiState* getUiState();
 int8_t update();
 ```
 
+## Creating and using XBM bitmaps
+
+If you want to display your own images with this library, the best way to do this is using a bitmap.
+
+There are two options to convert an image to a compatible bitmap:
+1. **Using Gimp.**
+   In this case exporting the bitmap in an 1-bit XBM format is sufficient.
+2. **Using a converter website.**
+   You could also use online converter services like e.g. [https://javl.github.io/image2cpp/](https://javl.github.io/image2cpp/). The uploaded image should have the same dimension as the screen (e.g. 128x64). The following output settings should be set:
+    - Draw Mode: Horizontal - 1 bit per pixel
+    - Swap bits in byte: swap checkbox should be checked.
+
+The resulting bitmap can be put into a header file:
+```C++
+const unsigned char epd_example [] PROGMEM = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, ... 
+    ...
+};
+```
+
+Subsequently, it can be used like this:
+```C++
+display.clear();
+display.drawXbm(0, 0, 128, 64, epd_example); // assuming your bitmap is 128x64
+display.display();
+```
+
 ## Example: SSD1306Demo
 
 ### Frame 1
@@ -440,4 +489,6 @@ This shows the code working on the SPI version of the display. See demo code for
  * [Scan I2C](https://github.com/hallard/Scan-I2C-WiFi) (by @hallard)
  * [ThingPulse Weather Station](https://github.com/ThingPulse/esp8266-weather-station)
  * [Meshtastic](https://www.meshtastic.org/) - an open source GPS communicator mesh radio
+ * [OpenMQTTGateway](https://docs.openmqttgateway.com) - OpenMQTTGateway aims to unify various technologies and protocols into a single firmware. This reduces the need for multiple physical bridges and streamlines diverse technologies under the widely-used MQTT protocol.
+ * [OpenAstroTracker](https://openastrotech.com) - Open source hardware and software for Astrophotography. The firmware for the mounts supports displays and uses this library to drive them.
  * Yours?

@@ -34,6 +34,12 @@
 #include "OLEDDisplay.h"
 #include <Wire.h>
 
+#if defined(ARDUINO_ARCH_ESP32)
+#define I2C_OLED_TRANSFER_BYTE 64 /** ESP32 can Transfer Max 128 bytes */
+#else
+#define I2C_OLED_TRANSFER_BYTE 16
+#endif
+
 #define SH1106_SET_PUMP_VOLTAGE 0X30
 #define SH1106_SET_PUMP_MODE 0XAD
 #define SH1106_PUMP_ON 0X8B
@@ -47,40 +53,40 @@ class SH1106Wire : public OLEDDisplay {
       int             _scl;
       bool                _doI2cAutoInit = false;
       TwoWire*            _wire = NULL;
-      int                 _frequency;
+      long                _frequency;
 
   public:
     /**
      * Create and initialize the Display using Wire library
      *
      * Beware for retro-compatibility default values are provided for all parameters see below.
-     * Please note that if you don't wan't SD1306Wire to initialize and change frequency speed ot need to 
+     * Please note that if you don't wan't SD1306Wire to initialize and change frequency speed ot need to
      * ensure -1 value are specified for all 3 parameters. This can be usefull to control TwoWire with multiple
      * device on the same bus.
-     * 
-     * @param _address I2C Display address
-     * @param _sda I2C SDA pin number, default to -1 to skip Wire begin call
-     * @param _scl I2C SCL pin number, default to -1 (only SDA = -1 is considered to skip Wire begin call)
+     *
+     * @param address I2C Display address
+     * @param sda I2C SDA pin number, default to -1 to skip Wire begin call
+     * @param scl I2C SCL pin number, default to -1 (only SDA = -1 is considered to skip Wire begin call)
      * @param g display geometry dafault to generic GEOMETRY_128_64, see OLEDDISPLAY_GEOMETRY definition for other options
-     * @param _i2cBus on ESP32 with 2 I2C HW buses, I2C_ONE for 1st Bus, I2C_TWO fot 2nd bus, default I2C_ONE
-     * @param _frequency for Frequency by default Let's use ~700khz if ESP8266 is in 160Mhz mode, this will be limited to ~400khz if the ESP8266 in 80Mhz mode
+     * @param i2cBus on ESP32 with 2 I2C HW buses, I2C_ONE for 1st Bus, I2C_TWO fot 2nd bus, default I2C_ONE
+     * @param frequency for Frequency by default Let's use ~700khz if ESP8266 is in 160Mhz mode, this will be limited to ~400khz if the ESP8266 in 80Mhz mode
      */
-    SH1106Wire(uint8_t _address, int _sda = -1, int _scl = -1, OLEDDISPLAY_GEOMETRY g = GEOMETRY_128_64, HW_I2C _i2cBus = I2C_ONE, int _frequency = 700000) {
+    SH1106Wire(uint8_t address, int sda = -1, int scl = -1, OLEDDISPLAY_GEOMETRY g = GEOMETRY_128_64, HW_I2C i2cBus = I2C_ONE, long frequency = 700000) {
       setGeometry(g);
 
-      this->_address = _address;
-      this->_sda = _sda;
-      this->_scl = _scl;
-#if !defined(ARDUINO_ARCH_ESP32)
+      this->_address = address;
+      this->_sda = sda;
+      this->_scl = scl;
+#if !defined(ARDUINO_ARCH_ESP32) || defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32C6)
       this->_wire = &Wire;
 #else
-      this->_wire = (_i2cBus==I2C_ONE) ? &Wire : &Wire1;
+      this->_wire = (i2cBus==I2C_ONE) ? &Wire : &Wire1;
 #endif
-      this->_frequency = _frequency;
+      this->_frequency = frequency;
     }
 
     bool connect() {
-#if !defined(ARDUINO_ARCH_ESP32) && !defined(ARDUINO_ARCH8266)
+#if !defined(ARDUINO_ARCH_ESP32) && !defined(ARDUINO_ARCH_ESP8266)
       _wire->begin();
 #else
       // On ESP32 arduino, -1 means 'don't change pins', someone else has called begin for us.
@@ -130,7 +136,7 @@ class SH1106Wire : public OLEDDisplay {
         uint8_t minBoundXp2H = (minBoundX + 2) & 0x0F;
         uint8_t minBoundXp2L = 0x10 | ((minBoundX + 2) >> 4 );
 
-        byte k = 0;
+        uint8_t k = 0;
         for (y = minBoundY; y <= maxBoundY; y++) {
           sendCommand(0xB0 + y);
           sendCommand(minBoundXp2H);
@@ -142,7 +148,7 @@ class SH1106Wire : public OLEDDisplay {
             }
             _wire->write(buffer[x + y * displayWidth]);
             k++;
-            if (k == 16)  {
+            if (k == I2C_OLED_TRANSFER_BYTE)  {
               _wire->endTransmission();
               k = 0;
             }
@@ -163,10 +169,10 @@ class SH1106Wire : public OLEDDisplay {
           sendCommand(0xB0+y);
           sendCommand(0x02);
           sendCommand(0x10);
-          for( uint8_t x=0; x<8; x++) {
+          for( uint8_t x=0; x<(128/I2C_OLED_TRANSFER_BYTE); x++) {
             _wire->beginTransmission(_address);
             _wire->write(0x40);
-            for (uint8_t k = 0; k < 16; k++) {
+            for (uint8_t k = 0; k < I2C_OLED_TRANSFER_BYTE; k++) {
               _wire->write(*p++);
             }
             _wire->endTransmission();
@@ -192,7 +198,7 @@ class SH1106Wire : public OLEDDisplay {
 
     void initI2cIfNeccesary() {
       if (_doI2cAutoInit) {
-#ifdef ARDUINO_ARCH_AVR
+#if !defined(ARDUINO_ARCH_ESP32) && !defined(ARDUINO_ARCH_ESP8266)
         _wire->begin();
 #else
         _wire->begin(this->_sda, this->_scl);

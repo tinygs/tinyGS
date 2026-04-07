@@ -20,6 +20,8 @@
 #include "Display.h"
 #include "graphics.h"
 #include "../ConfigManager/ConfigManager.h"
+#include "../Mqtt/MQTT_credentials.h"
+#include "../Logger/Logger.h"
 
 SSD1306* display;
 OLEDDisplayUi* ui = NULL;
@@ -45,7 +47,7 @@ unsigned long tick_interval;
 int tick_timing = 100;
 int graphVal = 1;
 int delta = 1;
-uint8_t oldOledBright = 100;
+uint8_t oldOledBright = -1; // to force brightness update on first run
 
 void displayInit()
 {
@@ -97,37 +99,20 @@ void msOverlay(OLEDDisplay *display, OLEDDisplayUiState* state)
   time_t currenttime = time (NULL);
   if(currenttime < 0)
   {
-    Serial.println("Failed to obtain time");
+    Log::error(PSTR("Failed to obtain time"));
     return;
   }
   timeinfo = localtime (&currenttime);
 
-  String thisTime="";
-  if (timeinfo->tm_hour < 10){ thisTime=thisTime + " ";} // add leading space if required
-  thisTime = String (timeinfo->tm_hour) + ":";
-  if (timeinfo->tm_min < 10) { thisTime = thisTime + "0"; } // add leading zero if required
-  thisTime = thisTime + String (timeinfo->tm_min) + ":";
-  if (timeinfo->tm_sec < 10) { thisTime = thisTime + "0"; } // add leading zero if required
-  thisTime = thisTime + String (timeinfo->tm_sec);
-  const char* newTime = (const char*) thisTime.c_str();
-  display->drawString(128, 0, newTime);
+  // Usar buffer estático para evitar fragmentación del heap
+  char timeBuffer[12];
+  snprintf(timeBuffer, sizeof(timeBuffer), "%2d:%02d:%02d", 
+           timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  display->drawString(128, 0, timeBuffer);
 
   if (ConfigManager::getInstance().getDayNightOled())
   {
     if (timeinfo->tm_hour < 6 || timeinfo->tm_hour > 18) display->normalDisplay(); else display->invertDisplay(); // change the OLED according to the time. 
-  }
-
-
-  if (oldOledBright!=ConfigManager::getInstance().getOledBright())
-  {
-    oldOledBright = ConfigManager::getInstance().getOledBright(); 
-    if (ConfigManager::getInstance().getOledBright()==0) {
-      display->displayOff();
-    }
-    else
-    {
-      display->setBrightness(2*ConfigManager::getInstance().getOledBright());
-    }
   }
 }
 
@@ -173,7 +158,9 @@ void drawFrame1(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   display->drawXbm(x +10, y , Logo_width, Logo_height, Logo_bits);
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString( x+70, y + 32, "Sta: " + String(configManager.getThingName()));
+  char staBuf[40];
+  snprintf(staBuf, sizeof(staBuf), "Sta: %s", configManager.getThingName());
+  display->drawString( x+70, y + 32, staBuf);
 }
 
 void drawFrame2(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y)
@@ -199,40 +186,51 @@ void drawFrame3(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int1
   display->setFont(ArialMT_Plain_10);
   display->drawString(x,  y,  status.modeminfo.satellite);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64+ x,  12 + y,  String(status.modeminfo.modem_mode) + " @ " + String(status.modeminfo.frequency) + "MHz");
+  
+  // Usar buffer estático para evitar fragmentación del heap
+  char displayBuffer[40];
+  snprintf(displayBuffer, sizeof(displayBuffer), "%s @ %.4fMHz", status.modeminfo.modem_mode, status.modeminfo.frequency);
+  display->drawString(64+ x,  12 + y, displayBuffer);
   //display->drawString(x,  12 + y, "F:" );
   //display->setTextAlignment(TEXT_ALIGN_RIGHT);
   
   display->setTextAlignment(TEXT_ALIGN_LEFT);
 
-  if (String(status.modeminfo.modem_mode)=="LoRa")
+  if (strcmp(status.modeminfo.modem_mode, "LoRa") == 0)
   {
-    display->drawString(x,  23 + y, "SF: " + String(status.modeminfo.sf));
+    snprintf(displayBuffer, sizeof(displayBuffer), "SF: %u", status.modeminfo.sf);
+    display->drawString(x,  23 + y, displayBuffer);
     if (ConfigManager::getInstance().getAllowTx())
     {
-      display->drawString(x,  34 + y, "Pwr:"+ String(status.modeminfo.power) + "dBm"); 
+      snprintf(displayBuffer, sizeof(displayBuffer), "Pwr:%ddBm", status.modeminfo.power);
+      display->drawString(x,  34 + y, displayBuffer); 
     }
     else
     {
       display->drawString(x,  34 + y, "TX OFF"); 
     }
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    display->drawString(128 + x,  23 + y, "BW:"+ String(status.modeminfo.bw)+ "kHz");
-    display->drawString(128 + x,  34 + y, "CR: "+ String(status.modeminfo.cr));
+    snprintf(displayBuffer, sizeof(displayBuffer), "BW:%.1fkHz", status.modeminfo.bw);
+    display->drawString(128 + x,  23 + y, displayBuffer);
+    snprintf(displayBuffer, sizeof(displayBuffer), "CR: %u", status.modeminfo.cr);
+    display->drawString(128 + x,  34 + y, displayBuffer);
   } 
   else
   {
     display->drawString(x,  23 + y, "FD/BW: " );
     if (ConfigManager::getInstance().getAllowTx()) {
-      display->drawString(x,  34 + y, "P:"+ String(status.modeminfo.power) + "dBm"); 
+      snprintf(displayBuffer, sizeof(displayBuffer), "P:%ddBm", status.modeminfo.power);
+      display->drawString(x,  34 + y, displayBuffer); 
     }
     else
     {
       display->drawString(x,  34 + y, "TX OFF"); 
     }
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    display->drawString(128 + x,  23 + y, String(status.modeminfo.freqDev)+ "/" + String(status.modeminfo.bw)+ "kHz");
-    display->drawString(128 + x,  34 + y, String(status.modeminfo.bitrate)+ "kbps");
+    snprintf(displayBuffer, sizeof(displayBuffer), "%.1f/%.1fkHz", status.modeminfo.freqDev, status.modeminfo.bw);
+    display->drawString(128 + x,  23 + y, displayBuffer);
+    snprintf(displayBuffer, sizeof(displayBuffer), "%.1fkbps", status.modeminfo.bitrate);
+    display->drawString(128 + x,  34 + y, displayBuffer);
   }
 }
 
@@ -304,9 +302,9 @@ void displayShowConnected()
 {
   display->clear();
   display->drawXbm(34, 0 , WiFi_Logo_width, WiFi_Logo_height, WiFi_Logo_bits);
-  
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64 , 35 , "Connected " + String(ConfigManager::getInstance().getWiFiSSID()));
+  display->drawString(64 , 34 , "WiFi:" + String(ConfigManager::getInstance().getWiFiSSID()));
+  display->drawString(64 , 44 , "OTP --->    " + String(mqttCredentials.getOTPCode ()) );
   display->drawString(64 ,53 , (WiFi.localIP().toString()));
   display->display();
 }
@@ -347,15 +345,39 @@ void displayShowStaMode(bool ap)
   display->display();
 }
 
+/**
+ * Updates the display brightness based on the configuration.
+ * If the brightness has changed, it sets the new brightness or turns off the display.
+ * Also updates the UI if screen is on.
+ */
 void displayUpdate()
 {
-  if (ConfigManager::getInstance().getOledBright())
+  // Get the current OLED brightness from configuration
+  uint8_t oledBright = ConfigManager::getInstance().getOledBright();
+
+  // Check if brightness has changed
+  if (oldOledBright != oledBright) {
+    if (oledBright) {
+      // Set the new brightness
+      display->setBrightness(2*oledBright);
+    } else {
+      // Turn off the display if brightness is 0
+      displayTurnOff();
+    }
+    // Save the brightness value
+    oldOledBright = oledBright;
+  }
+
+  if (oledBright) {
+    // Update the UI if screen is on
     ui->update();
+  }
 }
 
 void displayTurnOff()
 {
   display->displayOff();
+  oldOledBright = 0;
 }
 
 void displayNextFrame() {

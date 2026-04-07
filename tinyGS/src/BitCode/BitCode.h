@@ -20,45 +20,19 @@
 #ifndef BITCODE_H
 #define BITCODE_H
 #include <stdint.h> //uint8_t
+#include <stdio.h> 
 
 class BitCode{
     public:
-//////////////////////////////////////////////////////////////////////
-//         BYTE
-//    8 7 6 5 4 3 2 1   <-- POSICION
-//////////////////////////////////////////////////////////////////////
+
 static uint8_t read_bit_from_byte(uint8_t byte, int posicion_bit);
-//////////////////////////////////////////////////////////////////////
-static uint8_t char2hexValue(uint8_t caracter);
-//////////////////////////////////////////////////////////////////////
-static uint8_t compone_byte_en_hexadecimal(uint8_t msc, uint8_t lsc);
-//////////////////////////////////////////////////////////////////////
-static size_t stringSize(char *cadena);
-//////////////////////////////////////////////////////////////////////
-static int nrz2nrzi (char *cadena_nrz, size_t size, char *salida, uint8_t *salidabin);
-//////////////////////////////////////////////////////////////////////
-static void vuelca_byte_buffer(uint8_t byte);
-//////////////////////////////////////////////////////////////////////
+static int nrz2nrzi (uint8_t *entrada, size_t sizeEntrada, uint8_t *salida, size_t *sizeSalida);
 static void write_bit_on_byte(uint8_t *byte, int k, int dato);
-//////////////////////////////////////////////////////////////////////
-static int remove_bit_stuffing (char *cadena_nrzi, size_t sizeCadena, char *salida, size_t *sizeSalida,uint8_t *salidabin, size_t *bini);
-//////////////////////////////////////////////////////////////////////
+static int remove_bit_stuffing (uint8_t *entrada, size_t sizeEntrada, uint8_t *salidabin, size_t *sizeSalida);
 static void invierte_bits_de_un_byte(uint8_t br, uint8_t *bs);
-//////////////////////////////////////////////////////////////////////
-static void invierte_bytes_de_un_array(char *entrada,size_t size,char *salida, uint8_t *salidabin, size_t *bini);
-//////////////////////////////////////////////////////////////////////
-static void nrz2ax25(char *entrada, size_t buffSize, char *salida, uint8_t *salidabin,size_t *sizeAx25bin);
-//////////////////////////////////////////////////////////////////////
-static int crc_check(char *ax25inv);
-//////////////////////////////////////////////////////////////////////
-static void crc_ones(unsigned char *crc);
-//////////////////////////////////////////////////////////////////////
-static void set_bit_on_CRC(unsigned char *crc, int bit_position, int bit_value);
-//////////////////////////////////////////////////////////////////////
-static void shift_one_bit_on_CRC_to_left(unsigned char *crc);
-//////////////////////////////////////////////////////////////////////
-static void xor_bit_on_byte(unsigned char *byte, int k, int dato);
-//////////////////////////////////////////////////////////////////////
-static void xor_bit_on_CRC(unsigned char *crc, int bit_position, int bit_value);
+static void invierte_bytes_de_un_array(uint8_t *entrada, size_t sizeEntrada, uint8_t *salida, size_t *sizeSalida);
+static int nrz2ax25(uint8_t *entrada, size_t sizeEntrada,  uint8_t *ax25bin, size_t *sizeAx25bin, uint8_t framing);
+static int pn9(uint8_t *entrada, size_t sizeEntrada, uint8_t *salida);
+static int descram1712(uint8_t *entrada, size_t sizeEntrada, uint8_t *salida);
 };
 #endif
