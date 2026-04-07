@@ -24,7 +24,7 @@
 #include <SPI.h>
 #include <Wire.h>
 
-#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32C6)
 #include <esp_eth_mac.h>
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -70,6 +70,8 @@ void ConfigStore::initBoardTable() {
 #elif CONFIG_IDF_TARGET_ESP32C3
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1262, 8, UNUSED_PIN, 3, 4, 5, 6, 7, 10, 1.6f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC LORA32 HT-CT62 SX1262"};
   _boards[i++] = {0x3c, 0, 1, UNUSED_PIN, 20, 21, RADIO_SX1278, 8, 4, UNUSED_PIN, UNUSED_PIN, 5, 6, 7, 10, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-C3 433MHz SX1278"};
+#elif CONFIG_IDF_TARGET_ESP32C6
+  _boards[i++] = {0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0, UNUSED_PIN, 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, 0.0f, UNUSED_PIN, UNUSED_PIN, "Custom ESP32-C6 (no radio)"};
 #else
   _boards[i++] = {0x3c, 4, 15, 16, 0, 25, RADIO_SX1278, 18, 26, 12, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "433MHz HELTEC WiFi LoRA 32 V1"};
   _boards[i++] = {0x3c, 4, 15, 16, 0, 25, RADIO_SX1276, 18, 26, 12, UNUSED_PIN, 14, 19, 27, 5, 0.0f, UNUSED_PIN, UNUSED_PIN, "863-928MHz HELTEC WiFi LoRA 32 V1"};
@@ -1062,7 +1064,7 @@ static bool probeRadio(const board_t &b) {
   return found;
 }
 
-#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32C6)
 // Minimal no-op mediator stubs — MAC init() requires a non-NULL mediator
 // (it calls eth->on_state_changed() internally).  For a probe-only flow we
 // don't route frames or PHY interrupts so all callbacks can be no-ops.
@@ -1188,7 +1190,7 @@ static bool probeInternalEmac(uint8_t mdcPin, uint8_t mdioPin, uint8_t phyAddr, 
   }
   return found;
 }
-#endif // !ESP32S3 && !ESP32C3
+#endif // !ESP32S3 && !ESP32C3 && !ESP32C6
 
 // ---------------------------------------------------------------------------
 // boardDetection() — probes hardware to auto-select the board configuration.
@@ -1235,7 +1237,7 @@ void ConfigStore::boardDetection() {
   _boardTemplate[0] = '\0';
   _currentBoardDirty = true;
 
-#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32C6)
   if (strcmp(ESP.getChipModel(), "ESP32-PICO-D4") == 0)
     return;
 #endif
@@ -1356,7 +1358,7 @@ void ConfigStore::boardDetection() {
 #endif
     } else {
       // Internal EMAC (LAN8720, etc.)
-#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3)
+#if !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32C6)
       LOG_CONSOLE(PSTR("Probing %s (EMAC MDC=%u MDIO=%u PHYaddr=%d)..."),
                   _boards[ite].BOARD.c_str(),
                   _boards[ite].ethMDC,

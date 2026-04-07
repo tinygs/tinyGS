@@ -138,8 +138,8 @@ struct board_t {
 // Use the Arduino HSPI macro so the value is always correct per target.
 // WARNING: do NOT hardcode 2 here — on S3 bus 2 is invalid and silently
 // maps to GPIO-matrix signal 0 (= internal flash bus), causing SPI failure.
-#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3
-  uint8_t L_SPI   = HSPI;     // 1 on S3/C3 = SPI3 hardware (same as Radio.cpp default)
+#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6
+  uint8_t L_SPI   = HSPI;     // 1 on S3/C3/C6 = SPI3 hardware (same as Radio.cpp default)
 #else
   uint8_t L_SPI   = VSPI;     // 3 on classic ESP32 = SPI3(VSPI) — matches Radio.cpp default
 #endif
