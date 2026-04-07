@@ -197,8 +197,8 @@ bool ConfigStore::init() {
     LOG_CONSOLE(PSTR(
         "[Migration] Config version not found in NVS namespace 'tinygs'."));
     LOG_CONSOLE(
-        PSTR("[Migration] Waiting 10 s for serial monitor to connect..."));
-    for (int _s = 10; _s > 0; _s--) {
+        PSTR("[Migration] Waiting 5 s for serial monitor to connect..."));
+    for (int _s = 5; _s > 0; _s--) {
       LOG_CONSOLE(PSTR("[Migration] Starting in %d s..."), _s);
       delay(1000);
     }

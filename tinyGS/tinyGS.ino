@@ -130,7 +130,7 @@ void setup()
   // Give the serial monitor time to connect before any important log output.
   // 3 s is enough for a human to open the monitor; the 10-s migration wait
   // is additive on top of this when a first-time migration is needed.
-  delay(5000);
+  delay(2000);
 
   // Initialize async logging early
   Log::initAsync();
