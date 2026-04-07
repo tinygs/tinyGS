@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["Build Firmware"]
     types: [completed]
-    branches: [beta]
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
