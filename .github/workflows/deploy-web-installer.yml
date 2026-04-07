@@ -4,7 +4,6 @@ on:
   workflow_run:
     workflows: ["Build Firmware"]
     types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
