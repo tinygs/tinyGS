@@ -184,7 +184,7 @@ jobs:
           else
             gh release create "$TAG" \
               --repo "${{ secrets.WEB_INSTALLER_REPO }}" \
-              --title "TinyGS ${TAG}" \
+              --title "${TAG}" \
               --notes "Automated firmware release ${TAG} from [tinyGS](https://github.com/${{ github.repository }}/releases/tag/${TAG})." \
               || echo "Release ${TAG} already exists in web installer, skipping"
           fi
