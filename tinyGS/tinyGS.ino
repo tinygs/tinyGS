@@ -425,6 +425,11 @@ void handleRawSerial()
         ESP.restart();
         break;
       case 'p':
+        if (!radio.isReady())
+        {
+          Log::console(PSTR("Radio is not initialized. Configure the board first."));
+          break;
+        }
         if (!configManager.getAllowTx())
         {
           Log::console(PSTR("Radio transmission is not allowed by config! Check your config on the web panel and make sure transmission is allowed by local regulations"));
