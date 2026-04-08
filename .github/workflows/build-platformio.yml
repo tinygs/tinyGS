@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [ESP32, ESP32-S3, ESP32-S3-USB, ESP32-C3, ESP32-LILYGO_SX1280]
+        env: [ESP32, ESP32-S3, ESP32-C3]
 
     steps:
       - name: Checkout repository
