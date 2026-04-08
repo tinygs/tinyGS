@@ -115,8 +115,6 @@ private:
   void processRxQueue();
   void sendRxFromQueue(const RxPacketMessage& msg);  // Envía paquete desde la cola
 
-  int  voltage();
-  
   //bool usingNewCert = true;
   SemaphoreHandle_t radioConfigMutex;
   QueueHandle_t rxQueue;
