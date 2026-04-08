@@ -67,6 +67,7 @@ jobs:
             ["ESP32"]="esp32"
             ["ESP32-S3"]="esp32_s3"
             ["ESP32-C3"]="esp32_c3"
+            ["ESP32-C6"]="esp32_c6"
           )
 
           for ENV in "${!CHIP_MAP[@]}"; do
@@ -93,17 +94,19 @@ jobs:
             ["ESP32"]="ESP32"
             ["ESP32-S3"]="ESP32-S3"
             ["ESP32-C3"]="ESP32-C3"
+            ["ESP32-C6"]="ESP32-C6"
           )
           declare -A CHIP_MAP=(
             ["ESP32"]="esp32"
             ["ESP32-S3"]="esp32_s3"
             ["ESP32-C3"]="esp32_c3"
+            ["ESP32-C6"]="esp32_c6"
           )
 
           # Build the builds array, only for binaries that actually exist
           BUILDS="["
           FIRST=true
-          for ENV in ESP32 ESP32-S3 ESP32-C3; do
+          for ENV in ESP32 ESP32-S3 ESP32-C3 ESP32-C6; do
             BIN="${CHIP_MAP[$ENV]}_${TAG}_merged.bin"
             if [[ -f "web_bin/${DIR}/${BIN}" ]]; then
               [[ "$FIRST" == "false" ]] && BUILDS+=","

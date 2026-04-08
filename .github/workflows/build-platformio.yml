@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [ESP32, ESP32-S3, ESP32-C3]
+        env: [ESP32, ESP32-S3, ESP32-C3, ESP32-C6]
 
     steps:
       - name: Checkout repository
@@ -57,6 +57,7 @@ jobs:
           BOOT_ADDR=0x1000
           if [[ "${{ matrix.env }}" == *"S3"* ]]; then CHIP=esp32s3; BOOT_ADDR=0x0; fi
           if [[ "${{ matrix.env }}" == *"C3"* ]]; then CHIP=esp32c3; BOOT_ADDR=0x0; fi
+          if [[ "${{ matrix.env }}" == *"C6"* ]]; then CHIP=esp32c6; BOOT_ADDR=0x0; fi
           BOOT_APP0=$(find ~/.platformio/packages -name "boot_app0.bin" -path "*/partitions/*" | head -1)
           python -m esptool --chip "$CHIP" merge_bin -o .pio/build/${{ matrix.env }}/firmware-full.bin \
             --flash_mode dio --flash_freq 40m --flash_size 4MB \
