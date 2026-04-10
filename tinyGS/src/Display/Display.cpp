@@ -69,6 +69,16 @@ void displayInit() {
     return;
   }
 
+
+    
+    #if CONFIG_IDF_TARGET_ESP32S3                                      // Heltec Lora 32 V3 patch to enable Vext that power OLED
+  if (ConfigStore::getInstance().getBoard()== HELTEC_LORA32_V3 ) { 
+      pinMode (36, OUTPUT); 
+      digitalWrite(36, LOW);
+      }
+  #endif
+  
+  
   // Pulse RST before probing — many boards (e.g. Heltec V1/V2) won't respond
   // on I2C until after the reset sequence.
   if (board.OLED__RST != UNUSED) {
