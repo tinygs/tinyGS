@@ -103,6 +103,16 @@ Radio& radio = Radio::getInstance();
 
 const char* ntpServer = "time.cloudflare.com";
 
+// -------------------------------------------------------------------------
+// Bootloop detection
+// RTC_DATA_ATTR survives software resets (crash/panic/abort/watchdog) but
+// is cleared on power-off, so it tracks crash-loop cycles without
+// permanently locking out a fresh power cycle.
+// -------------------------------------------------------------------------
+static constexpr uint8_t  BOOTLOOP_THRESHOLD = 5;   // consecutive crashes before rescue
+static constexpr uint32_t STABLE_MS          = 60000UL; // ms of uptime = stable
+RTC_DATA_ATTR static uint8_t s_bootCount = 0;
+
 // Global status
 Status status;
 
@@ -134,6 +144,21 @@ void setup()
 
   // Initialize async logging early
   Log::initAsync();
+
+  // -----------------------------------------------------------------------
+  // Bootloop detection: increment RTC counter on every boot.
+  // If we crash repeatedly before reaching STABLE_MS of uptime the counter
+  // accumulates across reboots.  On hitting the threshold we force rescue
+  // (failsafe) mode — radio init is skipped and only the WiFi AP + WebServer
+  // run so the user can correct the configuration.
+  // -----------------------------------------------------------------------
+  ++s_bootCount;
+  Log::console(PSTR("[Bootloop] Boot count: %d/%d"), (int)s_bootCount, (int)BOOTLOOP_THRESHOLD);
+  if (s_bootCount >= BOOTLOOP_THRESHOLD) {
+    Log::console(PSTR("[Bootloop] Bootloop detected! Forcing rescue mode."));
+    configStore.setFailSafe(true);
+    s_bootCount = 0; // reset so the boot after a config fix starts clean
+  }
 
   improvWiFi.setVersion(status.version);
   Log::console(PSTR("TinyGS Version %d - %s"), status.version, status.git_version);
@@ -340,6 +365,14 @@ void loop() {
   // Always process serial input (Improv provisioning + debug console)
   // regardless of connection state or failsafe mode.
   handleSerial();
+
+  // Reset the bootloop counter once the device has been running stably for
+  // STABLE_MS without crashing.  s_bootCount is 0 when failsafe is active
+  // (we reset it on threshold), so this block only fires in normal operation.
+  if (s_bootCount > 0 && millis() >= STABLE_MS) {
+    s_bootCount = 0;
+    Log::console(PSTR("[Bootloop] Stable operation confirmed. Boot counter reset."));
+  }
 
   if (configStore.isFailSafeActive()) {
     static bool updateAttempted = false;
