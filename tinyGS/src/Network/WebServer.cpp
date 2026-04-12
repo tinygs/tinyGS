@@ -226,7 +226,6 @@ String TinyGSWebServer::buildWorldMapSVG() {
   svg += "  <animate attributeName=\"r\" values=\"2;5;8\" dur=\"1s\" repeatCount=\"indefinite\" />";
   svg += "  <animate attributeName=\"opacity\" values=\"1;0.4;0\" dur=\"1s\" repeatCount=\"indefinite\" />";
   svg += "</circle>";
-  svg += "<circle cx=\"" + String(status.satPos[0] * 2 + 3) + "\" cy=\"" + String(status.satPos[1] * 2 + 3) + "\" r=\"2\" fill=\"#3b82f6\"/>";
   svg += "</svg></div>";
   return svg;
 }
