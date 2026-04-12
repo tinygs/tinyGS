@@ -308,16 +308,8 @@ void drawFrame5(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x,
       } // ramp up value
     }
 
-    display->fillCircle(status.satPos[0] + x, status.satPos[1] + y,
-                        graphVal + 1);
     display->setColor(WHITE);
     display->drawCircle(status.satPos[0] + x, status.satPos[1] + y, graphVal);
-    display->setColor(BLACK);
-    display->drawCircle(status.satPos[0] + x, status.satPos[1] + y,
-                        (graphVal / 3) + 1);
-    display->setColor(WHITE);
-    display->drawCircle(status.satPos[0] + x, status.satPos[1] + y,
-                        graphVal / 3);
   }
 }
 

@@ -707,7 +707,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
     memcpy(buff, payload, length);
     buff[length] = '\0';
 
-    StaticJsonDocument<768> doc;
+    StaticJsonDocument<1536> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
     if (error.code() != DeserializationError::Ok || !doc.containsKey("mode")) {
       LOG_CONSOLE_ASYNC(PSTR("ERROR: Your modem config is invalid. Resetting to default"));
@@ -729,7 +729,7 @@ void MQTT_Client::manageMQTTData(char* topic, uint8_t* payload, unsigned int len
   }
 
   if (!strcmp(command, commandBegine)) {
-    StaticJsonDocument<768> doc;
+    StaticJsonDocument<1536> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
     if (error.code() != DeserializationError::Ok || !doc.containsKey("mode")) {
       LOG_CONSOLE_ASYNC(PSTR("ERROR: The received modem configuration is invalid. Ignoring."));

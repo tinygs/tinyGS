@@ -470,7 +470,7 @@ int32_t ConnectionManager::getNetworkRSSI() const {
 
 void ConnectionManager::forceApMode(bool enable) {
   _apModeForced = enable;
-  if (enable) {
+  if (enable && !_ewm.isAPActive()) {
     setupAP();
   }
 }

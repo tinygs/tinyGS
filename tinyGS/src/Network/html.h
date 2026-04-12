@@ -66,14 +66,14 @@ const char IOTWEBCONF_CONFIG_STYLE_INNER[] PROGMEM = " fieldset[id='Board config
 
 // ---- Board Template Wizard: <dialog> + JS injected after the config form ----
 const char BOARD_WIZARD_HTML[] PROGMEM =
-  "<dialog id='bt-dlg' style='max-width:640px;width:95%;font-family:Arial;padding:20px;border-radius:8px;border:2px solid #888;box-shadow:0 4px 24px rgba(0,0,0,0.4)'>"
+  "<dialog id='bt-dlg' style='max-width:640px;width:95%;font-family:Arial;padding:20px;border-radius:8px;border:1px solid var(--border,#888);box-shadow:0 4px 24px rgba(0,0,0,0.4);background:var(--surface,#fff);color:var(--text,#0f172a)'>"
   "<h3 style='margin:0 0 4px'>Board Template Wizard</h3>"
-  "<p style='margin:0 0 10px;font-size:0.85em;color:#555'>Pin 255 = not used / N/A. Values are pre-filled from the current template when available.</p>"
+  "<p style='margin:0 0 10px;font-size:0.85em;color:var(--text2,#555)'>Pin 255 = not used / N/A. Values are pre-filled from the current template when available.</p>"
   "<div style='overflow-y:auto;max-height:62vh'>"
   "<table style='width:100%;border-collapse:collapse;font-size:0.88em'>"
   /* OLED header + enable row (same pattern as Ethernet) */
   "<tbody>"
-  "<tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>OLED Display</th></tr>"
+  "<tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>OLED Display</th></tr>"
   "<tr>"
   "<td style='padding:3px 5px'>Enable OLED</td>"
   "<td><input id='woled_en' type='checkbox' checked onchange='btOledTog()'></td>"
@@ -88,11 +88,11 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "<td style='padding:3px 5px'>RST&nbsp;(255=N/A)</td><td><input id='wd' type='number' value='255' min='0' max='255' style='width:68px'></td></tr>"
   "</tbody>"
   /* Board Pins */
-  "<tbody><tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>Board Pins</th></tr>"
+  "<tbody><tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>Board Pins</th></tr>"
   "<tr><td style='padding:3px 5px'>PROG Button</td><td><input id='we' type='number' value='39' min='0' max='255' style='width:68px'></td>"
   "<td style='padding:3px 5px'>Board LED</td><td><input id='wf' type='number' value='2' min='0' max='255' style='width:68px'></td></tr>"
   /* LoRa Radio header + model select */
-  "<tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>LoRa Radio</th></tr>"
+  "<tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>LoRa Radio</th></tr>"
   "<tr><td style='padding:3px 5px'>Radio model</td><td colspan='3'>"
   "<select id='wg' onchange='btRadioTog()' style='width:100%;padding:2px'>"
   "<option value='0'>None (disabled)</option>"
@@ -119,13 +119,18 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
 #if !defined(CONFIG_IDF_TARGET_ESP32C3)
   "<tr><td style='padding:3px 5px'>SPI Bus</td><td colspan='3'>"
   "<select id='wlspi' style='padding:2px'>"
-  "<option value='2'>SPI2 (default)</option>"
-  "<option value='3'>SPI3</option>"
+#if CONFIG_IDF_TARGET_ESP32S3
+  "<option value='0'>FSPI/SPI2</option>"
+  "<option value='1'>HSPI/SPI3 (default)</option>"
+#else
+  "<option value='2'>HSPI/SPI2 (default)</option>"
+  "<option value='3'>VSPI/SPI3</option>"
+#endif
   "</select></td></tr>"
 #endif
   "</tbody>"
   /* Ethernet */
-  "<tbody><tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>Ethernet (optional)</th></tr>"
+  "<tbody><tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>Ethernet (optional)</th></tr>"
   "<tr>"
   "<td style='padding:3px 5px'>Enable Ethernet</td>"
   "<td><input id='ws' type='checkbox' onchange='btEthTog()'></td>"
@@ -140,8 +145,13 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
 #if !defined(CONFIG_IDF_TARGET_ESP32C3)
   "<tr><td style='padding:3px 5px'>SPI Bus</td><td colspan='3'>"
   "<select id='wespi' style='padding:2px'>"
-  "<option value='2'>SPI2 (default)</option>"
-  "<option value='3'>SPI3</option>"
+#if CONFIG_IDF_TARGET_ESP32S3
+  "<option value='0'>FSPI/SPI2</option>"
+  "<option value='1'>HSPI/SPI3 (default)</option>"
+#else
+  "<option value='2'>HSPI/SPI2 (default)</option>"
+  "<option value='3'>VSPI/SPI3</option>"
+#endif
   "</select></td></tr>"
 #endif
   "<tr><td style='padding:3px 5px'>CS</td><td><input id='wu' type='number' value='255' min='0' max='255' style='width:68px'></td>"
@@ -169,7 +179,7 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "</table></div>"
   "<div style='margin-top:14px;display:flex;gap:8px'>"
   "<button type='button' onclick='btWzApply()' style='background:#27ae60;color:#fff;padding:8px 18px;border:none;border-radius:4px;cursor:pointer;font-size:0.95em'>&#10003;&nbsp;Apply to Board Template</button>"
-  "<button type='button' onclick='btWzCancel()' style='padding:8px 18px;border-radius:4px;cursor:pointer;font-size:0.95em'>Cancel</button>"
+  "<button type='button' onclick='btWzCancel()' style='padding:8px 18px;border-radius:4px;cursor:pointer;font-size:0.95em;background:var(--surface2,#f1f5f9);color:var(--text,#0f172a);border:1px solid var(--border,#ccc)'>Cancel</button>"
   "</div></dialog>"
   "<script>"
   "function btOledTog(){"
@@ -213,7 +223,11 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "sv('wl',gv('lRST',14));sv('wm',gv('lMISO',19));sv('wn',gv('lMOSI',27));sv('wo',gv('lSCK',5));"
   "sv('wp',gv('lTCXOV',0));sv('wq',gv('RXEN',255));sv('wr',gv('TXEN',255));"
 #if !defined(CONFIG_IDF_TARGET_ESP32C3)
+#if CONFIG_IDF_TARGET_ESP32S3
+  "sv('wlspi',gv('lSPI',1));"
+#else
   "sv('wlspi',gv('lSPI',2));"
+#endif
 #endif
   "}"
   "var en=gv('ethEN',false);document.getElementById('ws').checked=en;"
@@ -230,12 +244,56 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "sv('wu',gv('ethCS',255));sv('wv',gv('ethINT',255));"
   "sv('ww',gv('ethRST',255));sv('wx',gv('ethMISO',255));sv('wy',gv('ethMOSI',255));sv('wz',gv('ethSCK',255));"
 #if !defined(CONFIG_IDF_TARGET_ESP32C3)
+#if CONFIG_IDF_TARGET_ESP32S3
+  "sv('wespi',gv('ethSPI',1));"
+#else
   "sv('wespi',gv('ethSPI',2));"
+#endif
 #endif
   "}}"
   "}"
   "btOledTog();btRadioTog();btEthTog();"
   "document.getElementById('bt-dlg').showModal();}"
+  /* Mirror of btWzApply's object-building logic operating on a boardDefaults
+     entry instead of form fields. Used to detect when the wizard output is
+     identical to the predefined board, so we avoid storing a redundant
+     custom template in NVS. Key insertion order must match btWzApply exactly
+     so that JSON.stringify comparison works without sorting. */
+  "function buildBoardObj(d){"
+  "var ni=Number,fi=parseFloat,o={};"
+  "var oledDis=(d.aADDR===0);"
+  "if(oledDis){o.aADDR=0;o.oSDA=255;o.oSCL=255;}"
+  "else{o.aADDR=ni(d.aADDR);o.oSDA=ni(d.oSDA);o.oSCL=ni(d.oSCL);"
+  "var oR=ni(d.oRST);if(oR!==255)o.oRST=oR;}"
+  "o.pBut=ni(d.pBut);o.led=ni(d.led);"
+  "var radioDis=(d.radio===0);"
+  "if(radioDis){o.radio=0;o.lNSS=255;o.lDIO0=255;o.lDIO1=255;"
+  "o.lBUSSY=255;o.lRST=255;o.lMISO=255;o.lMOSI=255;o.lSCK=255;o.lTCXOV=0;}"
+  "else{o.radio=ni(d.radio);o.lNSS=ni(d.lNSS);o.lDIO0=ni(d.lDIO0);o.lDIO1=ni(d.lDIO1);"
+  "o.lBUSSY=ni(d.lBUSSY);o.lRST=ni(d.lRST);o.lMISO=ni(d.lMISO);o.lMOSI=ni(d.lMOSI);"
+  "o.lSCK=ni(d.lSCK);o.lTCXOV=fi(d.lTCXOV);"
+  "var rx=ni(d.RXEN);if(rx!==255)o.RXEN=rx;"
+  "var tx=ni(d.TXEN);if(tx!==255)o.TXEN=tx;"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "o.lSPI=ni(d.lSPI);"
+#endif
+  "}"
+  "if(d.ethEN){var phy=ni(d.ethPHY);o.ethEN=true;o.ethPHY=phy;"
+  "if(phy===255){"
+#if defined(CONFIG_IDF_TARGET_ESP32)
+  "o.ethMDC=ni(d.ethMDC);o.ethMDIO=ni(d.ethMDIO);"
+  "o.ethPhyAddr=ni(d.ethPhyAddr);o.ethPhyType=ni(d.ethPhyType);"
+  "o.ethRefClk=ni(d.ethRefClk);o.ethClkExt=d.ethClkExt;"
+  "var er=ni(d.ethPhyRST);if(er!==255)o.ethPhyRST=er;"
+  "var eo=ni(d.ethOscEN);if(eo!==255)o.ethOscEN=eo;"
+#endif
+  "}else{o.ethCS=ni(d.ethCS);o.ethINT=ni(d.ethINT);o.ethRST=ni(d.ethRST);"
+  "o.ethMISO=ni(d.ethMISO);o.ethMOSI=ni(d.ethMOSI);o.ethSCK=ni(d.ethSCK);"
+#if !defined(CONFIG_IDF_TARGET_ESP32C3)
+  "o.ethSPI=ni(d.ethSPI);"
+#endif
+  "}}"
+  "return o;}"
   "function btWzApply(){"
   "var ni=Number,fi=parseFloat,v=function(i){return document.getElementById(i).value;};"
   "var oledDis=!document.getElementById('woled_en').checked;"
@@ -284,8 +342,11 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "alert('Radio y Ethernet comparten el mismo bus SPI.\\nNSS (radio) y CS (ethernet) deben ser pines diferentes.');"
   "return;}"
   "}}"
-  "document.getElementById('board_template').value=JSON.stringify(o);"
-  "document.getElementById('tpl_dirty').value='1';"
+  "var _bi=parseInt(document.getElementById('board').value);"
+  "var _bd=(typeof boardDefaults!=='undefined'&&boardDefaults[_bi])||null;"
+  "var _match=_bd&&JSON.stringify(o)===JSON.stringify(buildBoardObj(_bd));"
+  "document.getElementById('board_template').value=_match?'':JSON.stringify(o);"
+  "document.getElementById('tpl_dirty').value=_match?'0':'1';"
   "document.getElementById('bt-dlg').close();}"
   "</script>";
 

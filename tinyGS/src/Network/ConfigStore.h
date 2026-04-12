@@ -40,7 +40,7 @@ constexpr auto MQTT_PORT_LENGTH = 6;
 constexpr auto MQTT_USER_LENGTH = 31;
 constexpr auto MQTT_PASS_LENGTH = 31;
 constexpr auto TEMPLATE_LEN = 768;
-constexpr auto MODEM_LEN = 256;
+constexpr auto MODEM_LEN = 512;
 constexpr auto ADVANCED_LEN = 256;
 constexpr auto AP_PASSWORD_LENGTH = 32;
 constexpr auto WIFI_SSID_LENGTH = 33;
@@ -181,6 +181,7 @@ typedef struct {
   bool flipOled  = true;
   bool dnOled    = true;
   bool lowPower  = false;
+  bool testCrash = false; // set via {"testCrash":1} in Advanced Config to test bootloop detection
 } AdvancedConfig;
 
 // Board name/length constants are defined in html.h (which is included above)
@@ -237,6 +238,7 @@ public:
 
   // ---- Board ----
   uint8_t     getBoard()             const { return (uint8_t)atoi(_board); }
+  const char* getBoardRaw()          const { return _board; }
   void        setBoard(const char* v);
   uint8_t     getOledBright()        const { return (uint8_t)atoi(_oledBright); }
   void        setOledBright(const char* v);
@@ -259,6 +261,7 @@ public:
   bool        getFlipOled()          const { return _advConf.flipOled; }
   bool        getDayNightOled()      const { return _advConf.dnOled; }
   bool        getLowPower()          const { return _advConf.lowPower; }
+  bool        getTestCrash()         const { return _advConf.testCrash; }
   bool        getDisableOled()       const { return !strcmp(_disableOled, "selected"); }
   bool        getDisableRadio()      const { return !strcmp(_disableRadio, "selected"); }
   bool        getAlwaysAP()          const { return !strcmp(_alwaysAP, "selected"); }

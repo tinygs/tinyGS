@@ -1418,6 +1418,8 @@ void ConfigStore::parseAdvancedConf() {
     _advConf.dnOled = doc["dnOled"];
   if (doc.containsKey(F("lowPower")))
     _advConf.lowPower = doc["lowPower"];
+  if (doc.containsKey(F("testCrash")))
+    _advConf.testCrash = (bool)doc["testCrash"];
 }
 
 // ============================================================
@@ -1428,7 +1430,7 @@ void ConfigStore::parseModemStartup() {
   if (_modemStartup[0] == '\0')
     return;
 
-  StaticJsonDocument<768> doc;
+  StaticJsonDocument<1536> doc;
   DeserializationError error =
       deserializeJson(doc, (const char *)_modemStartup);
 
