@@ -66,14 +66,14 @@ const char IOTWEBCONF_CONFIG_STYLE_INNER[] PROGMEM = " fieldset[id='Board config
 
 // ---- Board Template Wizard: <dialog> + JS injected after the config form ----
 const char BOARD_WIZARD_HTML[] PROGMEM =
-  "<dialog id='bt-dlg' style='max-width:640px;width:95%;font-family:Arial;padding:20px;border-radius:8px;border:2px solid #888;box-shadow:0 4px 24px rgba(0,0,0,0.4)'>"
+  "<dialog id='bt-dlg' style='max-width:640px;width:95%;font-family:Arial;padding:20px;border-radius:8px;border:1px solid var(--border,#888);box-shadow:0 4px 24px rgba(0,0,0,0.4);background:var(--surface,#fff);color:var(--text,#0f172a)'>"
   "<h3 style='margin:0 0 4px'>Board Template Wizard</h3>"
-  "<p style='margin:0 0 10px;font-size:0.85em;color:#555'>Pin 255 = not used / N/A. Values are pre-filled from the current template when available.</p>"
+  "<p style='margin:0 0 10px;font-size:0.85em;color:var(--text2,#555)'>Pin 255 = not used / N/A. Values are pre-filled from the current template when available.</p>"
   "<div style='overflow-y:auto;max-height:62vh'>"
   "<table style='width:100%;border-collapse:collapse;font-size:0.88em'>"
   /* OLED header + enable row (same pattern as Ethernet) */
   "<tbody>"
-  "<tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>OLED Display</th></tr>"
+  "<tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>OLED Display</th></tr>"
   "<tr>"
   "<td style='padding:3px 5px'>Enable OLED</td>"
   "<td><input id='woled_en' type='checkbox' checked onchange='btOledTog()'></td>"
@@ -88,11 +88,11 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "<td style='padding:3px 5px'>RST&nbsp;(255=N/A)</td><td><input id='wd' type='number' value='255' min='0' max='255' style='width:68px'></td></tr>"
   "</tbody>"
   /* Board Pins */
-  "<tbody><tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>Board Pins</th></tr>"
+  "<tbody><tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>Board Pins</th></tr>"
   "<tr><td style='padding:3px 5px'>PROG Button</td><td><input id='we' type='number' value='39' min='0' max='255' style='width:68px'></td>"
   "<td style='padding:3px 5px'>Board LED</td><td><input id='wf' type='number' value='2' min='0' max='255' style='width:68px'></td></tr>"
   /* LoRa Radio header + model select */
-  "<tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>LoRa Radio</th></tr>"
+  "<tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>LoRa Radio</th></tr>"
   "<tr><td style='padding:3px 5px'>Radio model</td><td colspan='3'>"
   "<select id='wg' onchange='btRadioTog()' style='width:100%;padding:2px'>"
   "<option value='0'>None (disabled)</option>"
@@ -125,7 +125,7 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
 #endif
   "</tbody>"
   /* Ethernet */
-  "<tbody><tr><th colspan='4' style='background:#2980b9;color:#fff;padding:5px 6px;text-align:left'>Ethernet (optional)</th></tr>"
+  "<tbody><tr><th colspan='4' style='background:var(--accent2,#2980b9);color:#fff;padding:5px 6px;text-align:left'>Ethernet (optional)</th></tr>"
   "<tr>"
   "<td style='padding:3px 5px'>Enable Ethernet</td>"
   "<td><input id='ws' type='checkbox' onchange='btEthTog()'></td>"
@@ -169,7 +169,7 @@ const char BOARD_WIZARD_HTML[] PROGMEM =
   "</table></div>"
   "<div style='margin-top:14px;display:flex;gap:8px'>"
   "<button type='button' onclick='btWzApply()' style='background:#27ae60;color:#fff;padding:8px 18px;border:none;border-radius:4px;cursor:pointer;font-size:0.95em'>&#10003;&nbsp;Apply to Board Template</button>"
-  "<button type='button' onclick='btWzCancel()' style='padding:8px 18px;border-radius:4px;cursor:pointer;font-size:0.95em'>Cancel</button>"
+  "<button type='button' onclick='btWzCancel()' style='padding:8px 18px;border-radius:4px;cursor:pointer;font-size:0.95em;background:var(--surface2,#f1f5f9);color:var(--text,#0f172a);border:1px solid var(--border,#ccc)'>Cancel</button>"
   "</div></dialog>"
   "<script>"
   "function btOledTog(){"
