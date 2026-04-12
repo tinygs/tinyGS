@@ -144,5 +144,6 @@ int main(int /*argc*/, char** /*argv*/)
     RUN_TEST(test_esp32s3_EBYTE_EoRa_LR1121);   // Fase 1 — bus invertido  → PASS
 
     UNITY_END();
+    print_board_table("ESP32-S3", esp32s3::boards, esp32s3::NUM_BOARDS);
     return 0;
 }

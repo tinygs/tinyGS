@@ -239,5 +239,6 @@ int main(int /*argc*/, char** /*argv*/)
     RUN_TEST(test_esp32_WT32_ETH01);                  // PASS — Fase 2 ETH
 
     UNITY_END();
+    print_board_table("ESP32", esp32::boards, esp32::NUM_BOARDS);
     return 0;
 }

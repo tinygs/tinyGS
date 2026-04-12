@@ -24,6 +24,7 @@
  */
 
 #pragma once
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 
@@ -356,3 +357,62 @@ static const BoardDef boards[] = {
 static constexpr int NUM_BOARDS = static_cast<int>(sizeof(boards) / sizeof(boards[0]));
 
 } // namespace esp32c3
+
+// ---------------------------------------------------------------------------
+//  ESP32-C6
+// ---------------------------------------------------------------------------
+namespace esp32c6 {
+
+static const BoardDef boards[] = {
+    // idx 0  Custom ESP32-C6 — no OLED, no ETH, no radio
+    // No probe can positively identify this board; it is selected as the
+    // only entry in the table (Phase 2b radio-only fallback with all
+    // UNUSED_PIN — matches itself trivially).
+    { 0, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, false,
+      RT_NONE, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN, UNUSED_PIN,
+      "Custom ESP32-C6 (no radio)"                                          },
+};
+
+static constexpr int NUM_BOARDS = static_cast<int>(sizeof(boards) / sizeof(boards[0]));
+
+} // namespace esp32c6
+
+// ---------------------------------------------------------------------------
+//  Detection summary table
+// ---------------------------------------------------------------------------
+
+/**
+ * Prints a four-column detection summary table:
+ *   Processor | Idx | Board name | Detected as
+ *
+ * Call this at the end of each test suite's main() for a quick visual
+ * confirmation that the algorithm resolves every board correctly.
+ */
+static void print_board_table(const char* chip, const BoardDef* boards, int n) {
+    const int W_CHIP = 9;   // "ESP32-S3" = 8 chars
+    const int W_IDX  = 3;   // up to 2 digits
+    const int W_NAME = 55;  // longest name ~55 chars
+
+    // Header
+    printf("\n%-*s | %*s | %-*s | %s\n",
+           W_CHIP, "Processor",
+           W_IDX,  "Idx",
+           W_NAME, "Board name",
+           "Detected as");
+
+    // Separator
+    const int sep_len = W_CHIP + 3 + W_IDX + 3 + W_NAME + 3 + W_NAME;
+    for (int c = 0; c < sep_len; c++) putchar('-');
+    putchar('\n');
+
+    for (int i = 0; i < n; i++) {
+        int det = detect_board(boards, n, boards[i]);
+        const char* det_name = (det >= 0) ? boards[det].name : "(not detected)";
+        printf("%-*s | %*d | %-*s | %s\n",
+               W_CHIP, chip,
+               W_IDX,  i,
+               W_NAME, boards[i].name,
+               det_name);
+    }
+    putchar('\n');
+}

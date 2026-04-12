@@ -107,5 +107,6 @@ int main(int /*argc*/, char** /*argv*/)
     RUN_TEST(test_esp32c3_Custom_C3_SX1278);        // Fase 1 — OLED+SX127X → PASS
 
     UNITY_END();
+    print_board_table("ESP32-C3", esp32c3::boards, esp32c3::NUM_BOARDS);
     return 0;
 }

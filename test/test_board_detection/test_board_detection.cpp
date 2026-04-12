@@ -94,7 +94,7 @@ void test_esp32_table_size_consistent() {
     TEST_ASSERT_EQUAL_INT(24, esp32::NUM_BOARDS);
 }
 void test_esp32s3_table_size_consistent() {
-    TEST_ASSERT_EQUAL_INT(7, esp32s3::NUM_BOARDS);
+    TEST_ASSERT_EQUAL_INT(8, esp32s3::NUM_BOARDS);
 }
 void test_esp32c3_table_size_consistent() {
     TEST_ASSERT_EQUAL_INT(2, esp32c3::NUM_BOARDS);
