@@ -733,8 +733,10 @@ esp_err_t TinyGSWebServer::handleConfig(httpd_req_t* req) {
     s += F("<fieldset id='Board config'><legend>Board config</legend>");
     s += F("<div><label for='board'>Board type</label>");
     s += F("<select id='board' name='board' onchange=\"document.getElementById('tpl_dirty').value='0'\">");
+    // Board is "auto-detect pending" when the stored board string is empty.
+    bool boardIsEmpty = (cfg.getBoardRaw()[0] == '\0');
     for (uint8_t i = 0; i < cfg.getBoardCount(); i++) {
-      bool selected = (cfg.getBoard() == i);
+      bool selected = (!boardIsEmpty && cfg.getBoard() == i);
       s += F("<option value='");
       s += i;
       s += '\'';
@@ -743,6 +745,11 @@ esp_err_t TinyGSWebServer::handleConfig(httpd_req_t* req) {
       s += cfg.getBoardName(i);
       s += F("</option>");
     }
+    // Special entry: value 255 → clears board string on save → boardDetection()
+    // runs on next reboot and saves the detected index.
+    s += F("<option value='255'");
+    if (boardIsEmpty) s += F(" selected");
+    s += F(">&#128269; Auto-detect (next reboot)</option>");
     s += F("</select></div>");
     s += F("<div><label for='oled_bright'>OLED Bright</label>");
     s += F("<input type='number' id='oled_bright' name='oled_bright' min='0' max='100' step='1' value='");
@@ -983,7 +990,15 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
   cfg.setMqttUser(getFormVal("mqtt_user").c_str());
   cfg.setMqttPass(getFormVal("mqtt_pass").c_str());
 
-  cfg.setBoard(getFormVal("board").c_str());
+  // Board: value 255 = user requested auto-detect on next boot → clear board
+  // and template so ConfigStore::init() runs boardDetection().
+  String boardVal = getFormVal("board");
+  if (boardVal == "255") {
+    cfg.setBoard("");         // empty string triggers boardDetection() in init()
+    cfg.setBoardTemplate(""); // wipe any custom template
+  } else {
+    cfg.setBoard(boardVal.c_str());
+  }
   cfg.setOledBright(getFormVal("oled_bright").c_str());
 
   // Checkboxes: present in body = checked, absent = unchecked
@@ -1003,8 +1018,10 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
   // Advanced — only persist the board template when the user explicitly edited
   // it (tpl_dirty=1).  Merely changing the board dropdown must not make the
   // firmware think a custom template exists.
+  // Skip when board=255 (auto-detect): template was already cleared above.
   bool tplDirty = getFormVal("tpl_dirty") == "1";
-  cfg.setBoardTemplate(tplDirty ? getFormVal("board_template").c_str() : "");
+  if (boardVal != "255")
+    cfg.setBoardTemplate(tplDirty ? getFormVal("board_template").c_str() : "");
   cfg.setModemStartup(getFormVal("modem_startup").c_str());
   cfg.setAdvancedConfig(getFormVal("advanced_config").c_str());
 

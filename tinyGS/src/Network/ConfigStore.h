@@ -237,6 +237,7 @@ public:
 
   // ---- Board ----
   uint8_t     getBoard()             const { return (uint8_t)atoi(_board); }
+  const char* getBoardRaw()          const { return _board; }
   void        setBoard(const char* v);
   uint8_t     getOledBright()        const { return (uint8_t)atoi(_oledBright); }
   void        setOledBright(const char* v);
