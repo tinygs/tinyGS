@@ -70,10 +70,15 @@ void Radio::init()
   // L_SPI in board_t also uses these Arduino bus number macros.
   // On S3 FSPI=0, HSPI=1; on classic ESP32 HSPI=2, VSPI=3.
 #if CONFIG_IDF_TARGET_ESP32S3
-  if (board.L_SPI != HSPI) {   // FSPI=0 requested → switch to FSPI bus
+  // On S3: FSPI=0, HSPI=1.  Only bus 0 and 1 exist; any other value
+  // (e.g. 2) would create an invalid SPIClass whose mutex is never
+  // initialised, causing an xQueueSemaphoreTake assert on first use.
+  // Switch away from the default HSPI only when FSPI (0) is explicitly set.
+  if (board.L_SPI == FSPI) {
     spi.end();
-    spi = SPIClass(board.L_SPI);
+    spi = SPIClass(FSPI);
   }
+  // Any other value (including invalid 2) → keep default HSPI.
 #elif !defined(CONFIG_IDF_TARGET_ESP32C3)
   if (board.L_SPI == HSPI) {   // HSPI=2 requested on classic ESP32 → switch
     spi.end();
