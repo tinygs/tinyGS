@@ -1428,7 +1428,7 @@ void ConfigStore::parseModemStartup() {
   if (_modemStartup[0] == '\0')
     return;
 
-  StaticJsonDocument<768> doc;
+  StaticJsonDocument<1536> doc;
   DeserializationError error =
       deserializeJson(doc, (const char *)_modemStartup);
 

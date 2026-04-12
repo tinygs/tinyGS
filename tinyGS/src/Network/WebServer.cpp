@@ -823,7 +823,7 @@ esp_err_t TinyGSWebServer::handleConfig(httpd_req_t* req) {
     s += String("<input type='hidden' id='tpl_dirty' name='tpl_dirty' value='")
          + (cfg.getBoardTemplate()[0] ? "1" : "0") + "'>";
     s += F("<div><label for='modem_startup'>Modem startup</label>");
-    s += F("<input type='text' id='modem_startup' name='modem_startup' maxlength='255' placeholder='' value='");
+    s += F("<input type='text' id='modem_startup' name='modem_startup' maxlength='511' placeholder='' value='");
     s += cfg.getModemStartup();
     s += F("'></div>");
     s += F("<div><label for='advanced_config'>Advanced parameters</label>");
@@ -896,7 +896,7 @@ esp_err_t TinyGSWebServer::handleConfigPost(httpd_req_t* req) {
 
   // Read POST body
   int contentLen = req->content_len;
-  if (contentLen > 2048) contentLen = 2048;
+  if (contentLen > 4096) contentLen = 4096;
   char* buf = (char*)malloc(contentLen + 1);
   if (!buf) {
     httpd_resp_send_500(req);
