@@ -147,6 +147,10 @@ void Radio::init()
       moduleNameString="default SX1268";
   }
 
+  LOG_CONSOLE(PSTR("[Radio] Config: SPI %s CS=%d DIO0=%d DIO1=%d RST=%d BUSY=%d MISO=%d MOSI=%d SCK=%d bus=%d"),
+              moduleNameString, board.L_NSS, board.L_DI00, board.L_DI01, board.L_RST, board.L_BUSSY,
+              board.L_MISO, board.L_MOSI, board.L_SCK, board.L_SPI);
+
   if (board.L_radio == RADIO_LR1121)
   {
     rfswitch_pins[0] = RADIOLIB_LR11X0_DIO5;
