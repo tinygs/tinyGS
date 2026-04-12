@@ -181,6 +181,7 @@ typedef struct {
   bool flipOled  = true;
   bool dnOled    = true;
   bool lowPower  = false;
+  bool testCrash = false; // set via {"testCrash":1} in Advanced Config to test bootloop detection
 } AdvancedConfig;
 
 // Board name/length constants are defined in html.h (which is included above)
@@ -260,6 +261,7 @@ public:
   bool        getFlipOled()          const { return _advConf.flipOled; }
   bool        getDayNightOled()      const { return _advConf.dnOled; }
   bool        getLowPower()          const { return _advConf.lowPower; }
+  bool        getTestCrash()         const { return _advConf.testCrash; }
   bool        getDisableOled()       const { return !strcmp(_disableOled, "selected"); }
   bool        getDisableRadio()      const { return !strcmp(_disableRadio, "selected"); }
   bool        getAlwaysAP()          const { return !strcmp(_alwaysAP, "selected"); }

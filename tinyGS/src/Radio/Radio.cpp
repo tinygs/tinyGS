@@ -57,6 +57,13 @@ void Radio::init()
   if (!ConfigStore::getInstance().getBoardConfig(board))
     return;
 
+  // Bootloop test: abort() here to verify the NVS boot counter and failsafe.
+  // Activate via Advanced Config: {"testCrash":1}  — remove it to recover.
+  if (ConfigStore::getInstance().getTestCrash()) {
+    LOG_CONSOLE(PSTR("[SX12xx] testCrash active — calling abort() for bootloop test!"));
+    abort();
+  }
+
   if (board.L_radio == 0) {
     LOG_CONSOLE(PSTR("[SX12xx] Radio disabled (radio=0). Skipping init."));
     return;

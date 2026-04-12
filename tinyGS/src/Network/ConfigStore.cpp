@@ -1418,6 +1418,8 @@ void ConfigStore::parseAdvancedConf() {
     _advConf.dnOled = doc["dnOled"];
   if (doc.containsKey(F("lowPower")))
     _advConf.lowPower = doc["lowPower"];
+  if (doc.containsKey(F("testCrash")))
+    _advConf.testCrash = (bool)doc["testCrash"];
 }
 
 // ============================================================
