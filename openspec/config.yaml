@@ -8,6 +8,8 @@ schema: spec-driven
 #   context: |
 #     Designs and tasks must cover Windows, macOS, and Linux
 #     Write all artifacts in Spanish
+context: |
+  Write all OpenSpec artifacts (proposals, specs, design, tasks) in English.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
