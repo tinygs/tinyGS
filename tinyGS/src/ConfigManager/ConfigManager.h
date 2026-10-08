@@ -267,6 +267,7 @@ public:
       askForWeblogin = false;
       return asked;
   };
+  void checkScheduledRestart();
 
 private:
   class GSConfigHtmlFormatProvider : public iotwebconf2::HtmlFormatProvider
@@ -326,6 +327,7 @@ private:
   AdvancedConfig advancedConf;
   char savedThingName[IOTWEBCONF_WORD_LEN] = "";
   bool remoteSave = false;
+  unsigned long restartAt = 0;
   char latitude[COORDINATE_LENGTH] = "";
   char longitude[COORDINATE_LENGTH] = "";
   char tz[TZ_LENGTH] = "";
