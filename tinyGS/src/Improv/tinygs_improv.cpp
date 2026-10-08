@@ -74,8 +74,11 @@ bool TinyGSImprov::connectWifi (std::string ssid, std::string password) {
     uint8_t count = 0;
 
     WiFi.enableAP (false);
+    // Power the station off before applying credentials: an in-flight connection
+    // attempt makes the driver refuse the new configuration ("sta is connecting,
+    // cannot set config"), which is common right after boot.
+    WiFi.disconnect (true);
     WiFi.mode (WIFI_STA);
-    WiFi.disconnect ();
     WiFi.begin (ssid.c_str (), password.c_str ());
 
     while (WiFi.status () != WL_CONNECTED) {
