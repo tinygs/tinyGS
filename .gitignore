@@ -2,6 +2,9 @@
 
 .pio
 
+.cache/
+__pycache__/
+tests/hil/reports/
 scripts/
 tinyGS/tinyGS.ino.cpp
 tinyGS/idf_component.yml

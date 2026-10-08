@@ -385,8 +385,9 @@ void checkButton()
 void handleSerial () {
     while (Serial.available () > 0) {
         yield ();
+        improvWiFi.expirePartialFrame ();
         byte next = Serial.peek ();
-        if (next == 'I') {
+        if (next == 'I' || improvWiFi.isParsing ()) {
             improvWiFi.handleImprovPacket ();
         } else {
             handleRawSerial ();

@@ -10,6 +10,8 @@ const uint8_t IMPROV_BUFFER_SIZE = 128;
 class TinyGSImprov {
 public:
     void handleImprovPacket ();
+    bool isParsing () const { return improvBufferPosition > 0; }
+    void expirePartialFrame ();
     //void initImprovVersionInfo (uint32_t version);
     //void onConnected (onConnected_t callback);
     TinyGSImprov () : globalConfigManager (&ConfigManager::getInstance ()) {}
@@ -20,9 +22,11 @@ public:
 private:
 
     const uint8_t MAX_ATTEMPTS_WIFI_CONNECTION = 20;
+    const uint32_t PARTIAL_FRAME_TIMEOUT_MS = 100;
 
     uint8_t improvBuffer[IMPROV_BUFFER_SIZE];
     uint8_t improvBufferPosition = 0;
+    uint32_t improvLastByteAt = 0;
     uint32_t firmwareVersion;
     //onConnected_t onConnectedCb = NULL;
     ConfigManager* globalConfigManager; // Reference to singleton instance

@@ -210,17 +210,36 @@ bool TinyGSImprov::onCommandCallback (improv::ImprovCommand cmd) {
 
 void TinyGSImprov::onErrorCallback (improv::Error err) {}
 
+void TinyGSImprov::expirePartialFrame () {
+    if (improvBufferPosition > 0 &&
+        millis () - improvLastByteAt > PARTIAL_FRAME_TIMEOUT_MS) {
+        improvBufferPosition = 0;
+    }
+}
+
 void TinyGSImprov::handleImprovPacket () {
     while (Serial.available () > 0) {
         uint8_t b = Serial.read ();
+        improvLastByteAt = millis ();
 
         if (parse_improv_serial_byte (improvBufferPosition, b, improvBuffer,
                                       std::bind (&TinyGSImprov::onCommandCallback, this, _1),
                                       std::bind (&TinyGSImprov::onErrorCallback, this, _1)) &&
             (improvBufferPosition < IMPROV_BUFFER_SIZE)) { // Avoid buffer overflow
                 improvBuffer[improvBufferPosition++] = b;
+                // frame complete (10 bytes header+checksum plus payload): reset and
+                // hand the remaining bytes back to the serial dispatcher
+                if (improvBufferPosition >= 10 &&
+                    improvBufferPosition == 10 + improvBuffer[8]) {
+                    improvBufferPosition = 0;
+                    break;
+                }
+        } else if (b == 'I') {
+            improvBuffer[0] = b; // frame aborted mid-way: resync on a fresh magic byte
+            improvBufferPosition = 1;
         } else {
             improvBufferPosition = 0;
+            break; // not part of an improv frame: let the dispatcher handle it
         }
     }
 }
