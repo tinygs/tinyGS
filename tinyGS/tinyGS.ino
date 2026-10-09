@@ -276,6 +276,7 @@ unsigned long lastTleRefresh = millis();
 
 void loop() {  
     configManager.doLoop ();
+    configManager.checkScheduledRestart ();
     if (configManager.isFailSafeActive ())
   {
     static bool updateAttepted = false;

@@ -851,12 +851,23 @@ void ConfigManager::printConfig()
 //     }
 // }
 
+void ConfigManager::checkScheduledRestart()
+{
+  if (restartAt != 0 && millis() > restartAt)
+  {
+    ESP.restart();
+  }
+}
+
 void ConfigManager::configSavedCallback()
 {
   // If the station name changes we have to restart as it is considered a different station
   if (strcmp(getThingName(), savedThingName))
   {
-    ESP.restart();
+    // Deferred restart: the web console must deliver its confirmation page
+    // before the connection goes down (checkScheduledRestart in loop()).
+    const unsigned long RESTART_FLUSH_DELAY_MS = 1000;
+    restartAt = millis() + RESTART_FLUSH_DELAY_MS;
   }
 
   if (!remoteSave) // remote save is set to true when saving programatically, it's false if the callback comes from web
