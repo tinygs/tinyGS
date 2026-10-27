@@ -5,7 +5,8 @@
  * This file is intended to be #included inside a function body.
  * The enclosing function must provide:
  *   data_t *data        - the RS block (modified in place)
- *   int    *eras_pos    - erasure positions (or NULL)
+ *   int    *eras_pos    - erasure positions (or NULL); on return holds the
+ *                         corrected positions, so it needs NROOTS entries
  *   int     no_eras     - number of known erasures
  *   int     pad         - number of padding bytes (NN - block_length)
  *   int     retval      - receives error count (-1 = uncorrectable)
@@ -54,9 +55,10 @@
   lambda[0] = 1;
 
   if (no_eras > 0) {
-    lambda[1] = ALPHA_TO[MODNN(PRIM * (NN - 1 - eras_pos[0]))];
+    /* eras_pos is relative to the shortened block; add pad for the full codeword */
+    lambda[1] = ALPHA_TO[MODNN(PRIM * (NN - 1 - (eras_pos[0] + pad)))];
     for (i = 1; i < no_eras; i++) {
-      u = (data_t)MODNN(PRIM * (NN - 1 - eras_pos[i]));
+      u = (data_t)MODNN(PRIM * (NN - 1 - (eras_pos[i] + pad)));
       for (j = i + 1; j > 0; j--) {
         tmp = INDEX_OF[lambda[j - 1]];
         if (tmp != A0)
@@ -104,11 +106,12 @@
 
   /* convert lambda to index form; find degree el */
   el = 0;
-  for (i = 1; i <= NROOTS; i++) {
+  for (i = 0; i <= NROOTS; i++) {
     lambda[i] = INDEX_OF[lambda[i]];
-    if (lambda[i] != A0)
+    if (i > 0 && lambda[i] != A0)
       el = i;
   }
+  omega[NROOTS] = A0;
 
   /* --- Step 4: Chien search for roots --- */
   memcpy(&reg[1], &lambda[1], NROOTS * sizeof(reg[0]));
@@ -154,7 +157,7 @@
     }
     num2 = ALPHA_TO[MODNN(root[j] * (FCR - 1) + NN)];
     den  = 0;
-    for (i = (el < NROOTS - 1) ? el : NROOTS - 1; i >= 0; i -= 2) {
+    for (i = ((el < NROOTS - 1) ? el : NROOTS - 1) & ~1; i >= 0; i -= 2) {
       if (lambda[i + 1] != A0)
         den ^= ALPHA_TO[MODNN(lambda[i + 1] + i * root[j])];
     }
@@ -163,14 +166,20 @@
       goto finish;
     }
     if (num1 != 0) {
-      data[loc[j]] ^=
+      /* a root inside the virtual zero padding means a miscorrection */
+      if (loc[j] < pad) {
+        count = -1;
+        goto finish;
+      }
+      data[loc[j] - pad] ^=
           ALPHA_TO[MODNN(INDEX_OF[num1] + INDEX_OF[num2] + NN - INDEX_OF[den])];
     }
   }
 
+  /* caller's eras_pos must have room for NROOTS entries */
   if (eras_pos != NULL) {
     for (i = 0; i < count; i++)
-      eras_pos[i] = loc[i];
+      eras_pos[i] = loc[i] - pad;
   }
 
 finish:

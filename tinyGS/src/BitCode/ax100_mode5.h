@@ -37,7 +37,7 @@ extern "C" {
  *   -3 Golay uncorrectable
  *   -4 frame_len out of range
  *   -5 RS uncorrectable
- *   -6 input shorter than header + frame_len
+ *   -6 more than 3 trailing RS bytes missing from the input
  */
 int ax100_mode5_decode(const uint8_t *in, int in_len,
                        uint8_t *out, int *out_len,
