@@ -131,6 +131,12 @@ ConfigManager::ConfigManager()
   groupBoardConfig.addItem(&autoUpdateParam);
   addParameterGroup(&groupBoardConfig);
 
+  groupSensor.addItem(&sensorTxEnabledParam);
+  groupSensor.addItem(&sensorTypeParam);
+  groupSensor.addItem(&sensorPinParam);
+  groupSensor.addItem(&sensorTxIntervalParam);
+  addParameterGroup(&groupSensor);
+
   groupAdvanced.addItem(&boardTemplateParam);
   groupAdvanced.addItem(&modemParam);
   groupAdvanced.addItem(&advancedConfigParam);

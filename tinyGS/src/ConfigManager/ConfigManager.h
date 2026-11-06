@@ -50,6 +50,11 @@ constexpr auto MODEM_LEN = 256;
 constexpr auto ADVANCED_LEN = 256;
 constexpr auto CB_SELECTED_STR = "selected";
 
+constexpr auto SENSOR_TYPE_LENGTH = 2;
+constexpr auto SENSOR_TYPE_NAME_LENGTH = 10;
+static const char SENSOR_TYPE_VALUES[] = "0\0" "1\0";
+static const char SENSOR_TYPE_NAMES[] = "DHT11\0    " "DHT22\0    ";
+
 constexpr auto ROOT_URL = "/";
 //constexpr auto FAVICON_URL = "/favicon.png";
 constexpr auto LOGO_URL = "/logo.png";
@@ -182,6 +187,11 @@ public:
       allowTx[0] = '\0';
     this->saveConfig();
   }
+
+  bool getSensorTxEnabled() { return !strcmp(sensorTxEnabled, CB_SELECTED_STR); }
+  uint8_t getSensorPin() { return atoi(sensorPin); }
+  uint16_t getSensorTxInterval() { return atoi(sensorTxInterval); }
+  uint8_t getSensorType() { return atoi(sensorType); }
   const char *getModemStartup() { return modemStartup; }
   void setModemStartup(const char *modemStr)
   {
@@ -337,6 +347,10 @@ private:
   char telemetry3rd[CHECKBOX_LENGTH] = "";
   char testMode[CHECKBOX_LENGTH] = "";
   char autoUpdate[CHECKBOX_LENGTH] = "";
+  char sensorTxEnabled[CHECKBOX_LENGTH] = "";
+  char sensorPin[NUMBER_LEN] = "4";
+  char sensorTxInterval[NUMBER_LEN] = "10";
+  char sensorType[NUMBER_LEN] = "0";
   char boardTemplate[TEMPLATE_LEN] = "";
   char modemStartup[MODEM_LEN] = "";
   char advancedConfig[ADVANCED_LEN] = "";
@@ -360,6 +374,12 @@ private:
   iotwebconf2::CheckboxParameter telemetry3rdParam = iotwebconf2::CheckboxParameter("Allow sending telemetry to third party", "telemetry3rd", telemetry3rd, CHECKBOX_LENGTH, true);
   iotwebconf2::CheckboxParameter testParam = iotwebconf2::CheckboxParameter("Test mode", "test", testMode, CHECKBOX_LENGTH, false);
   iotwebconf2::CheckboxParameter autoUpdateParam = iotwebconf2::CheckboxParameter("Automatic Firmware Update", "auto_update", autoUpdate, CHECKBOX_LENGTH, true);
+
+  iotwebconf2::ParameterGroup groupSensor = iotwebconf2::ParameterGroup("Sensor config", "Sensor Configuration (DHT11/DHT22 for satellite uplink)");
+  iotwebconf2::CheckboxParameter sensorTxEnabledParam = iotwebconf2::CheckboxParameter("Enable Sensor TX to Satellite", "sensor_tx", sensorTxEnabled, CHECKBOX_LENGTH, false);
+  iotwebconf2::SelectParameter sensorTypeParam = iotwebconf2::SelectParameter("Sensor Type", "sensor_type", sensorType, SENSOR_TYPE_LENGTH, (char *)SENSOR_TYPE_VALUES, (char *)SENSOR_TYPE_NAMES, sizeof(SENSOR_TYPE_VALUES) / SENSOR_TYPE_LENGTH, SENSOR_TYPE_NAME_LENGTH);
+  iotwebconf2::NumberParameter sensorPinParam = iotwebconf2::NumberParameter("Sensor Data Pin (GPIO)", "sensor_pin", sensorPin, NUMBER_LEN, "4", "0..39", "min='0' max='39' step='1'");
+  iotwebconf2::NumberParameter sensorTxIntervalParam = iotwebconf2::NumberParameter("TX Interval (seconds)", "sensor_interval", sensorTxInterval, NUMBER_LEN, "10", "5..300", "min='5' max='300' step='1'");
 
   iotwebconf2::ParameterGroup groupAdvanced = iotwebconf2::ParameterGroup("Advanced config", "Advanced Config (do not modify unless you know what you are doing)");
   iotwebconf2::TextParameter boardTemplateParam = iotwebconf2::TextParameter("Board Template (requires manual restart)", "board_template", boardTemplate, TEMPLATE_LEN, NULL, NULL, "type=\"text\" maxlength=255");

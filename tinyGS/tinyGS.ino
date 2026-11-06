@@ -74,6 +74,7 @@
 #include "src/Mqtt/MQTT_Client.h"
 #include "src/Status.h"
 #include "src/Radio/Radio.h"
+#include "src/Sensor/Sensor.h"
 #include "src/ArduinoOTA/ArduinoOTA.h"
 #include "src/OTA/OTA.h"
 #include "src/Logger/Logger.h"
@@ -95,6 +96,7 @@
 ConfigManager& configManager = ConfigManager::getInstance();
 MQTT_Client& mqtt = MQTT_Client::getInstance();
 Radio& radio = Radio::getInstance ();
+Sensor& sensor = Sensor::getInstance();
 //TinyGSImprov improvWiFi = TinyGSImprov ();
 
 const char* ntpServer = "time.cloudflare.com";
@@ -108,12 +110,15 @@ void checkButton();
 void setupNTP ();
 void handleSerial ();
 void handleRawSerial ();
+void initSensor();
+void handleSensorTx();
 
 void configured()
 {
   configManager.setConfiguredCallback(NULL);
   configManager.printConfig();
   radio.init();
+  initSensor();
 }
 
 void wifiConnected()
@@ -341,6 +346,8 @@ void loop() {
       radio.tle();
   }
 
+  // Handle sensor TX to satellite
+  handleSensorTx();
 }
 
 
@@ -468,4 +475,59 @@ void printControls()
   Log::console (PSTR ("!w - ask for weblogin link"));
   Log::console (PSTR ("!o - get OTP code"));
   Log::console (PSTR ("------------------------------------"));
+}
+
+void initSensor()
+{
+  if (configManager.getSensorTxEnabled())
+  {
+    uint8_t sensorType = configManager.getSensorType() == 0 ? DHT11 : DHT22;
+    sensor.init(configManager.getSensorPin(), sensorType);
+    sensor.setEnabled(true);
+    sensor.setTxInterval(configManager.getSensorTxInterval());
+    Log::console(PSTR("[Sensor] Sensor TX enabled, interval: %d seconds"), configManager.getSensorTxInterval());
+  }
+  else
+  {
+    sensor.setEnabled(false);
+    Log::debug(PSTR("[Sensor] Sensor TX disabled"));
+  }
+}
+
+void handleSensorTx()
+{
+  if (!sensor.isEnabled() || !radio.isReady())
+    return;
+
+  if (!configManager.getAllowTx())
+    return;
+
+  if (strcmp(status.modeminfo.satellite, "Waiting") == 0)
+    return;
+
+  if (!sensor.shouldTransmit())
+    return;
+
+  char packet[64];
+  sensor.buildPacket(packet, sizeof(packet), configManager.getThingName());
+
+  if (packet[0] == '\0')
+  {
+    Log::debug(PSTR("[Sensor] Failed to build sensor packet"));
+    return;
+  }
+
+  radio.disableInterrupt();
+  int16_t result = radio.sendTx((uint8_t*)packet, strlen(packet));
+  radio.enableInterrupt();
+
+  if (result == 0)
+  {
+    Log::console(PSTR("[Sensor] TX: %s"), packet);
+    sensor.markTransmitted();
+  }
+  else
+  {
+    Log::error(PSTR("[Sensor] TX failed with error: %d"), result);
+  }
 }
