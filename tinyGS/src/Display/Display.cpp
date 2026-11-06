@@ -49,6 +49,11 @@ int graphVal = 1;
 int delta = 1;
 uint8_t oldOledBright = -1; // to force brightness update on first run
 
+// OLED auto-off: blank the screen after a configurable idle time, wake on button press
+unsigned long lastDisplayActivity = 0;
+bool displayBlanked = false;
+bool displayManualOff = false; // turned off with the display button: stays off until a button press
+
 void displayInit()
 {
   board_t board;
@@ -324,6 +329,7 @@ void displayShowInitialCredits()
 
 void displayShowApMode()
 {
+  displayWake(); // setup screens must always be visible
   display->clear();
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
@@ -336,6 +342,7 @@ void displayShowApMode()
 
 void displayShowStaMode(bool ap)
 {
+  displayWake(); // setup screens must always be visible
   display->clear();
   display->drawXbm(34, 0 , WiFi_Logo_width, WiFi_Logo_height, WiFi_Logo_bits);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
@@ -354,6 +361,24 @@ void displayUpdate()
 {
   // Get the current OLED brightness from configuration
   uint8_t oledBright = ConfigManager::getInstance().getOledBright();
+  uint16_t oledTimeout = ConfigManager::getInstance().getOledTimeout();
+
+  if (lastDisplayActivity == 0)
+    lastDisplayActivity = millis(); // start the idle timer when normal operation begins
+
+  if (displayBlanked) {
+    // Timeout disabled (0) or brightness changed in settings: bring the screen back
+    if ((!oledTimeout && !displayManualOff) || oldOledBright != oledBright)
+      displayWake();
+    else
+      return;
+  }
+  else if (oledBright && oledTimeout && millis() - lastDisplayActivity >= oledTimeout * 1000UL) {
+    Log::console(PSTR("OLED off after %u s idle, press a button to wake it"), oledTimeout);
+    display->displayOff();
+    displayBlanked = true;
+    return;
+  }
 
   // Check if brightness has changed
   if (oldOledBright != oledBright) {
@@ -378,6 +403,37 @@ void displayTurnOff()
 {
   display->displayOff();
   oldOledBright = 0;
+}
+
+bool displayWake()
+{
+  lastDisplayActivity = millis();
+  if (!displayBlanked || !display)
+    return false;
+
+  displayBlanked = false;
+  displayManualOff = false;
+  if (ConfigManager::getInstance().getOledBright()) {
+    display->displayOn();
+    oldOledBright = -1; // reapply brightness on the next displayUpdate
+  }
+  return true;
+}
+
+void displayToggle()
+{
+  if (!display)
+    return;
+  if (displayWake())
+    return;
+  display->displayOff();
+  displayBlanked = true;
+  displayManualOff = true;
+}
+
+void displayPrevFrame() {
+  if (ui)
+    ui->previousFrame();
 }
 
 void displayNextFrame() {

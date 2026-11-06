@@ -1,7 +1,7 @@
 /*
-  Sensor.h - Class to handle DHT11 sensor for satellite telemetry
+  Sensor.h - Class to handle DHT11/DHT22 sensor for satellite telemetry
 
-  Copyright (C) 2024 TinyGS contributors
+  Copyright (C) 2026 TinyGS contributors
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -22,9 +22,6 @@
 
 #include "Arduino.h"
 #include <DHT.h>
-#include "../Status.h"
-
-extern Status status;
 
 struct SensorData {
   float temperature;
@@ -41,25 +38,61 @@ public:
   }
 
   void init(uint8_t pin, uint8_t type = DHT11);
+  // Stop using the sensor and release its pin
+  void end();
   SensorData read();
+  // Periodically refreshes the cached reading so the dashboard has fresh data
+  void update();
   bool isEnabled() { return enabled; }
+  bool isInitialized() { return initialized; }
   void setEnabled(bool state) { enabled = state; }
   void setTxInterval(uint16_t intervalSeconds) { txInterval = intervalSeconds * 1000UL; }
+  unsigned long getTxInterval() { return txInterval; }
 
   bool shouldTransmit();
   void buildPacket(char* buffer, size_t bufferSize, const char* stationName);
-  void markTransmitted();
+  void markTransmitted(const char* packet);
+  void markTxFailed(int16_t error);
+  // Wait a full interval before the next attempt (e.g. after a read failure)
+  void deferTx() { lastTxMillis = millis(); }
+
+  // Dashboard status
+  uint8_t getPin() { return pin; }
+  uint8_t getType() { return type; }
+  const SensorData& getLastReading() { return lastReading; }
+  const char* getLastReadTime() { return lastReadTime; }
+  uint32_t getReadErrors() { return readErrors; }
+  uint32_t getTxCount() { return txCount; }
+  uint32_t getTxErrors() { return txErrors; }
+  int16_t getLastTxError() { return lastTxError; }
+  const char* getLastTxTime() { return lastTxTime; }
+  const char* getLastPacket() { return lastPacket; }
+  // Seconds until the next TX is due (0 if due now)
+  unsigned long getSecondsToNextTx();
 
 private:
-  Sensor() : dht(nullptr), enabled(false), lastTxTime(0), txInterval(10000) {}
+  Sensor() {}
   ~Sensor() { if (dht) delete dht; }
+  static void formatNow(char* buffer, size_t size);
 
-  DHT* dht;
-  bool enabled;
+  static constexpr unsigned long READ_INTERVAL_MS = 5000;
+
+  DHT* dht = nullptr;
+  bool enabled = false;
   bool initialized = false;
-  unsigned long lastTxTime;
-  unsigned long txInterval;
-  SensorData lastReading;
+  uint8_t pin = 0;
+  uint8_t type = DHT11;
+  unsigned long lastTxMillis = 0;
+  unsigned long lastReadMillis = 0;
+  unsigned long txInterval = 10000;
+  SensorData lastReading = {0, 0, false};
+  char lastReadTime[10] = "-";
+  uint32_t readErrors = 0;
+  uint32_t txCount = 0;
+  uint32_t txErrors = 0;
+  int16_t lastTxError = 0;
+  char lastTxTime[10] = "-";
+  char lastPacket[64] = "-";
 };
 
 #endif

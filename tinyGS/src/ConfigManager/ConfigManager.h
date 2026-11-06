@@ -54,6 +54,10 @@ constexpr auto SENSOR_TYPE_LENGTH = 2;
 constexpr auto SENSOR_TYPE_NAME_LENGTH = 10;
 static const char SENSOR_TYPE_VALUES[] = "0\0" "1\0";
 static const char SENSOR_TYPE_NAMES[] = "DHT11\0    " "DHT22\0    ";
+// Dashboard cards have a fixed height (.card{height:12em}) that fits 6 rows
+constexpr uint8_t SENSOR_STATUS_ROWS = 6;
+static const char *const SENSOR_STATUS_LABELS[SENSOR_STATUS_ROWS] = {
+    "Status", "Sensor", "Temp / Hum", "Last read", "TX ok / fail", "Next TX"};
 
 constexpr auto ROOT_URL = "/";
 //constexpr auto FAVICON_URL = "/favicon.png";
@@ -111,6 +115,7 @@ enum boardNum
   LILYGO_T3_V1_6_1_HF,
   LILYGO_T3_V1_6_1_HF_TCXO,
   TBEAM_SX1268_TCXO,
+  ESP32_LORA_RA01_LF, // IoT Connect "ESP32-LORA" rev 1.0: WROOM-32 + RA-01 (SX1278)
 #endif
   NUM_BOARDS //this line always has to be the last one
 };
@@ -136,6 +141,9 @@ struct board_t
   uint8_t RX_EN;
   uint8_t TX_EN;
   String BOARD;
+  // Optional extra active-low buttons (0xFF = not fitted): previous screen / OLED on-off
+  uint8_t BTN_PREV = 0xFF;
+  uint8_t BTN_DISPLAY = 0xFF;
 
   board_t() = default;
   board_t(uint8_t oled_addr, uint8_t oled_sda, uint8_t oled_scl, uint8_t oled_rst, uint8_t prog_btn, uint8_t board_led,
@@ -188,10 +196,20 @@ public:
     this->saveConfig();
   }
 
+  // Settings appended after an upgrade start out as empty/garbage bytes, so fall back to safe defaults
   bool getSensorTxEnabled() { return !strcmp(sensorTxEnabled, CB_SELECTED_STR); }
-  uint8_t getSensorPin() { return atoi(sensorPin); }
-  uint16_t getSensorTxInterval() { return atoi(sensorTxInterval); }
-  uint8_t getSensorType() { return atoi(sensorType); }
+  uint8_t getSensorPin() { return sensorPin[0] >= '0' && sensorPin[0] <= '9' ? atoi(sensorPin) : 4; }
+  uint16_t getSensorTxInterval() { int v = atoi(sensorTxInterval); return v < 5 ? 10 : (v > 300 ? 300 : v); }
+  uint8_t getSensorType() { return atoi(sensorType) == 1 ? 1 : 0; }
+  // True once after the config is saved, so the main loop can re-apply sensor settings
+  bool consumeSensorConfigChanged()
+  {
+    bool changed = sensorConfigChanged;
+    sensorConfigChanged = false;
+    return changed;
+  }
+  // Seconds of inactivity before the OLED blanks; 0 = always on
+  uint16_t getOledTimeout() { int v = atoi(oledTimeout); return v < 0 ? 0 : (v > 3600 ? 3600 : v); }
   const char *getModemStartup() { return modemStartup; }
   void setModemStartup(const char *modemStr)
   {
@@ -311,6 +329,7 @@ private:
   void handleRefreshWorldmap();
   void handleBoardTemplateRequest();
   void handleRestart();
+  void getSensorStatus(String values[SENSOR_STATUS_ROWS]);
   bool formValidator(iotwebconf2::WebRequestWrapper *);
   void boardDetection();
   void configSavedCallback();
@@ -354,7 +373,9 @@ private:
   char boardTemplate[TEMPLATE_LEN] = "";
   char modemStartup[MODEM_LEN] = "";
   char advancedConfig[ADVANCED_LEN] = "";
+  char oledTimeout[NUMBER_LEN] = "0";
   bool askForWeblogin = false;
+  volatile bool sensorConfigChanged = false;
 
   //iotwebconf2::NumberParameter latitudeParam = iotwebconf2::NumberParameter("Latitude (3 decimals, will be public)", "lat", latitude, COORDINATE_LENGTH, NULL, "0.000", "required min='-180' max='180' step='0.001'");
   iotwebconf2::NumberParameter latitudeParam = iotwebconf2::NumberParameter("Latitude (3 decimals, will be public)", "lat", latitude, COORDINATE_LENGTH, NULL, "0.000", "min='-180' max='180' step='0.001'");
@@ -385,6 +406,9 @@ private:
   iotwebconf2::TextParameter boardTemplateParam = iotwebconf2::TextParameter("Board Template (requires manual restart)", "board_template", boardTemplate, TEMPLATE_LEN, NULL, NULL, "type=\"text\" maxlength=255");
   iotwebconf2::TextParameter modemParam = iotwebconf2::TextParameter("Modem startup", "modem_startup", modemStartup, MODEM_LEN, "", "", "type=\"text\" maxlength=255");
   iotwebconf2::TextParameter advancedConfigParam = iotwebconf2::TextParameter("Advanced parameters", "advanced_config", advancedConfig, ADVANCED_LEN, NULL, NULL, "type=\"text\" maxlength=255");
+
+  iotwebconf2::ParameterGroup groupDisplay = iotwebconf2::ParameterGroup("Display config", "Display");
+  iotwebconf2::NumberParameter oledTimeoutParam = iotwebconf2::NumberParameter("OLED auto-off after (seconds, 0 = always on)", "oled_timeout", oledTimeout, NUMBER_LEN, "0", "0..3600", "min='0' max='3600' step='1'");
 };
 
 #endif

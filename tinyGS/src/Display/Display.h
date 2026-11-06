@@ -30,6 +30,11 @@ void displayShowStaMode(bool ap);
 void displayUpdate();
 void displayTurnOff();
 void displayNextFrame();
+void displayPrevFrame();
+// Resets the OLED idle timer; returns true if the screen was blanked and has been turned back on
+bool displayWake();
+// Turns the OLED off if it is on, or wakes it if it is off
+void displayToggle();
 
 extern Status status;
 

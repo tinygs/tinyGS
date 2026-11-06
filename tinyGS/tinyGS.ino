@@ -107,6 +107,7 @@ Status status;
 void printControls();
 void switchTestmode();
 void checkButton();
+void checkExtraButtons();
 void setupNTP ();
 void handleSerial ();
 void handleRawSerial ();
@@ -311,6 +312,7 @@ void loop() {
 
   // configured and no connection
   checkButton();
+  checkExtraButtons();
   if (radio.isReady())
   {
     status.radio_ready = true;
@@ -384,9 +386,67 @@ void checkButton()
   else {
     unsigned long elapsedTime = millis() - buttPressedStart;
     if (elapsedTime > 30 && elapsedTime < 1000) // short press
-      displayNextFrame();
+    {
+      if (!displayWake()) // first press only wakes a blanked screen
+        displayNextFrame();
+    }
     buttPressedStart = 0;
   }
+}
+
+// Optional board buttons (active-low): BTN_PREV = previous screen, BTN_DISPLAY = OLED on/off.
+// Either one wakes a blanked screen. GPIO 34-39 have no internal pull-ups, so boards
+// using them need external ones (the ESP32-LORA board has 10k pull-ups on 36/39).
+struct ExtraButton
+{
+  uint8_t pin = 0xFF;
+  bool lastRaw = true;
+  bool stable = true;
+  unsigned long changedAt = 0;
+
+  // Returns true once per debounced press
+  bool pressed(uint8_t boardPin)
+  {
+    if (boardPin != pin)
+    {
+      pin = boardPin;
+      if (pin == 0xFF)
+        return false;
+      pinMode(pin, pin >= 34 ? INPUT : INPUT_PULLUP);
+      lastRaw = stable = true;
+    }
+    if (pin == 0xFF)
+      return false;
+
+    bool raw = digitalRead(pin);
+    if (raw != lastRaw)
+    {
+      lastRaw = raw;
+      changedAt = millis();
+    }
+    else if (raw != stable && millis() - changedAt > 30)
+    {
+      stable = raw;
+      return !stable; // falling edge = press
+    }
+    return false;
+  }
+};
+
+void checkExtraButtons()
+{
+  static ExtraButton prevButton, displayButton;
+  board_t board;
+  if (!configManager.getBoardConfig(board))
+    return;
+
+  if (prevButton.pressed(board.BTN_PREV))
+  {
+    if (!displayWake()) // first press only wakes a blanked screen
+      displayPrevFrame();
+  }
+  if (displayButton.pressed(board.BTN_DISPLAY))
+    displayToggle();
 }
 
 void handleSerial () {
@@ -479,6 +539,19 @@ void printControls()
 
 void initSensor()
 {
+  // Config saves also happen remotely (e.g. modem changes): only re-init when sensor settings changed
+  static bool applied = false;
+  static bool lastEnabled;
+  static uint8_t lastPin, lastType;
+  static uint16_t lastInterval;
+  bool en = configManager.getSensorTxEnabled();
+  uint8_t pin = configManager.getSensorPin(), type = configManager.getSensorType();
+  uint16_t interval = configManager.getSensorTxInterval();
+  if (applied && en == lastEnabled && pin == lastPin && type == lastType && interval == lastInterval)
+    return;
+  applied = true;
+  lastEnabled = en; lastPin = pin; lastType = type; lastInterval = interval;
+
   if (configManager.getSensorTxEnabled())
   {
     uint8_t sensorType = configManager.getSensorType() == 0 ? DHT11 : DHT22;
@@ -489,13 +562,20 @@ void initSensor()
   }
   else
   {
-    sensor.setEnabled(false);
-    Log::debug(PSTR("[Sensor] Sensor TX disabled"));
+    sensor.end();
+    Log::console(PSTR("[Sensor] Sensor TX disabled"));
   }
 }
 
 void handleSensorTx()
 {
+  // Apply sensor settings saved from the web panel without needing a restart
+  if (configManager.consumeSensorConfigChanged())
+    initSensor();
+
+  // Keep the cached reading fresh for the dashboard, even between TX slots
+  sensor.update();
+
   if (!sensor.isEnabled() || !radio.isReady())
     return;
 
@@ -513,21 +593,28 @@ void handleSensorTx()
 
   if (packet[0] == '\0')
   {
-    Log::debug(PSTR("[Sensor] Failed to build sensor packet"));
+    Log::error(PSTR("[Sensor] TX skipped: could not read DHT sensor, retrying in %lu s"), sensor.getTxInterval() / 1000);
+    sensor.deferTx();
     return;
   }
 
-  radio.disableInterrupt();
-  int16_t result = radio.sendTx((uint8_t*)packet, strlen(packet));
-  radio.enableInterrupt();
+  size_t length = strlen(packet);
+  unsigned long txStart = millis();
+  int16_t result = radio.sendTx((uint8_t*)packet, length); // sendTx handles interrupts and returns to RX
+  unsigned long txDuration = millis() - txStart;
 
   if (result == 0)
   {
-    Log::console(PSTR("[Sensor] TX: %s"), packet);
-    sensor.markTransmitted();
+    sensor.markTransmitted(packet);
+    Log::console(PSTR("[Sensor] TX #%u OK -> %s @ %.4f MHz (%s), %u bytes, %lu ms: %s"),
+                 sensor.getTxCount(), status.modeminfo.satellite, status.modeminfo.frequency,
+                 status.modeminfo.modem_mode, length, txDuration, packet);
   }
   else
   {
-    Log::error(PSTR("[Sensor] TX failed with error: %d"), result);
+    sensor.markTxFailed(result);
+    Log::error(PSTR("[Sensor] TX FAILED (error %d) -> %s @ %.4f MHz, %u failures so far, retrying in %lu s"),
+               result, status.modeminfo.satellite, status.modeminfo.frequency,
+               sensor.getTxErrors(), sensor.getTxInterval() / 1000);
   }
 }

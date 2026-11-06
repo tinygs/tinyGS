@@ -1,7 +1,7 @@
 /*
-  Sensor.cpp - Class to handle DHT11 sensor for satellite telemetry
+  Sensor.cpp - Class to handle DHT11/DHT22 sensor for satellite telemetry
 
-  Copyright (C) 2024 TinyGS contributors
+  Copyright (C) 2026 TinyGS contributors
 
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,20 +19,45 @@
 
 #include "Sensor.h"
 #include "../Logger/Logger.h"
-#include "../ConfigManager/ConfigManager.h"
+#include <time.h>
 
-void Sensor::init(uint8_t pin, uint8_t type)
+void Sensor::end()
 {
   if (dht) {
     delete dht;
+    dht = nullptr;
+    pinMode(pin, INPUT);
   }
+  initialized = false;
+  enabled = false;
+  lastReading.valid = false;
+}
 
+void Sensor::init(uint8_t pin, uint8_t type)
+{
+  end();
+
+  this->pin = pin;
+  this->type = type;
   dht = new DHT(pin, type);
   dht->begin();
   initialized = true;
-  lastTxTime = 0;
+  lastTxMillis = 0;
+  lastReadMillis = 0;
 
   Log::console(PSTR("[Sensor] DHT%d initialized on pin %d"), type == DHT11 ? 11 : 22, pin);
+}
+
+void Sensor::formatNow(char* buffer, size_t size)
+{
+  time_t now = time(NULL);
+  if (now > 0) {
+    struct tm *timeinfo = gmtime(&now);
+    snprintf(buffer, size, "%02d:%02d:%02d", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  }
+  else {
+    snprintf(buffer, size, "%lus", millis() / 1000);
+  }
 }
 
 SensorData Sensor::read()
@@ -43,11 +68,14 @@ SensorData Sensor::read()
     return data;
   }
 
+  lastReadMillis = millis();
   float h = dht->readHumidity();
   float t = dht->readTemperature();
 
   if (isnan(h) || isnan(t)) {
-    Log::debug(PSTR("[Sensor] Failed to read from DHT sensor"));
+    readErrors++;
+    lastReading.valid = false;
+    Log::debug(PSTR("[Sensor] Failed to read from DHT sensor (errors: %u)"), readErrors);
     return data;
   }
 
@@ -55,8 +83,18 @@ SensorData Sensor::read()
   data.humidity = h;
   data.valid = true;
   lastReading = data;
+  formatNow(lastReadTime, sizeof(lastReadTime));
 
   return data;
+}
+
+void Sensor::update()
+{
+  if (!initialized)
+    return;
+
+  if (lastReadMillis == 0 || millis() - lastReadMillis >= READ_INTERVAL_MS)
+    read();
 }
 
 bool Sensor::shouldTransmit()
@@ -65,13 +103,16 @@ bool Sensor::shouldTransmit()
     return false;
   }
 
-  unsigned long now = millis();
+  return lastTxMillis == 0 || (millis() - lastTxMillis) >= txInterval;
+}
 
-  if (lastTxTime == 0 || (now - lastTxTime) >= txInterval) {
-    return true;
-  }
+unsigned long Sensor::getSecondsToNextTx()
+{
+  if (lastTxMillis == 0)
+    return 0;
 
-  return false;
+  unsigned long elapsed = millis() - lastTxMillis;
+  return elapsed >= txInterval ? 0 : (txInterval - elapsed + 999) / 1000;
 }
 
 void Sensor::buildPacket(char* buffer, size_t bufferSize, const char* stationName)
@@ -89,7 +130,19 @@ void Sensor::buildPacket(char* buffer, size_t bufferSize, const char* stationNam
            data.humidity);
 }
 
-void Sensor::markTransmitted()
+void Sensor::markTransmitted(const char* packet)
 {
-  lastTxTime = millis();
+  lastTxMillis = millis();
+  txCount++;
+  lastTxError = 0;
+  strlcpy(lastPacket, packet, sizeof(lastPacket));
+  formatNow(lastTxTime, sizeof(lastTxTime));
+}
+
+void Sensor::markTxFailed(int16_t error)
+{
+  // Count the attempt so a persistent failure doesn't retry on every loop
+  lastTxMillis = millis();
+  txErrors++;
+  lastTxError = error;
 }

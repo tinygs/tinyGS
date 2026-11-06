@@ -21,6 +21,7 @@
 #include "../Mqtt/MQTT_Client.h"
 #include "../Logger/Logger.h"
 #include "../Radio/Radio.h"
+#include "../Sensor/Sensor.h"
 #include "../Display/graphics.h"
 #include "../Mqtt/MQTT_credentials.h"
 #include "ArduinoJson.h"
@@ -85,12 +86,17 @@ ConfigManager::ConfigManager()
   {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1278,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz LILYGO T3_V1.6.1"     },         // SX1278
   {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1"     },     // SX1276
   {      0x3c,       21,        22,     UNUSED,         0,        25,      RADIO_SX1276,    18,     26,   UNUSED,   32,    23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "868-915MHz LILYGO T3_V1.6.1 TCXO"    }, // SX1276
-  {      0x3c,       21,        22,     UNUSED,        38,         4,      RADIO_SX1268,    18,     26,     33,     32,    23,      19,     27,     5,     1.6f,   UNUSED, UNUSED, "433 Mhz T-Beam SX1268 V1.0"    }, // SX1268 @ Antonio 
+  {      0x3c,       21,        22,     UNUSED,        38,         4,      RADIO_SX1268,    18,     26,     33,     32,    23,      19,     27,     5,     1.6f,   UNUSED, UNUSED, "433 Mhz T-Beam SX1268 V1.0"    }, // SX1268 @ Antonio
+  {      0x3c,       21,        22,     UNUSED,         0,         2,      RADIO_SX1278,    18,     26,     33,   UNUSED,  23,      19,     27,     5,     0.0f,   UNUSED, UNUSED, "433MHz ESP32-LORA (WROOM-32 + RA-01)" }, // SX1278, IoT Connect ESP32-LORA rev 1.0
   
 
  #endif
   }
 {
+#if !CONFIG_IDF_TARGET_ESP32S3 && !CONFIG_IDF_TARGET_ESP32C3
+  boards[ESP32_LORA_RA01_LF].BTN_PREV = 39;    // BTN1
+  boards[ESP32_LORA_RA01_LF].BTN_DISPLAY = 36; // BTN2
+#endif
   server.on(ROOT_URL, [this] { handleRoot(); });
   server.on(LOGO_URL, [this] { handleImage(LOGO_PNG, sizeof(LOGO_PNG)); });
  // server.on(FAVICON_URL, [this] { handleImage(FAVICON_PNG, sizeof(FAVICON_PNG)); });
@@ -131,16 +137,22 @@ ConfigManager::ConfigManager()
   groupBoardConfig.addItem(&autoUpdateParam);
   addParameterGroup(&groupBoardConfig);
 
+  groupAdvanced.addItem(&boardTemplateParam);
+  groupAdvanced.addItem(&modemParam);
+  groupAdvanced.addItem(&advancedConfigParam);
+  addParameterGroup(&groupAdvanced);
+
+  // IotWebConf2 stores parameters back-to-back in registration order, so new
+  // parameters MUST be appended after all existing ones. Inserting them earlier
+  // shifts the stored offsets and corrupts existing stations' config on upgrade.
   groupSensor.addItem(&sensorTxEnabledParam);
   groupSensor.addItem(&sensorTypeParam);
   groupSensor.addItem(&sensorPinParam);
   groupSensor.addItem(&sensorTxIntervalParam);
   addParameterGroup(&groupSensor);
 
-  groupAdvanced.addItem(&boardTemplateParam);
-  groupAdvanced.addItem(&modemParam);
-  groupAdvanced.addItem(&advancedConfigParam);
-  addParameterGroup(&groupAdvanced);
+  groupDisplay.addItem(&oledTimeoutParam);
+  addParameterGroup(&groupDisplay);
 }
 
 void ConfigManager::handleRoot()
@@ -341,6 +353,13 @@ void ConfigManager::handleDashboard()
   s += "<tr><td>Signal SNR </td><td>" + String(status.lastPacketInfo.snr) + "</td></tr>";
   s += "<tr><td>Frequency error </td><td>" + String(status.lastPacketInfo.frequencyerror) + "</td></tr>";
   s += "<tr><td colspan=\"2\" style=\"text-align:center;\">" + String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "") + "</td></tr>";
+  s += F("</table></div>");
+
+  s += F("<div class=\"card\"><h3>DHT Sensor</h3><table id=\"sensordata\">");
+  String sensorValues[SENSOR_STATUS_ROWS];
+  getSensorStatus(sensorValues);
+  for (uint8_t r = 0; r < SENSOR_STATUS_ROWS; r++)
+    s += "<tr><td>" + String(SENSOR_STATUS_LABELS[r]) + " </td><td>" + sensorValues[r] + "</td></tr>";
   s += F("</table></div>");
   s += FPSTR(IOTWEBCONF_CONSOLE_BODY_INNER);
   s += "<br /><button style='max-width: 1080px;' onclick=\"window.location.href='" + String(ROOT_URL) + "';\">Go Back</button><br /><br />";
@@ -578,11 +597,49 @@ else {
   data_string += String(status.lastPacketInfo.frequencyerror) + ",";
   data_string += String(status.lastPacketInfo.crc_error ? "CRC ERROR!" : "");
 
+  // DHT sensor status (for sensordata id table data)
+  String sensorValues[SENSOR_STATUS_ROWS];
+  getSensorStatus(sensorValues);
+  for (uint8_t r = 0; r < SENSOR_STATUS_ROWS; r++)
+    data_string += "," + sensorValues[r];
+
 
   server.sendContent(data_string + "\n");
 
   server.sendContent("");
   server.client().stop();
+}
+
+// Values must not contain commas: the refresh endpoint is comma-separated
+void ConfigManager::getSensorStatus(String values[SENSOR_STATUS_ROWS])
+{
+  Sensor &sensor = Sensor::getInstance();
+
+  if (!sensor.isInitialized())
+  {
+    values[0] = F("<span class='R'>DISABLED</span>");
+    for (uint8_t r = 1; r < SENSOR_STATUS_ROWS; r++)
+      values[r] = "-";
+    return;
+  }
+
+  const SensorData &reading = sensor.getLastReading();
+  values[0] = reading.valid ? F("<span class='G'>OK</span>") : F("<span class='R'>READ ERROR</span>");
+  values[1] = String(sensor.getType() == DHT22 ? "DHT22" : "DHT11") + " / GPIO " + String(sensor.getPin());
+  values[2] = reading.valid ? String(reading.temperature, 1) + " &deg;C / " + String(reading.humidity, 1) + " %" : String("- / -");
+  values[3] = String(sensor.getLastReadTime()) + " (" + String(sensor.getReadErrors()) + " err)";
+  values[4] = String(sensor.getTxCount()) + " / " + String(sensor.getTxErrors());
+  if (sensor.getLastTxError())
+    values[4] += " <span class='R'>(err " + String(sensor.getLastTxError()) + ")</span>";
+  else if (sensor.getTxCount())
+    values[4] += " @ " + String(sensor.getLastTxTime());
+
+  if (!getAllowTx())
+    values[5] = F("<span class='R'>TX off in config</span>");
+  else if (!strcmp(status.modeminfo.satellite, "Waiting"))
+    values[5] = F("waiting for sat");
+  else
+    values[5] = "in " + String(sensor.getSecondsToNextTx()) + " s";
 }
 
 void ConfigManager::handleRestart()
@@ -842,6 +899,8 @@ void ConfigManager::printConfig()
 
 void ConfigManager::configSavedCallback()
 {
+  sensorConfigChanged = true;
+
   // If the station name changes we have to restart as it is considered a different station
   if (strcmp(getThingName(), savedThingName))
   {
@@ -1043,6 +1102,8 @@ bool ConfigManager::parseBoardTemplate(board_t &board)
     board.TX_EN = doc["TXEN"];
   else
     board.TX_EN = UNUSED;
+  board.BTN_PREV = doc.containsKey("bPrev") ? (uint8_t)doc["bPrev"] : UNUSED;
+  board.BTN_DISPLAY = doc.containsKey("bDisp") ? (uint8_t)doc["bDisp"] : UNUSED;
 
   return true;
 }
